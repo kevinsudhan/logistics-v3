@@ -14,13 +14,10 @@ import {
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
-import MailBody from "../components/MailBody";
-import MessageHeader from "../components/MessageHeader";
-import ComposeMail from "../components/ComposeMail";
-import PushMailToQueue from "../components/PushMailToQueue";
+import ThreadReader from "../components/ThreadReader";
 import { useAuth } from "../lib/auth";
 import { failureText, type FailureText } from "../lib/errorText";
-import { groupIntoThreads, involves, type Thread } from "../lib/threads";
+import { groupIntoThreads, involves } from "../lib/threads";
 import {
   getMessage,
   mentionsQuery,
@@ -77,11 +74,7 @@ export default function PartnerThreads() {
   const [error, setError] = useState<FailureText | null>(null);
 
   /** The thread being read, and the full messages fetched for it. */
-  const [openThread, setOpenThread] = useState<string | null>(null);
-  const [threadMessages, setThreadMessages] = useState<MailMessage[]>([]);
-  const [threadBusy, setThreadBusy] = useState(false);
 
-  const [composing, setComposing] = useState<null | { replyTo: MailMessage }>(null);
 
   /** ALG / PALG references, by conversation id, and which series to show. */
   const [refs, setRefs] = useState<Map<string, ThreadRef>>(new Map());
@@ -157,14 +150,23 @@ export default function PartnerThreads() {
     [refs]
   );
 
-  /** Threads where the partner is actually on the message. */
-  const correspondence = useMemo(
+  /** The messages behind each list, filtered by the chips above them. */
+  const correspondenceMessages = useMemo(
     () =>
-      groupIntoThreads(messages.filter((m) => involves(m, addresses))).filter(
-        (t) => refFilter === "all" || kindOf(t.conversationId) === refFilter
-      ),
+      messages
+        .filter((m) => involves(m, addresses))
+        .filter((m) => refFilter === "all" || kindOf(m.conversationId) === refFilter),
     [messages, addresses, refFilter, kindOf]
   );
+
+  const mentionMessages = useMemo(
+    () =>
+      messages
+        .filter((m) => !involves(m, addresses))
+        .filter((m) => refFilter === "all" || kindOf(m.conversationId) === refFilter),
+    [messages, addresses, refFilter, kindOf]
+  );
+
 
   /** How many threads sit under each chip, so an empty one is visibly empty. */
   const refCounts = useMemo(() => {
@@ -203,57 +205,7 @@ export default function PartnerThreads() {
     [partner]
   );
 
-  /** Threads that only mention the address — kept apart, not discarded. */
-  const mentions = useMemo(
-    () =>
-      groupIntoThreads(messages.filter((m) => !involves(m, addresses))).filter(
-        (t) => refFilter === "all" || kindOf(t.conversationId) === refFilter
-      ),
-    [messages, addresses, refFilter, kindOf]
-  );
 
-  /**
-   * Opens a thread, and fetches the messages in it.
-   *
-   * The search result carries a preview, not a body. Reading needs the whole
-   * thing, and a thread is short enough that fetching all of them at once is
-   * one wait rather than one per message as you scroll.
-   */
-  const openOn = useCallback(
-    async (t: Thread) => {
-      if (openThread === t.conversationId) {
-        setOpenThread(null);
-        setThreadMessages([]);
-        return;
-      }
-      setOpenThread(t.conversationId);
-      setThreadMessages([]);
-      setThreadBusy(true);
-      try {
-        // Ask Graph for the conversation rather than reusing the search hits:
-        // the search only found the messages that matched, and a thread is the
-        // whole exchange including the ones that did not.
-        const inThread = t.conversationId.startsWith("single:")
-          ? t.messages
-          : await messagesInConversation(mailbox, t.conversationId).catch(() => t.messages);
-
-        const full = await Promise.all(
-          inThread.map((m) => getMessage(mailbox, m.id, m.folder).catch(() => m))
-        );
-        setThreadMessages(
-          full.sort(
-            (a, b) =>
-              (Date.parse(a.receivedDateTime) || 0) - (Date.parse(b.receivedDateTime) || 0)
-          )
-        );
-      } catch (e) {
-        setError(failureText(e, "Could not open that thread."));
-      } finally {
-        setThreadBusy(false);
-      }
-    },
-    [openThread, mailbox]
-  );
 
 
   if (loading && !partner) {
@@ -379,66 +331,40 @@ export default function PartnerThreads() {
             ))}
           </div>
 
-          <ThreadList
+          <ThreadReader
+            mailbox={mailbox}
+            fromName={session?.name ?? ""}
+            signature={session?.signature ?? ""}
+            partnerId={partner.id}
+            messages={correspondenceMessages}
+            refFor={(id) => refs.get(id) ?? null}
+            onGiveRef={giveRef}
+            assigning={assigning}
             title="Correspondence"
             hint={`Threads ${partner.organisation || partner.name} is on.`}
-            refs={refs}
-            assigning={assigning}
-            onGiveRef={giveRef}
-            threads={correspondence}
             emptyHint="Nothing exchanged with this address yet."
-            openThread={openThread}
-            threadMessages={threadMessages}
-            threadBusy={threadBusy}
-            onOpen={openOn}
-            onReply={(m) => setComposing({ replyTo: m })}
             onChanged={load}
           />
 
-          {mentions.length > 0 && (
-            <ThreadList
+          {mentionMessages.length > 0 && (
+            <ThreadReader
+              mailbox={mailbox}
+              fromName={session?.name ?? ""}
+              signature={session?.signature ?? ""}
+              partnerId={partner.id}
+              messages={mentionMessages}
+              refFor={(id) => refs.get(id) ?? null}
+              onGiveRef={giveRef}
+              assigning={assigning}
               title="Mentioned"
               hint="Their address appears in the message but they are not on it — usually somebody else discussing them."
-              refs={refs}
-              assigning={assigning}
-              onGiveRef={giveRef}
-              threads={mentions}
               emptyHint=""
-              openThread={openThread}
-              threadMessages={threadMessages}
-              threadBusy={threadBusy}
-              onOpen={openOn}
-              onReply={(m) => setComposing({ replyTo: m })}
                 onChanged={load}
             />
           )}
         </>
       )}
 
-      {composing && (
-        <ComposeMail
-          mailbox={mailbox}
-          fromName={session?.name ?? ""}
-          // Same signature as a reply sent from the Mail screen. A reply that
-          // goes out unsigned because of which page it was written on is the
-          // kind of difference a customer notices and nobody here would.
-          signature={session?.signature ?? ""}
-          replyTo={composing.replyTo}
-          partnerId={partner.id}
-          /*
-            The reference this thread carries, so the reply goes out with it
-            in the subject and the agent's answer files itself. Read from the
-            live map rather than captured when compose opened, so a reference
-            assigned moments ago is the one that goes out.
-          */
-          reference={refs.get(composing.replyTo.conversationId)?.ref ?? null}
-          onClose={() => setComposing(null)}
-          onSent={() => {
-            setComposing(null);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -449,222 +375,3 @@ export default function PartnerThreads() {
  * In place rather than in a second pane, because a partner's list is short and
  * a two-pane layout would spend half the width on a list of five rows.
  */
-function ThreadList({
-  title,
-  hint,
-  refs,
-  assigning,
-  onGiveRef,
-  threads,
-  emptyHint,
-  openThread,
-  threadMessages,
-  threadBusy,
-  onOpen,
-  onReply,
-  onChanged,
-}: {
-  title: string;
-  hint: string;
-  refs: Map<string, ThreadRef>;
-  /** The conversation currently being given a reference, if any. */
-  assigning: string | null;
-  onGiveRef: (conversationId: string, subject: string) => void;
-  threads: Thread[];
-  emptyHint: string;
-  openThread: string | null;
-  threadMessages: MailMessage[];
-  threadBusy: boolean;
-  onOpen: (t: Thread) => void;
-  onReply: (m: MailMessage) => void;
-  onChanged: () => void;
-}) {
-  return (
-    <section className="mt-4">
-      <h2 className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-        <MessageSquare size={12} /> {title}
-        <span className="text-text-muted">{threads.length}</span>
-      </h2>
-      <p className="mb-2 text-[12px] text-text-muted">{hint}</p>
-
-      {!threads.length ? (
-        <p className="py-6 text-[13px] text-text-muted">{emptyHint}</p>
-      ) : (
-        <div className="space-y-2">
-          {threads.map((t) => {
-            const open = openThread === t.conversationId;
-            const last = t.messages[t.messages.length - 1];
-            /**
-             * What the thread-level Reply answers.
-             *
-             * The last of the messages actually fetched, not `last` above —
-             * that one comes from the search and is only the newest message the
-             * search matched. Replying to it would answer the middle of the
-             * thread whenever the final message was one the search did not hit,
-             * which is exactly the case on a long exchange.
-             */
-            const newest = threadMessages[threadMessages.length - 1];
-            return (
-              <div key={t.conversationId} className="card overflow-hidden">
-                <button
-                  onClick={() => void onOpen(t)}
-                  aria-expanded={open}
-                  className="flex w-full items-start justify-between gap-4 p-4 text-left hover:bg-surface-2"
-                >
-                  <div className="min-w-0">
-                    <p
-                      className={`truncate text-[13px] ${
-                        t.unread ? "font-medium text-text-primary" : "text-text-primary"
-                      }`}
-                    >
-                      {t.subject}
-                    </p>
-                    <p className="mt-0.5 truncate text-[12px] text-text-secondary">
-                      {last.from?.emailAddress?.name || last.from?.emailAddress?.address} · {last.bodyPreview}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {(() => {
-                      const r = refs.get(t.conversationId);
-                      if (!r) return null;
-                      // The series is legible from the reference itself, so the
-                      // badge carries no second label saying which it is.
-                      return (
-                        <span
-                          className={`font-mono text-[11px] ${
-                            r.kind === "shipment" ? "text-text-accent" : "text-text-secondary"
-                          }`}
-                          title={r.kind === "shipment" ? "Filed against an enquiry" : "Partner correspondence"}
-                        >
-                          {r.ref}
-                        </span>
-                      );
-                    })()}
-                    {t.messages.length > 1 && (
-                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-secondary">
-                        {t.messages.length}
-                      </span>
-                    )}
-                    {t.unread && <StatusPill tone="accent">New</StatusPill>}
-                    <span className="text-[11px] tabular-nums text-text-muted">
-                      {new Date(t.lastAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                  </div>
-                </button>
-
-                {open && (
-                  <div className="border-t border-border p-4">
-                    {threadBusy ? (
-                      <p className="flex items-center gap-2 py-4 text-[12px] text-text-muted">
-                        <Loader2 size={13} className="animate-spin" />
-                        Opening the thread…
-                      </p>
-                    ) : (
-                      <div className="space-y-5">
-                        {/*
-                          Giving the thread a reference, where it has none.
-                          Offered once per conversation and only when there is
-                          nothing on it already: a thread filed against an
-                          enquiry keeps that reference, because it is the one
-                          the customer has been quoted and a second number for
-                          the same exchange is how two people end up discussing
-                          one job under different names.
-                        */}
-                        {!refs.get(t.conversationId) && (
-                          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong px-3 py-2.5">
-                            <p className="text-[12px] text-text-secondary">
-                              No reference on this thread. Give it one if it is a conversation
-                              worth tracking — a rate, a claim, a change of contact.
-                            </p>
-                            <button
-                              onClick={() => onGiveRef(t.conversationId, t.subject)}
-                              disabled={assigning === t.conversationId}
-                              className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-1 px-3 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-2 disabled:opacity-60"
-                            >
-                              {assigning === t.conversationId ? (
-                                <Loader2 size={13} className="animate-spin" />
-                              ) : (
-                                <Hash size={13} />
-                              )}
-                              Assign partner ref
-                            </button>
-                          </div>
-                        )}
-
-                        {/*
-                          The thread's actions, at the top, acting on its most
-                          recent message.
-                          ------------------------------------------------------
-                          This is how every mail client does it and the reason
-                          is the same here: answering a thread means answering
-                          where it got to, so there is one Reply and it is
-                          reachable without reading to the bottom first. The
-                          buttons used to sit under every message, which meant
-                          five identical rows on a five-message thread and the
-                          only one you wanted at the very end of the scroll.
-
-                          Read and Send-to-enquiries come from the same panel
-                          the intake queue uses, so an agent's mail is turned
-                          into an enquiry by the same act as a customer's.
-                        */}
-                        {newest && (
-                          <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-                            <button
-                              onClick={() => onReply(newest)}
-                              className="flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white transition-colors hover:bg-brand-dark"
-                            >
-                              <Reply size={13} />
-                              Reply
-                            </button>
-                            <PushMailToQueue message={newest} onChanged={onChanged} />
-                          </div>
-                        )}
-
-                        {threadMessages.map((m) => (
-                          <article key={m.id} className="border-b border-border pb-5 last:border-0 last:pb-0">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <MessageHeader
-                                  message={m}
-                                  complete
-                                  when={new Date(m.receivedDateTime).toLocaleString("en-IN")}
-                                />
-                              </div>
-
-                              {/*
-                                Per message, the arrow alone. Answering one
-                                message in the middle of a thread is a real
-                                thing to want — a rate quoted three replies
-                                back — and it is rare enough that it does not
-                                need a word next to it.
-                              */}
-                              <button
-                                onClick={() => onReply(m)}
-                                title="Reply to this message"
-                                aria-label={`Reply to the message from ${
-                                  m.from?.emailAddress?.name || m.from?.emailAddress?.address || "this sender"
-                                }`}
-                                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-text-muted transition-colors hover:border-border-strong hover:text-text-primary"
-                              >
-                                <Reply size={13} />
-                              </button>
-                            </div>
-
-                            <MailBody message={m} />
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
-}

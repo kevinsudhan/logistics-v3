@@ -26,6 +26,7 @@ import PartnerQuotes from "../components/PartnerQuotes";
 import DocumentsPanel from "../components/DocumentsPanel";
 import { documentDataFromEnquiry } from "../lib/documents";
 import AcceptancePanel from "../components/AcceptancePanel";
+import ThreadReader from "../components/ThreadReader";
 import {
   correspondenceFor,
   shipmentFor,
@@ -68,6 +69,16 @@ import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
  * ---------------------------------------------------------------------------
  */
 const SECTIONS = [
+  // Mail first, and the default. On a desk whose work is the mailbox, "read
+  // this and answer it" is what opening an enquiry is for; everything else on
+  // this file is something you go to afterwards.
+  { key: "mail", label: "Mail" },
+  // The history, on a page of its own. It used to share the correspondence
+  // section, interleaved with the messages — which meant four rows of "mail
+  // linked", "assigned", "promoted from intake" sitting above the one thing
+  // somebody opened the enquiry to read. It answers how this got here, which
+  // is a different question asked at a different time.
+  { key: "timeline", label: "Timeline" },
   { key: "details", label: "Details" },
   // Partners and the quotation are one section, in that order. You ask the
   // agents for a rate, their replies come back, and the quotation is built from
@@ -76,7 +87,6 @@ const SECTIONS = [
   { key: "quote", label: "Partners & quote" },
   { key: "documents", label: "Documents" },
   { key: "billing", label: "Billing" },
-  { key: "mail", label: "Correspondence" },
 ] as const;
 
 type Section = (typeof SECTIONS)[number]["key"];
@@ -90,7 +100,7 @@ type Section = (typeof SECTIONS)[number]["key"];
  * source of the type.
  */
 const VISIBLE_SECTIONS = MAIL_ONLY_CASE_FILE
-  ? SECTIONS.filter((s) => s.key === "mail")
+  ? SECTIONS.filter((s) => s.key === "mail" || s.key === "timeline")
   : SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_DESK);
 
 /** Where the file opens, and where an unknown `?section=` lands. */
@@ -448,7 +458,35 @@ export default function CaseFile() {
           </div>
         ))}
 
+      {/*
+        The mail itself — opened, read in full, and answered without leaving
+        the enquiry. The same reader the partner screen uses, so a reply from
+        here carries the signature, the draft-a-reply assistant and the
+        reference in the subject exactly as one sent from there does.
+
+        Every thread on a case file already has a reference: the enquiry's. So
+        `refFor` answers with it for all of them and no assign button is
+        offered — there is nothing to assign.
+      */}
       {section === "mail" && (
+        <ThreadReader
+          mailbox={mailbox}
+          fromName={session?.name ?? ""}
+          signature={session?.signature ?? ""}
+          messages={mail.map((f) => f.message)}
+          refFor={() => ({ conversationId: "", ref: enquiry.ref, kind: "shipment" })}
+          title="Correspondence"
+          hint={`Everything filed against ${enquiry.ref}. Open a thread to read it and reply.`}
+          emptyHint={
+            mailIsLive()
+              ? "Nothing filed against this reference yet."
+              : "Outlook is not connected on this session, so the correspondence cannot be read."
+          }
+          onChanged={load}
+        />
+      )}
+
+      {section === "timeline" && (
         <>
       {/* ---- correspondence and history ---- */}
       <div className="mt-5 flex items-center gap-2">
