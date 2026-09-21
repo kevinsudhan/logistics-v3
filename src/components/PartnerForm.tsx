@@ -23,6 +23,7 @@ export default function PartnerForm({
   suggestions,
   onClose,
   onSaved,
+  inline = false,
 }: {
   /** Absent when adding. */
   partner?: Partner;
@@ -30,6 +31,17 @@ export default function PartnerForm({
   suggestions: string[];
   onClose: () => void;
   onSaved: () => void;
+  /**
+   * Rendered as a panel on a page rather than as a dialog over one.
+   *
+   * A dialog dismisses on a click outside it and on Escape, which is right when
+   * it is floating over something you were already looking at. On a page of its
+   * own there is no "outside" — the backdrop is the whole screen — so the same
+   * behaviour means one stray click throws away a half-typed partner. Inline
+   * drops the backdrop and the Escape key; Cancel is then the only way out,
+   * which on a page is the only one that should exist.
+   */
+  inline?: boolean;
 }) {
   const [name, setName] = useState(partner?.name ?? "");
   const [organisation, setOrganisation] = useState(partner?.organisation ?? "");
@@ -42,13 +54,32 @@ export default function PartnerForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Whether anything has been typed.
+   *
+   * A dialog that dismisses on a click outside it is right for one you are
+   * only reading. Once there is work in it, the same click is a way to lose
+   * that work silently — you meant to click the panel, you missed by ten
+   * pixels, and the contact you were halfway through entering is gone with no
+   * undo. Cancel and Escape still close it; they are deliberate.
+   */
+  const dirty =
+    name.trim() !== "" ||
+    organisation.trim() !== "" ||
+    emails.trim() !== "" ||
+    phones.trim() !== "" ||
+    notes.trim() !== "" ||
+    draftTag.trim() !== "" ||
+    tags.length > 0;
+
   useEffect(() => {
+    if (inline) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, inline]);
 
   const list = (s: string) =>
     s
@@ -103,22 +134,37 @@ export default function PartnerForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-6"
-      onClick={onClose}
+      className={
+        inline
+          ? ""
+          : "fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-6"
+      }
+      // No backdrop to dismiss on when inline: the click target would be the
+      // whole page. And even as a dialog, it stops dismissing once there is
+      // something typed — same reason, smaller target.
+      onClick={inline || dirty ? undefined : onClose}
     >
       <div
-        className="w-full sm:max-w-lg rounded-t-card sm:card shadow-xl max-h-[92vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
+        className={
+          inline
+            ? "card max-w-2xl flex flex-col"
+            : "w-full sm:max-w-lg rounded-t-card sm:card shadow-xl max-h-[92vh] flex flex-col"
+        }
+        onClick={inline ? undefined : (e) => e.stopPropagation()}
+        role={inline ? "group" : "dialog"}
         aria-label={partner ? "Edit partner" : "Add partner"}
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h2 className="text-[14px] font-medium text-text-primary">
             {partner ? "Edit partner" : "Add partner"}
           </h2>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
-            <X size={16} />
-          </button>
+          {/* The close cross belongs to a dialog. On a page, Cancel in the
+              footer is the way back and a second one would be clutter. */}
+          {!inline && (
+            <button onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
+              <X size={16} />
+            </button>
+          )}
         </header>
 
         <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-4 space-y-3" noValidate>

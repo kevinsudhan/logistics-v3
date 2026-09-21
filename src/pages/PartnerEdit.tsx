@@ -111,11 +111,17 @@ export default function PartnerEdit() {
         </div>
       )}
 
+      {/*
+        inline, because this is a page. As a dialog the form dismisses on a
+        click outside it — and on a page of its own, "outside it" is everywhere,
+        so adding a partner meant one stray click throwing the whole thing away.
+      */}
       <PartnerForm
         partner={partner ?? undefined}
         suggestions={tags}
         onClose={done}
         onSaved={done}
+        inline
       />
     </div>
   );
