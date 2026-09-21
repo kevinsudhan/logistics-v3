@@ -1,9 +1,14 @@
 # Handoff — Araxys CRM v2
 
-The freight desk for **Aashish Logistics Global**. This file covers `araxys-crm-v2` only —
-v1 (`../araxys-crm`) is a separate, older codebase and is not to be touched.
+The freight desk for **Aashish Logistics Global**. This file covers `araxys-crm-v2` only.
+v1 (`../araxys-crm`) is a separate, older codebase on a different Supabase project and a
+different branch; it is not to be touched from here.
 
-Written 14 September 2026. Read the **Do these first** section before anything else.
+Written 14 September 2026. **Revised 21 September 2026** — the sections on the backend, the
+accounts surface and the billing gap were materially wrong after a week of work; see §12 for
+what changed.
+
+Read **§1 Do these first** before anything else.
 
 ---
 
@@ -17,24 +22,23 @@ compromised:
 | Credential | Where to rotate |
 |---|---|
 | Gemini API key `AQ.Ab8RN6Iq…` | aistudio.google.com → then update the `GEMINI_API_KEY` secret in Supabase |
-| SnapServe `sk_live_705b5d…` | SnapServe account (v1 only — v2 does not use it) |
+| SnapServe `sk_live_705b5d…` | SnapServe account (v1 only — v2 no longer uses it at all) |
 | Anthropic `sk-ant-api03-YN9atg…` | console.anthropic.com (not used by v2) |
 | Azure client secret `JX38Q~…` | Entra ID → app registration → Certificates & secrets |
 
-Only the first is live in v2. The others belong to v1 but were exposed in the same
-transcript.
+Only the first and last are live in v2.
 
 ### Decide on the Gemini billing question
 
-The `classify-enquiry` function runs on Gemini's **free tier against live customer mail**.
-That was a deliberate, informed choice — it is written into the function's header comment —
-but it means Google's unpaid terms apply: submitted content is used "to provide, improve,
-and develop Google products", and human reviewers may see it. India is not covered by the
-EEA/UK/Swiss carve-out.
+`classify-enquiry` — now the **only** Edge Function in v2 — runs on Gemini's **free tier
+against live customer mail**. That was a deliberate, informed choice, written into the
+function's header comment, but it means Google's unpaid terms apply: submitted content is
+used "to provide, improve, and develop Google products", and human reviewers may see it.
+India is not covered by the EEA/UK/Swiss carve-out.
 
 What passes through is real: rate cards, quotations, and the names, addresses and phone
-numbers of customers who have not been asked about it. Under the DPDP Act that makes
-Aashish Logistics the data fiduciary for the transfer.
+numbers of customers who have not been asked about it. Under the DPDP Act that makes Aashish
+Logistics the data fiduciary for the transfer.
 
 **Enabling billing on the Google Cloud project flips those terms with no code change** — no
 key change, nothing to edit. At this volume it is a few hundred rupees a month, and it also
@@ -43,150 +47,184 @@ function retries).
 
 ---
 
-## 2. What it is
+## 2. What it is, and where the data actually lives
 
-An operations CRM built around the mailbox. A customer emails; the desk reads it, files it
-against a permanent reference, puts it on a container, asks partners for a rate, quotes the
-customer, books it, and issues shipping documents.
+A React + TypeScript + Vite + Tailwind front end for a freight forwarder and consolidator:
+enquiry intake from mail and the website, quoting, container stowage in 3D, shipments,
+documents, and a full accounts ledger.
 
-**Stack.** React 18 + TypeScript + Vite + Tailwind. Supabase for Postgres, RLS, and Edge
-Functions. Microsoft Graph for mail, called directly from the browser with a delegated
-token. Gemini for three specific jobs (see §5).
+### The backend question, answered properly
 
-**No backend of its own.** `server/` and `server-v2/` are v1 leftovers. v2 talks to Supabase
-and Graph directly; `services/backend.ts` still defaults to an in-memory mock unless
-`VITE_MOCK_BACKEND=off`.
+`WORKSPACE-V2.md` says "v2 has no backend". **That is no longer true and is the single most
+misleading thing in this repo.** It was written on 28 August, when the front end ran entirely
+against an in-memory mock. Since then v2 has grown its own database.
 
-### Routes
+There are two data paths, and which one a screen uses depends on when it was built:
 
-```
-/login  /admin/login  /admin
-/                     Overview
-/mail                 Outlook, in the CRM
-/intake               "Enquiries" — the queue before a reference is allocated
-/enquiries            "Inbound enquiries" — the board
-/enquiries/:ref       The case file
-/my-enquiries         What one person has taken on
-/containers           Containers the desk has booked
-/space-containers     The 3D stowage planner (v1 feature, still works)
-/shipments/in-process /shipments/completed /shipments/:id
-/documentation  /partners  /complaints  /billing  /analytics
-/oversight            Admin only, password-gated
-```
-
----
-
-## 3. The flow it supports
-
-1. **Mail arrives** → `/mail`. **Read this** classifies it and extracts the fields.
-2. **Send to enquiries** (queue it) or **My enquiries** (queue, promote and claim in one).
-3. On the case file: **Ask partners** sends a rate request to each selected partner
-   separately. **Check for replies** finds their answers and reads the rate out of them.
-4. Quote the customer, mark accepted, **Promote to shipment**.
-5. `/shipments/in-process` → **Fill in the missing details** → all 12 documents issue.
-
-A seeded case exists for demonstrating this end to end:
-
-```bash
-node supabase-v2/seed-showcase.mjs you@example.com
-```
-
-Idempotent — every row upserts on a `DEMO-` id. The partner is created at whatever address
-you pass, so the rate request can actually be answered and watched coming back.
-
----
-
-## 4. Commands
-
-```bash
-npm run dev            # http://localhost:5174
-npm run build          # tsc -b, vite build, then a bundle secret scan
-npm test               # all seven suites
-
-node supabase-v2/run-sql.mjs 029-clean-signatures.sql
-node supabase-v2/deploy-function.mjs classify-enquiry --verify-jwt
-```
-
-**`--verify-jwt` is not optional** for anything the browser calls. Without it the function
-URL is open to anyone who finds it, and `classify-enquiry` spends money per request.
-
-There is no Supabase CLI on these machines. Migrations go through the Management API via
-`run-sql.mjs`, which reads `SUPABASE_ACCESS_TOKEN` from
-`../araxys-crm/snapserve-setup/.env`. Project ref: `izgbrdeybhbepftloxgk`.
-
----
-
-## 5. Where the model is, and where it deliberately is not
-
-One Edge Function, `classify-enquiry`, with four modes:
-
-| Mode | Used by | Returns |
+| Path | Services | Goes to |
 |---|---|---|
-| `classify` | **Read this** on mail and queued rows | JSON via `responseSchema` |
-| `draft` | **Draft a reply** in compose | Prose |
-| `quote` | **Check for replies** | JSON — amount, currency, transit, validity |
-| `rfq` | **Write it with AI** in the partner request | Prose |
+| **Supabase, directly** | `billing` `bills` `classify` `consoles` `containers` `enquiries` `graphMail` `intake` `partners` `quoteLines` `receipts` `reports` `rfq` `shipmentContainers` | **v2's own project** `izgbrdeybhbepftloxgk` |
+| **`backend.ts`, mock-gated** | `classify` `enquiries` `forwardChain` `intake` `rfq` `webEnquiry` | in-memory mock unless `VITE_MOCK_BACKEND=off` |
 
-**The partner rate request is a deterministic template by default.** `draftRequest()` in
-`services/rfq.ts` copies every figure straight off the enquiry row and cannot get one wrong.
-The AI version is opt-in, requires a written brief, and one press reverts to the template.
-This was an explicit decision — do not quietly make AI the default.
+The client is built once in `src/lib/supabase.ts` from `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_ANON_KEY`, so every direct call goes through **RLS as the signed-in user** —
+there is no service-role key in the browser, and `scripts/check-bundle-secrets.mjs` fails the
+build if one ever reaches the bundle.
 
-Every prompt carries the same rule: **never state a figure that is not in the source**. It
-is tested. Notable verified behaviours:
+### Why v1 is safe regardless
 
-- A partner reply listing charges with no total returns `amount: null` with the components
-  in the notes — it does **not** add them up.
-- "Please confirm the gross weight" is **not** read as a decline.
-- A figure the operator types into their own brief *is* allowed — that is their statement,
-  not a fabrication.
-- No fill-in placeholders (`[vessel name]`) — the prompt forbids them, because that text is
-  sent as written.
+v2 is on a **different Supabase project**:
 
-### Deterministic on purpose
+```
+v1   wremiarcmppuncgfzrqb.supabase.co     shared with the live voice agents
+v2   izgbrdeybhbepftloxgk.supabase.co     v2 only
+```
 
-- **`lib/greeting.ts`** — the reply salutation. Never writes *Mr.* or *Ms.*: that means
-  guessing gender from a name, and the desk writes to agents across a dozen countries.
-- **`services/forwardChain.ts`** — who forwarded a mail and who originally sent it, read
-  from Exchange headers (`X-MS-Exchange-Inbox-Rules-Loop`) and the body's forward block.
-- **`services/webEnquiry.ts`** — website form submissions, parsed by regex.
+That is the real isolation, and it is stronger than the mock ever was. The mock now only
+guards the legacy space/records surface. There is also no `snapserve-setup/.env` in this
+folder, so the scripts that PATCH live agent prompts cannot run from here even by accident.
+
+### Stack
+
+- React 18, TypeScript, Vite, Tailwind, React Router
+- Supabase (Postgres + RLS + Auth + one Edge Function)
+- Microsoft Graph for mail (`graphMail.ts`)
+- Gemini for enquiry classification
+- 3D stowage rendered as SVG — no 3D library; the projection is `src/lib/scene3d.ts`
 
 ---
 
-## 6. Migrations
+## 3. Routes — 40 pages
 
-`001`–`015` are v1. v2's are:
+**Desk (21)**
+`Overview` `Intake` `Enquiries` `MyEnquiries` `CaseFile` `Oversight` `Consoles` `Containers`
+`SpaceContainers` `ShipmentsInProcess` `ShipmentsCompleted` `ShipmentDetail` `Partners`
+`Payables` `Billing` `Mail` `Documentation` `Analytics` `Complaints` `AdminControl` `Login`
 
-| | |
+**Shipment detail, tabbed (5)** — `shipment/`
+`ShipmentOverview` `ShipmentParties` `ShipmentContainers` `ShipmentCosts` `ShipmentInvoices`
+
+**Accounts (14)** — `accounts/`
+`Proformas` `Invoices` `FinalBill` `CreditNotes` `DebitNotes` `OverseasCreditNotes`
+`OverseasDebitNotes` `Receipts` `ReceiptDetails` `Payments` `PaymentDetails` `Outstanding`
+`PayablesReport` `AgentSOA`
+
+The accounts section is the newest surface and did not exist when this file was first
+written.
+
+---
+
+## 4. Data model — 42 migrations
+
+`supabase-v2/001…042`, applied in order. The ones worth knowing:
+
+| Range | What it establishes |
 |---|---|
-| `016`–`018` | The intake queue; capturing mail and website forms into it |
-| `019`–`020`, `024`–`025` | Assignment, claiming, assigning to others |
-| `021` | Oversight password (bcrypt via pgcrypto, `app_locks`, no RLS policies at all) |
-| `022` | `enquiries.received_at` — arrival, distinct from when somebody claimed it |
-| `023` | Unscheduled the voice-agent cron jobs |
-| `026` | Containers — extends `sailings`, adds `enquiries.sailing_id` |
-| `027` | `partner_quotes` — the rate-request tracking |
-| `028` | Consignee, packing and commercial columns on `shipments` |
-| `029` | Repaired signatures the editor had corrupted |
+| `001–004` | profiles, profile sync, signatures and signature images |
+| `005–007` | operations, space/sailings, KB cron |
+| `008–011`, `023`, `041` | the voice-agent surface — **now removed**, see below |
+| `012–019` | mail linking, partners, written acceptance, intake, web enquiry, assignment |
+| `020–025` | take-it-on, oversight lock, received-at, assign-to-others, promote-to-person |
+| `026–029` | containers, partner RFQ, booking documents, signature cleanup |
+| `030–040` | **the money model** |
+| `041` | drops the voice tables |
+| `042` | notes and gapless numbering |
 
-### Two schema decisions worth knowing
+### The money model (030–040)
 
-**A container *is* a sailing.** `026` extends the existing `sailings` table rather than
-adding a `containers` one — a second table for the same four facts would let the containers
-page and the stowage planner disagree about what space exists. New ids are `sl-1`, `sl-2`;
-the seeded ones are `sl-cmb-1` style and are deliberately excluded from the id generator's
-`max`, which is safe precisely because they can never collide.
+Tables: `invoices` `invoice_lines` `invoice_series` `payments` `payment_allocations`
+`bills` `bill_lines` `agent_statements` `statement_lines` `quote_lines` `consoles`
+`shipment_containers`.
 
-**Before `028`, only 3 of 12 documents could ever be issued.** Not for want of typing — the
-`shipments` table had no consignee, packing or invoice columns at all, so a complete booking
-still could not produce a final B/L. The columns exist now and `BookingDocumentDetails.tsx`
-is the form.
+That is sell side, buy side, receivables with allocation, agent statements, and per-series
+invoice numbering — the four things §9 of the original handoff called the largest hole in
+the product. GST/HSN handling appears across `030`, `036`, `038`, `039`, `040` and `042`.
+
+### Voice agents are gone from v2
+
+`023` unscheduled the cron jobs; `041` drops the tables; the `ingest-calls` and `kb-sync`
+Edge Functions and `setup-v2-agents.mjs` are deleted. `classify-enquiry` is the only function
+left. Priya and Arun live in v1 and are not v2's concern.
 
 ---
 
-## 7. Traps that cost real time
+## 5. Services — 21 modules
 
-Read this section before debugging anything that smells similar.
+`applyPlan` `backend` `billing` `bills` `caseFile` `classify` `consoles` `containers`
+`enquiries` `forwardChain` `graphMail` `intake` `mockBackend` `mockMail` `partners`
+`quoteLines` `receipts` `reports` `rfq` `shipmentContainers` `webEnquiry`
+
+`reports.ts` (370 lines) is the newest and backs the accounts pages.
+
+`applyPlan.ts` was split out of `intake.ts` **specifically so it could be tested** —
+`intake.ts` builds the Supabase client at import time, which needs Vite's `import.meta.env`
+and cannot load under plain Node. Follow that pattern for anything else worth testing.
+
+---
+
+## 6. Commands
+
+```bash
+npm run dev            # :5174 — run alongside v1 on :5173
+npm run build          # tsc -b && vite build && check-bundle-secrets
+npm test               # 10 suites, all pure logic
+npm run server         # tsx watch server/index.ts  (legacy Express, space engine)
+npm run sync:kb        # regenerate KB docs
+npm run check:secrets  # run the bundle scan on its own
+```
+
+Both CRMs run side by side on different ports. v2 is 5174.
+
+---
+
+## 7. Testing — 10 suites, all passing
+
+```
+test:space       cargo fitting in 3D, incl. the tall-crate volume maths gets wrong
+test:scene       3D projection, camera presets and bounds
+test:fields      the field catalogue
+test:web         website form parsing without inventing a field
+test:fwd     22  forward chain; refusing to call an ordinary reply a forward
+test:apply   14  applying a reading fills blanks, never overwrites
+test:greet   24  salutations — titles, initials, particles, surname-first
+test:container   container number check digit
+test:allocate    payment allocation across invoices
+test:xlsx        spreadsheet export
+```
+
+Pure logic only. **The UI is not tested.**
+
+### Testing database behaviour
+
+Run SQL in a `do $$ … $$` block ending with `raise exception 'RESULTS %', r::text` — the work
+rolls back and the findings arrive in the error message. Impersonate a role with:
+
+```sql
+perform set_config('request.jwt.claims',
+  json_build_object('sub', uid::text, 'role','authenticated')::text, true);
+set local role authenticated;
+```
+
+That is how RLS was verified for `partner_quotes`, `sailings` and `shipments`.
+
+### What was never verified
+
+**Nothing signed-in was checked in a browser.** Sign-in requires typing a password, which the
+assistant that built this does not do. Every signed-in screen was verified through temporary
+harness routes rendering the real components with fake data, plus live SQL. Specifically
+unconfirmed against a real mailbox:
+
+- a reply actually nesting in an Outlook thread (headers are correct; not watched landing)
+- the repaired signature rendering at the right size in a received message
+- Microsoft YaHei applying in the recipient's client
+
+Send yourself one reply on an existing thread and all three are answered at once.
+
+---
+
+## 8. Traps that cost real time
+
+Read this before debugging anything that smells similar. Every one of these was paid for.
 
 **Heredocs mangle backslashes.** Writing TypeScript through a bash heredoc turns `\n` into a
 literal newline, which broke a regex and two `.join("\n")` calls and produced errors far from
@@ -201,99 +239,40 @@ reflects whatever the browser asks for.
 **Graph threading needs `createReply`, not `sendMail`.** `/me/sendMail` starts a new
 conversation and sets no `In-Reply-To` or `References`, so replies landed outside the thread
 however right the "Re:" subject looked. `/createReply` returns a draft already carrying the
-threading headers; PATCH its body and send. `/reply` would also thread but appends Graph's
-own quoted copy, duplicating the one the compose box already built.
+threading headers; PATCH its body and send. `/reply` would also thread but appends Graph's own
+quoted copy, duplicating the one the compose box already built.
 
-**`internetMessageHeaders` is not in Graph's default field set,** and `$select` *replaces*
-the default rather than adding to it — so `getMessage` must name every field it needs,
-including `body`.
+**`internetMessageHeaders` is not in Graph's default field set,** and `$select` *replaces* the
+default rather than adding to it — so `getMessage` must name every field it needs, including
+`body`.
 
 **DOMPurify's `ALLOWED_URI_REGEXP` applies to every attribute value,** not just URIs. Setting
 it stripped `border="1"` and `bgcolor="#FFFF00"` and took the colour out of rate cards. It is
 deliberately not set; the default was measured and blocks what matters.
 
-**Sanitising an attribute by name is not sanitising it.** The rich-text editor allowed
-`style` and never read it, so a paste carried Tailwind's whole `--tw-*` block through and
-*replaced* `max-width:220px` on a signature image — which is why Parasu's signature arrived
-enormous. Now the declarations are whitelisted and every image gets a `max-width` regardless.
+**Sanitising an attribute by name is not sanitising it.** The rich-text editor allowed `style`
+and never read it, so a paste carried Tailwind's whole `--tw-*` block through and *replaced*
+`max-width:220px` on a signature image — which is why Parasu's signature arrived enormous. Now
+the declarations are whitelisted and every image gets a `max-width` regardless.
 
-**`.card` must live in `@layer components`.** Written as bare CSS after `@tailwind
-utilities`, it silently beats `bg-surface-2` or `border-dashed` on the same element.
+**`.card` must live in `@layer components`.** Written as bare CSS after `@tailwind utilities`,
+it silently beats `bg-surface-2` or `border-dashed` on the same element.
 
 **`surface-inset` is a CSS variable but not in the Tailwind config** — `bg-surface-inset`
 renders nothing. Only `surface-0/1/2` exist as utilities.
 
 ---
 
-## 8. Testing
-
-```
-test:space   Cargo fitting in 3D, incl. the tall crate volume maths gets wrong
-test:web     Website form parsing without inventing a field
-test:fwd     Forward chain; refusing to call an ordinary reply a forward   (22)
-test:apply   Applying a reading fills blanks, never overwrites             (14)
-test:greet   Salutations — titles, initials, particles, surname-first      (24)
-test:scene   3D projection
-test:fields  The field catalogue
-```
-
-Pure logic only; the UI is not tested. `applyPlan.ts` was split out of `intake.ts`
-specifically so it could be tested — `intake.ts` builds the Supabase client at import time,
-which needs Vite's `import.meta.env` and cannot load under plain Node.
-
-### Testing database behaviour
-
-Run SQL in a `do $$ … $$` block that ends with `raise exception 'RESULTS %', r::text` — the
-work rolls back and the findings come out in the error message. Impersonate a role with:
-
-```sql
-perform set_config('request.jwt.claims',
-  json_build_object('sub', uid::text, 'role','authenticated')::text, true);
-set local role authenticated;
-```
-
-That is how RLS was verified for `partner_quotes`, `sailings` and `shipments`.
-
-### What was never verified
-
-**Nothing signed-in was checked in a browser.** Sign-in requires entering a password, which
-the assistant that built this does not do. Every signed-in screen was verified through
-temporary harness routes rendering the real components with fake data, plus live SQL against
-the database. Specifically unconfirmed against a real mailbox:
-
-- A reply actually nesting in an Outlook thread (headers are correct; not watched landing)
-- The repaired signature rendering at the right size in a received message
-- Microsoft YaHei applying in the recipient's client
-
-Send yourself one reply on an existing thread and check all three at once.
-
----
-
 ## 9. Known gaps
 
-Ordered by what actually bites.
-
-### Billing — the largest hole
-
-There is a Billing page and an invoice generator, but **no money model**. No invoices table,
-no line items, no payments, no receivables. `shipments.agreed_inr` is one number.
-
-For a consolidator the business *is* the gap between what the shipper pays and what the line
-and agents charge, and none of that exists:
-
-- **Sell side** — invoice line items (freight, THC, documentation, BL fee, DO, CFS), each
-  with its own tax treatment
-- **Buy side** — what the carrier and overseas agent bill you; without it there is no margin
-  per shipment
-- **Receivables** — payments, ageing, statements, "don't release the DO, they're 90 days over"
-- **GST** — gapless per-series invoice numbering, HSN/SAC per line, place of supply,
-  CGST/SGST vs IGST. Compliance, not a nicety.
+Ordered by what actually bites. **Billing is no longer top of this list** — see §12.
 
 ### Consol-specific
 
-- **No console as an object** — no manifest, no master-vs-house B/L. The registry issues one
-  B/L; a consolidator issues an MBL and N HBLs on its own series.
-- **Chargeable weight** (w/m) is computed nowhere. Every LCL quote turns on it. Small job.
+- **Chargeable weight (w/m) is computed nowhere.** Every LCL quote turns on it. Small job,
+  still the highest value-per-hour item on this list.
+- `consoles` exists as a table now, but **master-vs-house B/L is not modelled**: the registry
+  issues one B/L, whereas a consolidator issues an MBL and N HBLs on its own series.
 - **No load factor or profitability per container.**
 
 ### Operational
@@ -302,7 +281,7 @@ and agents charge, and none of that exists:
   issued to whom and when. A B/L reprinted after a correction differs silently from the one
   the customer holds.
 - **No attachments** anywhere — packing lists and MSDS arrive by mail and cannot be filed.
-- **Milestones are a stage, not dated events**, so there is no tracking to show a customer.
+- **Milestones are a stage, not dated events**, so there is nothing to show a customer.
 - **No free-time / demurrage clock.**
 
 ### Smaller
@@ -311,31 +290,61 @@ and agents charge, and none of that exists:
   the vendor's prefix on the customer's paperwork. Changing it means changing both together.
 - The partner-quote panel is on the case file, not on board rows. Deliberate — six partner
   rows plus twelve document rows on forty board rows would bury the board.
-- `scripts/shot-sink.mjs` exists only to refresh the README screenshots. Not part of the app.
+- `scripts/shot-sink.mjs` exists only to refresh README screenshots. Not part of the app.
+- `WORKSPACE-V2.md` is stale (see §2). Either correct it or delete it; leaving it is worse
+  than either, because it tells a new reader v2 cannot write to a database when it can.
 
-**If picking one thing: build invoices with line items and a payments table.** It unlocks
-receivables, ageing, margin and the GST work, and it is the thing a freight business
-genuinely cannot run without. Everything else on this list is an improvement; billing is an
-absence.
+**If picking one thing: chargeable weight.** It is small, every LCL quote depends on it, and
+the ledger underneath it is now in place.
 
 ---
 
 ## 10. Standing constraints
 
-- **Do not touch v1** (`../araxys-crm`). Shared Supabase project and SnapServe account.
-- **Voice agents are out of v2.** The cron jobs were unscheduled in `023`; the pages and
-  services are deleted. Priya and Arun's prompts in `snapserve-setup/` are the user's own
-  work and must not be edited without explicit instruction.
+- **Do not touch v1** (`../araxys-crm`). Different branch, different Supabase project, and it
+  shares a SnapServe account with live voice agents answering real calls.
+- **Voice agents are out of v2** — tables dropped in `041`, functions deleted. Priya and
+  Arun's prompts in v1's `snapserve-setup/` are the user's own work and must not be edited
+  without explicit instruction.
 - **No dummy data in v2** beyond what `seed-showcase.mjs` creates, and everything it creates
   is prefixed `DEMO-`.
-- The build fails if a credential reaches the bundle — `scripts/check-bundle-secrets.mjs`
-  runs as part of `build`, not as a step that can be skipped.
+- **The build fails if a credential reaches the bundle.** `check-bundle-secrets.mjs` runs as
+  part of `build`, not as a skippable step.
+- **The browser only ever holds the anon key.** Every direct Supabase call goes through RLS as
+  the signed-in user. If something needs the service role, it belongs in an Edge Function.
 
 ---
 
-## 11. Uncommitted
+## 11. Repository state
 
-Branch `v2`, last commit `686122d`. At the time of writing `git status` shows **153 changed
-files** — the whole of this session's work is uncommitted, including the deletion of the
-voice-agent surface. Nothing has been pushed. Committing it in coherent pieces (mail,
-containers, RFQ, documents, greeting, UI) is still to do.
+- Branch **`v2`** of `github.com/kevinsudhan/araxys-crm`. `main` is v1's branch — do not merge
+  without deciding what happens to the mock, which must not reach production.
+- Working tree **clean**. Everything committed. The previous version of this file reported
+  153 uncommitted files; that is resolved.
+- Head at time of writing: `4253260 Show the model writing, in the place the writing will appear`.
+
+---
+
+## 12. What changed since 14 September
+
+The six commits after the original handoff invalidated three of its sections.
+
+| Commit | Effect on this document |
+|---|---|
+| `b436f84` `6484a97` | Voice agents recorded then removed. §4, §10 rewritten. |
+| `f65fa08` | Project ref restored for the seed scripts. |
+| `978d766` | **Accounts as fourteen pages** and a serial number that fits. §3 rewritten. |
+| `b695f21` | Two browser-found fixes. |
+| `4253260` | Model output streams into the place the writing will appear. |
+
+Plus migrations `041` (drop voice tables) and `042` (notes and numbering), and the new
+`reports.ts` / `billing.ts` services.
+
+**The three corrections that matter:**
+
+1. **v2 has a real backend.** Fourteen services write to v2's own Supabase project. The
+   "no backend" framing survives only in `WORKSPACE-V2.md`, which is stale.
+2. **Billing is largely built.** Twelve tables covering sell side, buy side, receivables with
+   allocation, agent statements and gapless numbering. The original handoff's "if picking one
+   thing, build invoices with line items and a payments table" is done.
+3. **The tree is clean.** Nothing is pending.
