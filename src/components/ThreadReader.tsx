@@ -4,6 +4,7 @@ import MailBody from "./MailBody";
 import MessageHeader from "./MessageHeader";
 import ComposeMail from "./ComposeMail";
 import PushMailToQueue from "./PushMailToQueue";
+import FileToEnquiry from "./FileToEnquiry";
 import StatusPill from "./StatusPill";
 import { failureText, type FailureText } from "../lib/errorText";
 import { groupIntoThreads, type Thread } from "../lib/threads";
@@ -361,7 +362,16 @@ function ThreadList({
                               a shipment is exactly how this desk works.
                             */}
                             {refs.get(t.conversationId)?.kind !== "shipment" && (
-                              <PushMailToQueue message={newest} onChanged={onChanged} />
+                              <>
+                                {/*
+                                  Filing onto a job that already exists, which
+                                  is the common case for an agent: their rate
+                                  reply belongs on the customer's enquiry, not
+                                  on a new one of its own.
+                                */}
+                                <FileToEnquiry message={newest} onFiled={onChanged} />
+                                <PushMailToQueue message={newest} onChanged={onChanged} />
+                              </>
                             )}
                           </div>
                         )}

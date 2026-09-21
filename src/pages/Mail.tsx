@@ -21,6 +21,7 @@ import PageHeader from "../components/PageHeader";
 import ComposeMail from "../components/ComposeMail";
 import SignatureEditor from "../components/SignatureEditor";
 import PushMailToQueue from "../components/PushMailToQueue";
+import FileToEnquiry from "../components/FileToEnquiry";
 import MailBody from "../components/MailBody";
 import MessageHeader from "../components/MessageHeader";
 import MailListRow from "../components/MailListRow";
@@ -572,6 +573,17 @@ export default function Mail() {
                   <Reply size={13} />
                   Reply
                 </button>
+
+                {/*
+                  Filing onto an enquiry that already exists, which is a
+                  different act from the queue buttons beside it: those mint a
+                  reference, and most mail after the first on a job should not.
+                  An enquiry collects threads — the customer's original, the
+                  agent's rate, the carrier's booking note — and each arriving
+                  as its own enquiry is how one job ends up holding four
+                  references with a quarter of the correspondence under each.
+                */}
+                <FileToEnquiry message={selected} onFiled={() => void load()} />
 
                 {/*
                   Beside reply and archive, because it is the third thing you do
