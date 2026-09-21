@@ -395,6 +395,15 @@ export const conversationMessages = async (
   conversationId: string
 ): Promise<MailMessage[]> => (live() ? graph.messagesInConversation(mailbox, conversationId) : []);
 
+/**
+ * Every message in the mailbox matching a KQL query, across all folders.
+ *
+ * The caller writes the query, because `participants:"x@y"` and a bare phrase
+ * are different questions — see the header of `graphMail.searchMailbox`.
+ */
+export const searchMail = async (mailbox: string, kql: string): Promise<MailMessage[]> =>
+  live() ? graph.searchMailbox(mailbox, kql) : [];
+
 export const sendMail = async (body: {
   mailbox: string;
   fromName: string;

@@ -1,6 +1,13 @@
 import { supabase } from "../lib/supabase";
-import { refFromSubject, type PartyRole } from "./caseFile";
-import { getMailMessages, mailIsLive, type MailMessage } from "./backend";
+import { refFromSubject, subjectToken, type PartyRole } from "./caseFile";
+import {
+  conversationMessages,
+  getMailMessage,
+  getMailMessages,
+  mailIsLive,
+  searchMail,
+  type MailMessage,
+} from "./backend";
 
 /**
  * Enquiries, against v2's own Supabase project.
@@ -944,16 +951,60 @@ export async function correspondenceFor(
     (pinned.data ?? []).map((r) => [r.message_id as string, r.via as FiledMessage["via"]])
   );
 
-  const folders = ["inbox", "sent", "archive"] as const;
+  /*
+    Gathered by identifier, not by scanning recent folders.
+
+    This used to read the first page of inbox, sent and archive — fifty each —
+    and keep whatever matched. Every rule below is a precise identifier, so the
+    scan was never the thing that decided; it was only the supply of messages,
+    and it silently capped the case file at "the last fifty, per folder". A
+    thread bound to an older enquiry simply did not appear, and nothing said so:
+    the binding was right, the correspondence was right, and the screen was
+    empty. Filing a month-old exchange onto a job is exactly when somebody
+    reaches for that button.
+
+    Asking Graph for each thing by name has no such horizon and is fewer
+    requests on a typical case file — three conversations rather than a hundred
+    and fifty messages.
+  */
   const seen = new Map<string, MailMessage>();
-  for (const folder of folders) {
-    try {
-      const { messages } = await getMailMessages(mailbox, folder);
-      for (const m of messages) seen.set(m.id, m);
-    } catch {
-      // A folder that will not load should not empty the whole case file.
-    }
-  }
+
+  const [byThread, bySubject, byPin] = await Promise.all([
+    // Whole conversations, at any age.
+    Promise.all(threads.map((id) => conversationMessages(mailbox, id).catch(() => []))),
+    // Anything still carrying our token in its subject, anywhere in the mailbox.
+    searchMail(mailbox, `"${subjectToken(ref)}"`).catch(() => [] as MailMessage[]),
+    // Messages somebody pinned by hand, which may belong to no bound thread.
+    Promise.all(
+      [...pinnedIds.keys()].map((id) =>
+        getMailMessage(mailbox, id)
+          .then((r) => r.message)
+          .catch(() => null)
+      )
+    ),
+  ]);
+
+  /*
+    Stamp the direction on the way in.
+
+    Graph does not say which folder a result of a conversation or search came
+    from, and `adapt` fills in "inbox" because something has to go there. Every
+    reader downstream — this function, MailRow, the compose box — decides
+    inbound or outbound from `folder === "sent"`, so left alone our own replies
+    would render as though the customer had sent them.
+
+    The sender is the fact the folder was standing in for, so it is read once
+    here and the folder set to match. One place, and nothing downstream has to
+    know this happened.
+  */
+  const remember = (m: MailMessage) => {
+    const outbound = m.from.emailAddress.address.toLowerCase() === mailbox.toLowerCase();
+    seen.set(m.id, outbound && m.folder !== "sent" ? { ...m, folder: "sent" } : m);
+  };
+
+  for (const page of byThread) for (const m of page) remember(m);
+  for (const m of bySubject) remember(m);
+  for (const m of byPin) if (m) remember(m);
 
   const out: FiledMessage[] = [];
   for (const m of seen.values()) {
@@ -964,7 +1015,8 @@ export async function correspondenceFor(
     else if (refFromSubject(m.subject)?.toUpperCase() === ref.toUpperCase()) via = "subject";
     if (!via) continue;
 
-    // The counterparty is whichever end is not us.
+    // The counterparty is whichever end is not us. `folder` is trustworthy
+    // here because `remember` above set it from the sender.
     const counterparty =
       m.folder === "sent"
         ? m.toRecipients[0]?.emailAddress.address ?? ""
