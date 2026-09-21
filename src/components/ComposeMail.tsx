@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, Send, Sparkles, X } from "lucide-react";
 import { sendMail, mailIsLive, type MailMessage } from "../services/backend";
 import { draftReply } from "../services/classify";
+import { recordReply } from "../services/replyLog";
 import RichTextEditor from "./RichTextEditor";
 import Drafting from "./Drafting";
 import { greetingHtml } from "../lib/greeting";
@@ -22,6 +23,7 @@ export default function ComposeMail({
   initial,
   onClose,
   onSent,
+  partnerId,
 }: {
   mailbox: string;
   fromName: string;
@@ -38,6 +40,12 @@ export default function ComposeMail({
   initial?: { to?: string; subject?: string; body?: string };
   onClose: () => void;
   onSent: () => void;
+  /**
+   * The partner this reply concerns, when it is being sent from their
+   * screen. Attributes the row in the reply log; absent everywhere else,
+   * because a reply to a customer is still logged but is not theirs.
+   */
+  partnerId?: string | null;
 }) {
   /**
    * The signature is seeded into the editable body rather than bolted on at
@@ -186,6 +194,17 @@ export default function ComposeMail({
         */
         replyToId: replyTo?.id,
       });
+
+      /*
+        Record that this went out, and when, against the message it answers.
+        Only for a reply: a new message answers nothing, so there is no delay to
+        measure and a row for it would dilute the one number the log exists to
+        show. It never throws — the mail has already left, and a bookkeeping
+        failure reported here would read as a send failure and invite a second
+        copy of the same reply.
+      */
+      if (replyTo) await recordReply({ repliedTo: replyTo, partnerId });
+
       onSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send the message.");

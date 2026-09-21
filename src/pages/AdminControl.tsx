@@ -3,20 +3,23 @@ import {
   Activity,
   ArrowUpRight,
   LogOut,
-  Settings2,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
+import ReplyLog from "../components/ReplyLog";
 
 /**
  * The administrator's landing page.
  *
- * Mostly still a shell, and it says so. The one live thing on it is the link to
- * team oversight, which is built entirely on real rows. The remaining panels
- * describe what belongs here and are wired to nothing, so the warning above
- * them stays until each is replaced by something that reads a table.
+ * Everything on it reads a table. It used to carry two panels listing features
+ * that did not exist, under a banner admitting every figure was illustrative --
+ * which is worse than a shorter page, because a reader cannot tell which half
+ * of a screen like that is real.
+ *
+ * Team oversight answers "who has which enquiry and how long have they had
+ * it". The reply log answers "is an agent being left waiting", which is the
+ * same question about the half of the desk that has no enquiry attached to it.
  */
 export default function AdminControl() {
   const { session, signOut } = useAuth();
@@ -64,16 +67,6 @@ export default function AdminControl() {
           </Link>
         </div>
 
-        <div className="mt-4 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] text-text-warning">
-          <ShieldCheck size={13} className="mt-px shrink-0" />
-          Placeholder screen. The panels below are not wired to the backend and every figure
-          shown is illustrative.
-        </div>
-
-        {/*
-          The one thing on this page that is real. Everything below it is still
-          a placeholder and says so; this goes to a page built on live rows.
-        */}
         <Link
           to="/oversight"
           className="mt-6 flex flex-wrap items-center justify-between gap-3 card p-5 hover:border-border-strong transition-colors"
@@ -94,19 +87,16 @@ export default function AdminControl() {
           </span>
         </Link>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <Panel
-            title="Users & access"
-            icon={Users}
-            description="Desk staff, roles and permissions."
-            items={["Employee accounts", "Administrator accounts", "Role permissions"]}
-          />
-          <Panel
-            title="System configuration"
-            icon={Settings2}
-            description="Integrations, scheduled jobs and data retention."
-            items={["Mailbox connection", "Document templates", "Data retention"]}
-          />
+        {/*
+          Users, access and system configuration belonged here as two panels
+          listing features that did not exist — "Role permissions", "Data
+          retention" — under a banner admitting every figure was illustrative.
+          A screen that describes what it might one day do is worse than a
+          shorter screen that does something, because the reader cannot tell
+          which half is real. They are gone; what is here reads a table.
+        */}
+        <div className="mt-6">
+          <ReplyLog />
         </div>
       </main>
 
@@ -117,36 +107,3 @@ export default function AdminControl() {
   );
 }
 
-
-function Panel({
-  title,
-  icon: Icon,
-  description,
-  items,
-}: {
-  title: string;
-  icon: React.ElementType;
-  description: string;
-  items: string[];
-}) {
-  return (
-    <section className="card p-5">
-      <div className="flex items-center gap-2">
-        <Icon size={15} className="text-text-accent" />
-        <h2 className="text-[14px] font-medium text-text-primary">{title}</h2>
-      </div>
-      <p className="mt-1 text-[12px] text-text-secondary">{description}</p>
-      <ul className="mt-3 space-y-1.5">
-        {items.map((item) => (
-          <li
-            key={item}
-            className="flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-[12px] text-text-secondary"
-          >
-            {item}
-            <span className="text-[10px] text-text-muted">not wired</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}

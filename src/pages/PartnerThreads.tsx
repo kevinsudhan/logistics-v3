@@ -449,6 +449,7 @@ export default function PartnerThreads() {
           // kind of difference a customer notices and nobody here would.
           signature={session?.signature ?? ""}
           replyTo={composing.replyTo}
+          partnerId={partner.id}
           onClose={() => setComposing(null)}
           onSent={() => {
             setComposing(null);
