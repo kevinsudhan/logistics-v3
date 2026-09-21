@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, Send, Sparkles, X } from "lucide-react";
 import { sendMail, mailIsLive, type MailMessage } from "../services/backend";
 import { draftReply } from "../services/classify";
 import { recordReply } from "../services/replyLog";
+import { withToken } from "../services/caseFile";
 import RichTextEditor from "./RichTextEditor";
 import Drafting from "./Drafting";
 import { greetingHtml } from "../lib/greeting";
@@ -24,6 +25,7 @@ export default function ComposeMail({
   onClose,
   onSent,
   partnerId,
+  reference,
 }: {
   mailbox: string;
   fromName: string;
@@ -46,6 +48,21 @@ export default function ComposeMail({
    * because a reply to a customer is still logged but is not theirs.
    */
   partnerId?: string | null;
+  /**
+   * The reference this conversation carries, ALG or PALG.
+   *
+   * Named `reference` and not `ref`: `ref` is reserved on a React element,
+   * so React 18 strips it before the component sees it and warns that a
+   * function component cannot take one. The prop would simply never arrive,
+   * and the subject would go out without its token — silently, which is the
+   * worst way for a filing mechanism to fail.
+   *
+   * Put into the subject so the reply the other side sends back files
+   * itself. That is the whole mechanism: the token in the subject is how a
+   * message three weeks from now is recognised as belonging to this
+   * conversation, without anybody having to remember to file it.
+   */
+  reference?: string | null;
 }) {
   /**
    * The signature is seeded into the editable body rather than bolted on at
@@ -56,10 +73,21 @@ export default function ComposeMail({
   const sig = signature.trim() ? `<br><br>${signature.trim()}` : "";
   const [to, setTo] = useState(initial?.to ?? (replyTo ? replyTo.from.emailAddress.address : ""));
   const [cc, setCc] = useState("");
-  const [subject, setSubject] = useState(
-    initial?.subject ??
-      (replyTo ? (/^re:/i.test(replyTo.subject) ? replyTo.subject : `Re: ${replyTo.subject}`) : "")
-  );
+  /*
+    The token goes on here rather than at send time, so it is visible in the
+    box before the message leaves. Somebody editing the subject can see what
+    they are editing, and can take it off deliberately — which is different
+    from it never having been there.
+
+    withToken is idempotent: a reply to a thread that already carries the
+    reference keeps the one it has rather than gaining a second.
+  */
+  const [subject, setSubject] = useState(() => {
+    const base =
+      initial?.subject ??
+      (replyTo ? (/^re:/i.test(replyTo.subject) ? replyTo.subject : `Re: ${replyTo.subject}`) : "");
+    return reference ? withToken(base, reference) : base;
+  });
   /**
    * Everything below where the message gets written: the signature and the
    * thread being answered.

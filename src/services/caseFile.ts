@@ -107,11 +107,39 @@ export interface EnquiryThread {
  */
 export const subjectToken = (ref: string) => `[${ref}]`;
 
-const TOKEN_RE = /\[(ARX-C\d{4}-E\d{2})\]/i;
+/**
+ * The three shapes a reference has ever had, newest first.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE OLD ONE IS STILL HERE
+ *
+ * `ARX-C0001-E01` stopped being minted in 044, but it is on every subject line
+ * of every thread opened before then — and those threads are still running. A
+ * customer replying today to a quotation sent last month sends back the token
+ * they were given, and a parser that only knows the new shape would fail to
+ * file it. References are permanent precisely so that this keeps working; the
+ * reader has to be as long-lived as the thing it reads.
+ *
+ * PALG BEFORE ALG
+ *
+ * Alternation is first-match, and `ALG` is a suffix of `PALG`. Put the shorter
+ * one first and `[PALG09003-26]` matches from the `ALG`, yielding a reference
+ * that looks valid, belongs to the wrong series, and points at nothing.
+ * ---------------------------------------------------------------------------
+ */
+const TOKEN_RE = /\[((?:PALG|ALG)\d{5}-\d{2}|ARX-C\d{4}-E\d{2})\]/i;
 
 /** Pulls a reference out of a subject line, if the sender left ours intact. */
 export function refFromSubject(subject: string): string | null {
   return subject.match(TOKEN_RE)?.[1]?.toUpperCase() ?? null;
+}
+
+/** Which series a reference belongs to, from the reference alone. */
+export function seriesOf(ref: string): "shipment" | "partner" | null {
+  const r = ref.toUpperCase();
+  if (r.startsWith("PALG")) return "partner";
+  if (r.startsWith("ALG") || r.startsWith("ARX-")) return "shipment";
+  return null;
 }
 
 /** Adds the token to a subject, without doubling it on a reply. */
@@ -119,15 +147,17 @@ export function withToken(subject: string, ref: string): string {
   return refFromSubject(subject) ? subject : `${subjectToken(ref)} ${subject}`;
 }
 
-/** Next enquiry number for a customer — sequential per customer, not global. */
-export function nextRef(customerId: string, existing: string[]): string {
-  const used = existing
-    .filter((r) => r.startsWith(`ARX-${customerId}-E`))
-    .map((r) => Number(r.slice(-2)))
-    .filter((n) => !Number.isNaN(n));
-  const next = (used.length ? Math.max(...used) : 0) + 1;
-  return `ARX-${customerId}-E${String(next).padStart(2, "0")}`;
-}
+/*
+ * `nextRef` used to live here: it worked out the next enquiry number for a
+ * customer, in the ARX-C0001-E01 form, from the refs already in hand.
+ *
+ * It is gone rather than updated. Nothing called it — allocation moved into the
+ * database, where `allocate_reference` takes the counter under a lock, because
+ * two operators opening an enquiry in the same second would otherwise both read
+ * the same maximum and mint the same reference. A client-side version of that
+ * calculation cannot be made correct, and one sitting here still producing the
+ * old format is a thing somebody would reach for on the assumption that it was.
+ */
 
 // ---------------------------------------------------------------------------
 // Filing

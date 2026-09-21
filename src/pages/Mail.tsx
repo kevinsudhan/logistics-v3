@@ -39,6 +39,7 @@ import {
   type MailMessage,
 } from "../services/backend";
 import { intakeByMessage, type Intake } from "../services/intake";
+import { refsFor } from "../services/threadRefs";
 import { listPeople, type Person } from "../services/enquiries";
 
 const FOLDER_ICON: Record<FolderId, React.ElementType> = {
@@ -119,6 +120,15 @@ export default function Mail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [composing, setComposing] = useState<null | { replyTo?: MailMessage }>(null);
+  /**
+   * The reference this conversation is already filed under, if any.
+   *
+   * Usually the subject still carries it and the reply inherits it for free.
+   * This is for when it does not: plenty of senders rewrite a subject, and a
+   * reply that goes back without the token breaks the filing for every message
+   * after it. Looked up when the box opens, for the one conversation.
+   */
+  const [replyRef, setReplyRef] = useState<string | null>(null);
   const [editingSignature, setEditingSignature] = useState(false);
   const live = mailIsLive();
 
@@ -191,6 +201,27 @@ export default function Mail() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Resolve the conversation's reference when the compose box opens. Cancelled
+  // on close so a slow lookup cannot land on the next message opened.
+  useEffect(() => {
+    const conversationId = composing?.replyTo?.conversationId;
+    if (!conversationId) {
+      setReplyRef(null);
+      return;
+    }
+    let live = true;
+    refsFor([conversationId])
+      .then((found) => {
+        if (live) setReplyRef(found.get(conversationId)?.ref ?? null);
+      })
+      // Best-effort: the subject usually carries the token already, and a
+      // failed lookup must not stop somebody answering their mail.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [composing]);
 
   /**
    * Appends the next page.
@@ -630,6 +661,7 @@ export default function Mail() {
           fromName={session?.name ?? ""}
           signature={session?.signature ?? ""}
           replyTo={composing.replyTo}
+          reference={replyRef}
           onClose={() => setComposing(null)}
           onSent={() => {
             setComposing(null);

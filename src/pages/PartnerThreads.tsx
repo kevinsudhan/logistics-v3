@@ -425,6 +425,13 @@ export default function PartnerThreads() {
           signature={session?.signature ?? ""}
           replyTo={composing.replyTo}
           partnerId={partner.id}
+          /*
+            The reference this thread carries, so the reply goes out with it
+            in the subject and the agent's answer files itself. Read from the
+            live map rather than captured when compose opened, so a reference
+            assigned moments ago is the one that goes out.
+          */
+          reference={refs.get(composing.replyTo.conversationId)?.ref ?? null}
           onClose={() => setComposing(null)}
           onSent={() => {
             setComposing(null);

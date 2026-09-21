@@ -13,7 +13,7 @@
     "test:space": "tsx server/spaceEngine.test.ts",
     "start": "tsx server/index.ts",
     "test:scene": "tsx src/lib/scene3d.test.ts",
-    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads",
+    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads && npm run test:token",
     "check:secrets": "node scripts/check-bundle-secrets.mjs",
     "test:fields": "tsx supabase/functions/_shared/requestFields.test.ts",
     "test:web": "tsx scripts/tests/webEnquiry.test.ts",
@@ -24,7 +24,8 @@
     "test:allocate": "tsx scripts/tests/allocate.test.ts",
     "test:xlsx": "tsx scripts/tests/xlsx.test.ts",
     "test:errors": "tsx scripts/tests/errorText.test.ts",
-    "test:threads": "tsx scripts/tests/threads.test.ts"
+    "test:threads": "tsx scripts/tests/threads.test.ts",
+    "test:token": "tsx scripts/tests/subjectToken.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
