@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const keys = JSON.parse(readFileSync(join(root, "server-v2/.keys.json"), "utf-8"));
 
-const PROJECT = "https://izgbrdeybhbepftloxgk.supabase.co";
+import { projectUrl } from "./token.mjs";
+const PROJECT = projectUrl();
 const H = {
   apikey: keys.service_role,
   Authorization: `Bearer ${keys.service_role}`,

@@ -10,6 +10,7 @@ import {
   type Shipment,
   type ShipmentStage,
 } from "../services/enquiries";
+import { failureText, type FailureText } from "../lib/errorText";
 
 /**
  * The handover from selling to operating.
@@ -29,7 +30,7 @@ export default function PromotePanel({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FailureText | null>(null);
 
   const accepted = enquiry.status === "accepted";
 
@@ -40,7 +41,7 @@ export default function PromotePanel({
       await promoteToShipment(enquiry.ref);
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start the shipment.");
+      setError(failureText(e, "Could not start the shipment."));
     } finally {
       setBusy(false);
     }
@@ -54,7 +55,7 @@ export default function PromotePanel({
       await setShipmentStage(shipment.id, stage);
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not move the stage.");
+      setError(failureText(e, "Could not move the stage."));
     } finally {
       setBusy(false);
     }
@@ -120,12 +121,7 @@ export default function PromotePanel({
           })}
         </ol>
 
-        {error && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2.5 text-[12px] text-text-danger">
-            <AlertCircle size={13} className="mt-px shrink-0" />
-            {error}
-          </div>
-        )}
+        <ErrorNote error={error} />
       </section>
     );
   }
@@ -160,12 +156,28 @@ export default function PromotePanel({
         </p>
       )}
 
-      {error && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2.5 text-[12px] text-text-danger">
-          <AlertCircle size={13} className="mt-px shrink-0" />
-          {error}
-        </div>
-      )}
+      <ErrorNote error={error} />
     </section>
+  );
+}
+
+/**
+ * The complaint, and underneath it what to do about it.
+ *
+ * The hint is the half people act on -- "accepted on a call but not confirmed
+ * in writing" is only useful next to "send the quotation and confirm from
+ * their reply". It is set quieter so the two read as two sentences rather than
+ * one long one.
+ */
+function ErrorNote({ error }: { error: FailureText | null }) {
+  if (!error) return null;
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2.5 text-[12px] text-text-danger">
+      <AlertCircle size={13} className="mt-px shrink-0" />
+      <span>
+        {error.message}
+        {error.hint && <span className="block mt-1 opacity-80">{error.hint}</span>}
+      </span>
+    </div>
   );
 }

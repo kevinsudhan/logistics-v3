@@ -15,14 +15,16 @@ import Select from "./Select";
 import StatusPill from "./StatusPill";
 import {
   DIRECTION_LABEL,
-  KIND_LABEL,
   LINE_CURRENCIES,
   chargeHeadsFor,
   type ChargeHead,
   STATES,
+  UNITS,
+} from "../services/charges";
+import {
+  KIND_LABEL,
   STATUS_LABEL,
   TREATMENTS,
-  UNITS,
   addLine,
   cancelInvoice,
   getInvoice,

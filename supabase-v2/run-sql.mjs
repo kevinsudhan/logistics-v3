@@ -11,19 +11,11 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { accessToken, PROJECT } from "./token.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-for (const line of readFileSync(
-  join(root, "..", "araxys-crm", "snapserve-setup", ".env"),
-  "utf-8"
-).split("\n")) {
-  const m = line.match(/^([A-Z_]+)=(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
-}
-
-const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
-const PROJECT = "izgbrdeybhbepftloxgk";
+const TOKEN = accessToken();
 
 const file = process.argv[2];
 if (!file) {

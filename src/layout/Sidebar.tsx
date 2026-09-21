@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
 import { useAuth } from "../lib/auth";
+import { ACCOUNTS_DESK } from "../lib/features";
 import {
   Handshake,
   LayoutDashboard,
@@ -42,6 +43,13 @@ interface NavGroup {
   title?: string;
   items: NavItem[];
   adminOnly?: boolean;
+  /**
+   * Only shown when the accounts desk is switched on.
+   *
+   * The routes are gone too when it is off — this is the nav agreeing with the
+   * router, not the whole of the hiding.
+   */
+  accountsDesk?: boolean;
   /**
    * Draw a rule above this group.
    *
@@ -90,6 +98,7 @@ const groups: NavGroup[] = [
     // invoice is about a job. What is here are the questions that span jobs.
     title: "Accounts",
     separated: true,
+    accountsDesk: true,
     items: [
       // In the order money moves: what we raise, what comes in, what goes out,
       // then the questions asked across all of it.
@@ -109,7 +118,14 @@ const groups: NavGroup[] = [
       { to: "/accounts/payment-details", label: "Payment details", icon: ListChecks },
     ],
   },
-  { title: "Insights", items: [{ to: "/analytics", label: "Analytics", icon: BarChart3 }] },
+  {
+    title: "Insights",
+    // Accounts carries the rule when it is there. With it off, Insights would
+    // otherwise run straight on from Operations as though it were more of the
+    // same, so it takes the rule instead.
+    separated: !ACCOUNTS_DESK,
+    items: [{ to: "/analytics", label: "Analytics", icon: BarChart3 }],
+  },
   // Only an administrator sees this group. The check is cosmetic — the page
   // refuses an employee on its own — but a link that leads to a refusal is a
   // worse interface than no link.
@@ -137,7 +153,9 @@ const groups: NavGroup[] = [
  */
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session } = useAuth();
-  const visible = groups.filter((g) => !g.adminOnly || session?.role === "admin");
+  const visible = groups.filter(
+    (g) => (!g.adminOnly || session?.role === "admin") && (!g.accountsDesk || ACCOUNTS_DESK)
+  );
 
   return (
     <>

@@ -18,6 +18,7 @@ import NewEnquiry from "../components/NewEnquiry";
 import PushMailToQueue from "../components/PushMailToQueue";
 import AssignControl from "../components/AssignControl";
 import { useAuth } from "../lib/auth";
+import { failureText, type FailureText } from "../lib/errorText";
 import {
   listEnquiries,
   listPeople,
@@ -99,7 +100,7 @@ export default function Enquiries() {
   };
   const [filter, setFilter] = useState<EnquiryStatus | "all">("all");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FailureText | null>(null);
   const [creating, setCreating] = useState(false);
   /** What the queue already knows about the messages in the triage list. */
   /**
@@ -141,7 +142,7 @@ export default function Enquiries() {
       setUnfiled(mail);
       setQueued(await intakeByMessage(mail.map((m) => m.id)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load enquiries.");
+      setError(failureText(e, "Could not load enquiries."));
     } finally {
       setLoading(false);
     }
@@ -191,7 +192,7 @@ export default function Enquiries() {
       await promoteToShipment(ref);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start the shipment.");
+      setError(failureText(e, "Could not start the shipment."));
     } finally {
       setPushing(null);
     }
@@ -270,7 +271,11 @@ export default function Enquiries() {
       {error && (
         <div className="mb-3 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2.5 text-[12px] text-text-danger">
           <AlertCircle size={13} className="mt-px shrink-0" />
-          {error}
+          <span>
+            {error.message}
+            {/* The half people act on — see src/lib/errorText.ts. */}
+            {error.hint && <span className="block mt-1 opacity-80">{error.hint}</span>}
+          </span>
         </div>
       )}
 

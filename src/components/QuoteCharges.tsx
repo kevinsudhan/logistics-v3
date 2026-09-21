@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Plus, Trash2 } from "lucide-react";
 import Select from "./Select";
-import { CHARGE_HEADS, LINE_CURRENCIES, UNITS, money } from "../services/billing";
+import { CHARGE_HEADS, LINE_CURRENCIES, UNITS, money } from "../services/charges";
 import {
   addLine,
   linesFor,

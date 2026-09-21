@@ -6,6 +6,7 @@ import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import { supabase } from "../lib/supabase";
 import { money } from "../services/billing";
+import { ACCOUNTS_DESK } from "../lib/features";
 import { marginPct, shipmentMargin, type Margin } from "../services/bills";
 import {
   getShipment,
@@ -40,6 +41,10 @@ import {
  * The screen this was modelled on has eighteen fields above the fold and its
  * total below it, which means the one number everybody opens an invoice to
  * read is the one number you have to go looking for.
+ *
+ * On a build without the accounts desk all three lose their source, so the
+ * header shows what a booking owns by itself -- the agreed amount, the route
+ * and the sailing -- and the two queries behind them are not made at all.
  * ---------------------------------------------------------------------------
  */
 
@@ -92,8 +97,13 @@ const TABS = [
   { to: ".", label: "Overview", end: true },
   { to: "parties", label: "Parties & B/L", end: false },
   { to: "containers", label: "Containers", end: false },
-  { to: "invoices", label: "Invoices", end: false },
-  { to: "costs", label: "Costs", end: false },
+  // Registered as routes only when the accounts desk is on, so the tabs follow.
+  ...(ACCOUNTS_DESK
+    ? [
+        { to: "invoices", label: "Invoices", end: false },
+        { to: "costs", label: "Costs", end: false },
+      ]
+    : []),
 ];
 
 export default function ShipmentDetail() {
@@ -108,17 +118,22 @@ export default function ShipmentDetail() {
     if (!id) return;
     setError(null);
     try {
-      const [s, { data }, m] = await Promise.all([
+      // Without the accounts desk the billing summary and the margin are two
+      // round trips whose answers nothing on the page reads. The shipment on
+      // its own is what the header needs.
+      const [s, billingRow, m] = await Promise.all([
         getShipment(id),
-        supabase
-          .from("shipment_billing")
-          .select("invoice_count, draft_count, billed_inr")
-          .eq("shipment_id", id)
-          .maybeSingle(),
-        shipmentMargin(id).catch(() => null),
+        ACCOUNTS_DESK
+          ? supabase
+              .from("shipment_billing")
+              .select("invoice_count, draft_count, billed_inr")
+              .eq("shipment_id", id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        ACCOUNTS_DESK ? shipmentMargin(id).catch(() => null) : Promise.resolve(null),
       ]);
       setShipment(s);
-      setBilling((data as BillingSummary) ?? null);
+      setBilling((billingRow.data as BillingSummary) ?? null);
       setMargin(m);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the shipment.");
@@ -214,7 +229,33 @@ export default function ShipmentDetail() {
         Revenue, cost, margin — not agreed-versus-billed any more. Once the buy
         side exists, "did we make anything on this" is the question, and the
         quote is just where the revenue came from.
+
+        Without the accounts desk none of those three have a source, so the
+        header falls back to what a booking knows on its own: what was agreed,
+        where it is going, and when it sails.
       */}
+      {!ACCOUNTS_DESK ? (
+        <section className="card mb-4 flex flex-wrap gap-x-6 gap-y-3 p-4">
+          <Money
+            label="Agreed on the quote"
+            value={money(agreed)}
+            hint="What the customer accepted"
+            tone={agreed === null ? "muted" : undefined}
+          />
+          <Money
+            label="Route"
+            value={s.origin && s.destination ? `${s.origin} → ${s.destination}` : "—"}
+            hint={s.carrier || "No carrier recorded"}
+            tone={s.origin && s.destination ? undefined : "muted"}
+          />
+          <Money
+            label="Sailing"
+            value={s.sailing_date ?? "—"}
+            hint={s.vessel || "No vessel recorded"}
+            tone={s.sailing_date ? undefined : "muted"}
+          />
+        </section>
+      ) : (
       <section className="card mb-4 flex flex-wrap gap-x-6 gap-y-3 p-4">
         <Money
           label="Billed"
@@ -264,6 +305,7 @@ export default function ShipmentDetail() {
           tone={agreed === null ? "muted" : undefined}
         />
       </section>
+      )}
 
       {/* ---- sections ---- */}
       <nav className="mb-4 flex gap-1 border-b border-border" aria-label="Shipment sections">
@@ -281,7 +323,7 @@ export default function ShipmentDetail() {
             }
           >
             {t.label}
-            {t.label === "Invoices" && (billing?.invoice_count ?? 0) > 0 && (
+            {ACCOUNTS_DESK && t.label === "Invoices" && (billing?.invoice_count ?? 0) > 0 && (
               <span className="ml-1.5 tabular-nums text-text-muted">{billing?.invoice_count}</span>
             )}
           </NavLink>

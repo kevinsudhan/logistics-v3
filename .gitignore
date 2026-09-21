@@ -45,3 +45,8 @@ server-v2/.azure.json
 server-v2/.snapserve.json
 server-v2/.vaishnavi-identity-backup.json
 server-v2/.vaishnavi-glitch-backup.json
+
+# Supabase CLI scratch. The linked-project file it writes was committed pinned
+# to v1 — the project shared with the live voice agents — which would have made
+# any `supabase` command run from this folder target it.
+supabase/.temp/

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import JobBilling from "../components/JobBilling";
+import { ACCOUNTS_DESK } from "../lib/features";
 import { listQuotes, type PartnerQuote } from "../services/rfq";
 import QuotePanel from "../components/QuotePanel";
 import CargoPanel from "../components/CargoPanel";
@@ -82,6 +83,15 @@ const SECTIONS = [
 type Section = (typeof SECTIONS)[number]["key"];
 
 /**
+ * The sections this build actually has.
+ *
+ * Derived rather than baked in, so `?section=billing` on a build without the
+ * accounts desk falls through to Details instead of rendering a tab strip with
+ * nothing under it. The full list above stays as the source of the type.
+ */
+const VISIBLE_SECTIONS = SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_DESK);
+
+/**
  * One enquiry, everything about it.
  *
  * The inbound half of the job lives here: what the customer wants, what is
@@ -91,7 +101,7 @@ type Section = (typeof SECTIONS)[number]["key"];
 export default function CaseFile() {
   const { ref = "" } = useParams();
   const [params, setParams] = useSearchParams();
-  const section = (SECTIONS.find((s) => s.key === params.get("section"))?.key ??
+  const section = (VISIBLE_SECTIONS.find((s) => s.key === params.get("section"))?.key ??
     "details") as Section;
   const goTo = (s: Section) =>
     setParams(
@@ -238,7 +248,7 @@ export default function CaseFile() {
 
       {/* ---- sections ---- */}
       <nav className="mt-4 mb-4 flex flex-wrap gap-1 border-b border-border" aria-label="Case file sections">
-        {SECTIONS.map((s) => (
+        {VISIBLE_SECTIONS.map((s) => (
           <button
             key={s.key}
             onClick={() => goTo(s.key)}

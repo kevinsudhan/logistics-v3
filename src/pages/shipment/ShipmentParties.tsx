@@ -4,7 +4,7 @@ import { AlertCircle, ArrowDownToLine, Check, Layers, Ship } from "lucide-react"
 import Select from "../../components/Select";
 import { useShipment } from "../ShipmentDetail";
 import { updateShipment } from "../../services/enquiries";
-import { STATES } from "../../services/billing";
+import { STATES } from "../../services/charges";
 import {
   attachToConsole,
   detachFromConsole,
