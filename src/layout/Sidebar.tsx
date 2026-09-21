@@ -79,8 +79,16 @@ const groups: NavGroup[] = [
       { to: "/documentation", label: "Documentation", icon: FileCheck2 },
       { to: "/mail", label: "Mail", icon: Mail },
       { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
-      { to: "/partners", label: "Partners", icon: Handshake },
     ],
+  },
+  {
+    // Its own group rather than a line in Operations, because a partner is a
+    // relationship rather than a job. The work here is the running exchange
+    // with an agent -- rates asked for, rates that came back, who has gone
+    // quiet -- and it outlives any one shipment.
+    title: "Agents & partners",
+    separated: true,
+    items: [{ to: "/partners", label: "Agents & partners", icon: Handshake }],
   },
   // Spread rather than filtered at render, so that with the desk off the group
   // is not in the array at all. A runtime filter hides the links correctly but

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
   Archive,
@@ -99,8 +100,8 @@ export default function Partners() {
   return (
     <div>
       <PageHeader
-        title="Partners"
-        subtitle="Agents, consol partners, carriers and CHAs — tagged with what they are good for, so an enquiry can find them."
+        title="Agents & partners"
+        subtitle="Agents, consol partners, carriers and CHAs. Open one to read and answer the mail you have exchanged with them."
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -198,26 +199,44 @@ export default function Partners() {
             >
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <p className="text-[14px] font-medium text-text-primary">
+                  {/*
+                    The name is the way in to their correspondence, so it is a
+                    link rather than a row you have to find a chevron on. The
+                    address sits directly under it because that is what the mail
+                    is matched on — the thing to check before you write, and the
+                    thing that explains an empty thread list when it is wrong.
+                  */}
+                  <Link
+                    to={`/partners/${p.id}`}
+                    className="text-[14px] font-medium text-text-primary hover:text-text-accent hover:underline"
+                  >
                     {p.organisation || p.name}
                     {!p.active && <span className="ml-2 text-[11px] text-text-muted">archived</span>}
-                  </p>
-                  <p className="text-[12px] text-text-secondary">
+                  </Link>
+
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-secondary">
+                    {p.emails.length ? (
+                      p.emails.map((e) => (
+                        <a
+                          key={e}
+                          href={`mailto:${e}`}
+                          className="inline-flex items-center gap-1 hover:text-text-primary"
+                        >
+                          <Mail size={11} />
+                          {e}
+                        </a>
+                      ))
+                    ) : (
+                      <span className="text-text-muted">No email address — no threads will match</span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 text-[12px] text-text-secondary">
                     {PARTNER_ROLE_LABEL[p.role]}
                     {p.organisation && p.name ? ` · ${p.name}` : ""}
                   </p>
 
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-secondary">
-                    {p.emails.map((e) => (
-                      <a
-                        key={e}
-                        href={`mailto:${e}`}
-                        className="inline-flex items-center gap-1 hover:text-text-primary"
-                      >
-                        <Mail size={11} />
-                        {e}
-                      </a>
-                    ))}
                     {p.phones.map((n) => (
                       <a
                         key={n}

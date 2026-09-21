@@ -60,6 +60,7 @@ const AcRcptDetail = accountsPage(() => import("./pages/accounts/ReceiptDetails"
 const AcPayDetail  = accountsPage(() => import("./pages/accounts/PaymentDetails"));
 const AcAgentSOA   = accountsPage(() => import("./pages/accounts/AgentSOA"));
 const Partners = lazy(() => import("./pages/Partners"));
+const PartnerThreads = lazy(() => import("./pages/PartnerThreads"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 
 function PageFallback() {
@@ -154,6 +155,10 @@ export default function App() {
               </>
             )}
             <Route path="/partners" element={<Partners />} />
+            {/* One partner, and the mail exchanged with them. Under /partners
+                rather than its own top-level path, because it is the same
+                pipeline seen one row at a time. */}
+            <Route path="/partners/:id" element={<PartnerThreads />} />
             <Route path="/analytics" element={<Analytics />} />
           </Route>
         </Route>

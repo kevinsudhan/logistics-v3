@@ -431,6 +431,52 @@ export async function sendTracked(input: {
  * Returns messages from every folder, so a reply that an inbox rule has already
  * moved somewhere is still found.
  */
+/**
+ * Every message involving an address, across the whole mailbox.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY NOT listMessages WITH A QUERY
+ *
+ * That one is scoped to a folder, which is the right shape for the mail screen
+ * — you are reading the inbox, and searching narrows the inbox. It is the wrong
+ * shape for "everything we have exchanged with this agent", because half of
+ * that is in Sent. Correspondence with a partner is a two-sided thing and a
+ * view that shows only their half is misleading in the one way that matters:
+ * it looks like nobody answered.
+ *
+ * WHY $search AND NOT $filter
+ *
+ * A filter would have to name every field an address can appear in — from,
+ * toRecipients, ccRecipients — and `toRecipients/any(...)` collections are
+ * exactly where Graph's filter support gets thin. $search covers all of them,
+ * plus the body, which is what finds the thread where somebody was added
+ * halfway through.
+ *
+ * It is a looser match, deliberately. A message that merely mentions the
+ * address is a message about this partner, and on this screen that is a useful
+ * thing to be shown rather than a false positive.
+ *
+ * WHY THE FOLDER IS INBOX FOR EVERYTHING
+ *
+ * The query spans folders and Graph does not say which one each result came
+ * from. Nothing on the partner screen reads the folder — it is used to build a
+ * link back into the mail view, and inbox is the one that resolves. Getting a
+ * message by id does not depend on it either.
+ * ---------------------------------------------------------------------------
+ */
+export async function searchMailbox(mailbox: string, query: string): Promise<MailMessage[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const data = await graph<{ value: GraphMessage[] }>(
+    `/me/messages?$top=50&$select=${LIST_SELECT}&$search=${encodeURIComponent(`"${q}"`)}`,
+    // Required for $search on messages, same as the folder-scoped search.
+    { headers: { ConsistencyLevel: "eventual" } }
+  );
+
+  return data.value.map((m) => adapt(m, mailbox, "inbox"));
+}
+
 export async function messagesInConversation(
   mailbox: string,
   conversationId: string
