@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, PackageCheck, RefreshCw } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -107,7 +108,7 @@ export default function ShipmentsCompleted() {
           {rows
             .filter((s) => ownedBy(s.assigned_to, owner, session?.userId))
             .map((s) => (
-            <Link
+            <EnquiryLink
               key={s.id}
               to={`/enquiries/${s.enquiry_ref}`}
               className="block card p-4 hover:border-border-strong transition-colors"
@@ -144,7 +145,7 @@ export default function ShipmentsCompleted() {
                   {s.eta && <p className="text-[11px] text-text-muted">Arrived {s.eta}</p>}
                 </div>
               </div>
-            </Link>
+            </EnquiryLink>
           ))}
         </div>
       )}

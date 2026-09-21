@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, RefreshCw, Truck } from "lucide-react";
 import BookingDocumentDetails from "../components/BookingDocumentDetails";
 import DocumentsPanel from "../components/DocumentsPanel";
@@ -139,12 +140,12 @@ export default function ShipmentsInProcess() {
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <Link
+                    <EnquiryLink
                       to={`/enquiries/${s.enquiry_ref}`}
                       className="font-mono text-[12px] text-text-accent hover:underline"
                     >
                       {s.id}
-                    </Link>
+                    </EnquiryLink>
                     {s.bl_number && (
                       <span className="font-mono text-[11px] text-text-muted">{s.bl_number}</span>
                     )}

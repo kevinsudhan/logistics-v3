@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ClipboardList, Loader2, Sparkles, UserPlus, UsersRound } from "lucide-react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "./EnquiryLink";
 import Select from "./Select";
 import { readMessage, type Reading } from "../services/classify";
 import ReadingPanel from "./ReadingPanel";
@@ -330,13 +331,13 @@ export default function PushMailToQueue({
 
     if (queued.status === "promoted" && queued.enquiry_ref) {
       return (
-        <Link
+        <EnquiryLink
           to={`/enquiries/${queued.enquiry_ref}`}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-surface-1 font-mono text-[12px] text-text-accent hover:border-border-strong transition-colors"
         >
           <Check size={13} />
           {queued.enquiry_ref}
-        </Link>
+        </EnquiryLink>
       );
     }
 

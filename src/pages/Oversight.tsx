@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, ChevronDown, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -318,12 +319,12 @@ export default function Oversight() {
                 <div className="grid gap-x-5 gap-y-3 p-4 md:grid-cols-[minmax(0,1fr)_128px_150px_112px] md:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
+                      <EnquiryLink
                         to={`/enquiries/${r.ref}`}
                         className="font-mono text-[12px] text-text-accent hover:underline"
                       >
                         {r.ref}
-                      </Link>
+                      </EnquiryLink>
                       <span className="text-[11px] text-text-muted capitalize">via {r.source}</span>
                     </div>
                     <p className="mt-0.5 text-[14px] font-medium text-text-primary truncate">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import {
   AlertCircle,
   ArrowRight,
@@ -281,7 +282,7 @@ export default function Containers() {
                       <ul className="space-y-1.5">
                         {list.map((e) => (
                           <li key={e.ref}>
-                            <Link
+                            <EnquiryLink
                               to={`/enquiries/${e.ref}`}
                               className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] hover:underline"
                             >
@@ -290,7 +291,7 @@ export default function Containers() {
                                 {[e.origin, e.destination].filter(Boolean).join(" → ") || "—"}
                               </span>
                               {e.cargo && <span className="text-text-muted">{e.cargo}</span>}
-                            </Link>
+                            </EnquiryLink>
                           </li>
                         ))}
                       </ul>

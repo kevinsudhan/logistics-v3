@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, FileCheck2, FileText, RefreshCw } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -136,7 +137,7 @@ export default function Documentation() {
       ) : (
         <div className="space-y-2">
           {enquiries.map((r) => (
-            <Link
+            <EnquiryLink
               key={r.ref}
               to={`/enquiries/${r.ref}`}
               className="flex flex-wrap items-center gap-x-4 gap-y-2 card px-3 sm:px-4 py-3 hover:border-border-strong transition-colors"
@@ -157,7 +158,7 @@ export default function Documentation() {
                   : STATUS_LABEL[r.status]}
               </span>
               <span className="text-[11px] text-text-accent shrink-0">Open documents →</span>
-            </Link>
+            </EnquiryLink>
           ))}
         </div>
       )}

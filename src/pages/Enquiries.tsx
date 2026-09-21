@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import {
   AlertCircle,
   Check,
@@ -304,7 +305,7 @@ export default function Enquiries() {
       ) : (
         <div className="space-y-2">
           {visible.map((r) => (
-            <Link
+            <EnquiryLink
               key={r.ref}
               to={`/enquiries/${r.ref}`}
               className="block card p-4 hover:border-border-strong transition-colors"
@@ -436,7 +437,7 @@ export default function Enquiries() {
                   )}
                 </div>
               )}
-            </Link>
+            </EnquiryLink>
           ))}
           {!visible.length && (
             <p className="text-[13px] text-text-muted py-6">Nothing matches that.</p>

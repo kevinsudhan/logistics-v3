@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import {
   Archive,
   Inbox,
@@ -692,14 +693,14 @@ function ShipmentLinks({ text }: { text: string }) {
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span className="text-[11px] text-text-muted">Mentions</span>
       {refs.map((ref) => (
-        <Link
+        <EnquiryLink
           key={ref}
           to={`/enquiries/${ref}`}
           className="inline-flex items-center gap-1.5 rounded-lg bg-bg-accent px-2.5 py-1 text-[12px] font-mono text-text-accent hover:underline"
         >
           <Package size={11} />
           {ref}
-        </Link>
+        </EnquiryLink>
       ))}
     </div>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Check,
@@ -106,6 +106,9 @@ const DEFAULT_SECTION = VISIBLE_SECTIONS[0].key;
 export default function CaseFile() {
   const { ref = "" } = useParams();
   const [params, setParams] = useSearchParams();
+  // Which board this was opened from, put there by EnquiryLink. Absent when
+  // somebody pasted the reference or refreshed the page.
+  const cameFrom = (useLocation().state as { from?: string } | null)?.from;
   // A `?section=` naming one this build does not show falls through to the
   // first that it does — rather than to "details", which may not be there.
   const section = (VISIBLE_SECTIONS.find((s) => s.key === params.get("section"))?.key ??
@@ -204,7 +207,7 @@ export default function CaseFile() {
   if (!enquiry) {
     return (
       <div>
-        <Back />
+        <Back from={cameFrom} />
         <p className="text-[13px] text-text-muted">
           {error ?? `No enquiry with reference ${ref}.`}
         </p>
@@ -229,7 +232,7 @@ export default function CaseFile() {
 
   return (
     <div>
-      <Back />
+      <Back from={cameFrom} />
 
       {/* ---- header ---- */}
       <div className="card p-5">
@@ -539,13 +542,39 @@ export default function CaseFile() {
   );
 }
 
-function Back() {
+/**
+ * What the boards are called, for the Back link.
+ *
+ * Matched on the path without its query, so a filtered board still reads as
+ * itself. Anything not listed falls back to a neutral word rather than guessing
+ * — "Back" is always true, and a wrong name is worse than a plain one.
+ */
+const BOARD_NAMES: Record<string, string> = {
+  "/my-enquiries": "My enquiries",
+  "/enquiries": "Inbound enquiries",
+  "/intake": "Enquiries queue",
+  "/oversight": "Team oversight",
+  "/mail": "Mail",
+  "/": "Overview",
+  "/documentation": "Documentation",
+  "/containers": "Containers",
+  "/shipments/in-process": "In-process shipments",
+  "/shipments/completed": "Completed shipments",
+};
+
+function Back({ from }: { from?: string }) {
+  // Nothing in state means the case file was opened cold — a pasted reference,
+  // a fresh tab, a refresh. The shared board is the right place to land then,
+  // which is what this always did.
+  const to = from ?? "/enquiries";
+  const label = BOARD_NAMES[to.split("?")[0]] ?? "Back";
+
   return (
     <Link
-      to="/enquiries"
+      to={to}
       className="inline-flex items-center gap-1 text-[12px] text-text-accent mb-3 hover:underline"
     >
-      <ChevronLeft size={14} /> All enquiries
+      <ChevronLeft size={14} /> {label}
     </Link>
   );
 }

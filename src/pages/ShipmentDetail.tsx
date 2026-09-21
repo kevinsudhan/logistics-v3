@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, ChevronLeft, FileText, PackageSearch } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -194,13 +195,13 @@ export default function ShipmentDetail() {
           "Route not recorded on the booking"
         }
         action={
-          <Link
+          <EnquiryLink
             to={`/enquiries/${s.enquiry_ref}`}
             className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
           >
             <FileText size={13} />
             Open case file
-          </Link>
+          </EnquiryLink>
         }
       />
 

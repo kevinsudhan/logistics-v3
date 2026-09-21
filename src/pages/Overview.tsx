@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import {
   AlertCircle,
   ArrowRight,
@@ -247,7 +248,7 @@ export default function Overview() {
                   };
                   return (
                     <li key={ev.id}>
-                      <Link
+                      <EnquiryLink
                         to={`/enquiries/${ev.enquiry_ref}`}
                         className="flex items-start gap-3 px-4 py-3 hover:bg-surface-2 transition-colors"
                       >
@@ -267,7 +268,7 @@ export default function Overview() {
                         <span className="shrink-0 text-[11px] text-text-muted tabular-nums">
                           {when(ev.at)}
                         </span>
-                      </Link>
+                      </EnquiryLink>
                     </li>
                   );
                 })}
@@ -296,7 +297,7 @@ export default function Overview() {
             ) : (
               <div className="space-y-2">
                 {newest.map((r) => (
-                  <Link
+                  <EnquiryLink
                     key={r.ref}
                     to={`/enquiries/${r.ref}`}
                     className="block card p-3.5 hover:border-border-strong transition-colors"
@@ -316,7 +317,7 @@ export default function Overview() {
                     <p className="mt-1.5 text-[11px] text-text-muted">
                       {STATUS_LABEL[r.status]} · via {r.source}
                     </p>
-                  </Link>
+                  </EnquiryLink>
                 ))}
               </div>
             )}

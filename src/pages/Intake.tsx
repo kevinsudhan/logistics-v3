@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ReadingPanel from "../components/ReadingPanel";
 import { readText, type Reading } from "../services/classify";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import {
   AlertCircle,
   ArrowRight,
@@ -453,13 +454,13 @@ export default function IntakePage() {
                   )}
 
                   {r.status === "promoted" && r.enquiry_ref && (
-                    <Link
+                    <EnquiryLink
                       to={`/enquiries/${r.enquiry_ref}`}
                       className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border bg-surface-1 font-mono text-[12px] text-text-accent hover:border-border-strong transition-colors"
                     >
                       {r.enquiry_ref}
                       <ArrowRight size={12} />
-                    </Link>
+                    </EnquiryLink>
                   )}
 
                   {r.status === "dismissed" && (

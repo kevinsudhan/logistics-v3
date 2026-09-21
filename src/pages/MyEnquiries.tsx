@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, RefreshCw, Truck, UserCheck } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -165,7 +166,7 @@ export default function MyEnquiries() {
         <div className="space-y-2">
           {mine.map((r) => (
             <article key={r.ref} className="card p-4">
-              <Link to={`/enquiries/${r.ref}`} className="block group">
+              <EnquiryLink to={`/enquiries/${r.ref}`} className="block group">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-mono text-[12px] text-text-accent">{r.ref}</p>
@@ -195,7 +196,7 @@ export default function MyEnquiries() {
                     <p className="text-[11px] text-text-muted">Taken {when(r.assigned_at)}</p>
                   </div>
                 </div>
-              </Link>
+              </EnquiryLink>
 
               <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center gap-2">
                 <AssignControl
