@@ -23,7 +23,13 @@ import Drafting from "../components/Drafting";
 import { useAuth } from "../lib/auth";
 import { failureText, type FailureText } from "../lib/errorText";
 import { groupIntoThreads, involves, type Thread } from "../lib/threads";
-import { getMessage, searchMailbox, messagesInConversation } from "../services/graphMail";
+import {
+  getMessage,
+  mentionsQuery,
+  messagesInConversation,
+  participantsQuery,
+  searchMailbox,
+} from "../services/graphMail";
 import { readMessage, type Reading } from "../services/classify";
 import { listPartners, PARTNER_ROLE_LABEL, type Partner } from "../services/partners";
 import { mailIsLive } from "../services/backend";
@@ -92,17 +98,35 @@ export default function PartnerThreads() {
 
       if (!p || !live || !mailbox) return;
 
-      // One search per address, because Graph's $search takes a phrase rather
-      // than a set. Two addresses is the usual case and three is rare, so this
-      // is two requests, not twenty.
-      const pages = await Promise.all(
-        p.emails.map((e) => searchMailbox(mailbox, e).catch(() => [] as MailMessage[]))
-      );
+      // Two searches per address, asking two different questions.
+      //
+      // `participants:` is the one that matters: it matches the from, to, cc
+      // and bcc of every message, which is what correspondence is. A bare
+      // phrase does not reliably match an address that appears only in a
+      // recipient field, so on its own it finds the mail they sent us and
+      // misses most of what we sent them — half an exchange, reading as though
+      // nobody ever replied.
+      //
+      // The bare phrase is still asked, separately, because a message that
+      // names the address in its body is about this partner and worth seeing.
+      // It is shown apart rather than mixed in.
+      const [onIt, named] = await Promise.all([
+        Promise.all(
+          p.emails.map((e) =>
+            searchMailbox(mailbox, participantsQuery(e)).catch(() => [] as MailMessage[])
+          )
+        ),
+        Promise.all(
+          p.emails.map((e) =>
+            searchMailbox(mailbox, mentionsQuery(e)).catch(() => [] as MailMessage[])
+          )
+        ),
+      ]);
 
       // Deduplicated by id: a message addressed to two of their addresses comes
       // back from both searches and is still one message.
       const seen = new Map<string, MailMessage>();
-      for (const page of pages) for (const m of page) seen.set(m.id, m);
+      for (const page of [...onIt, ...named]) for (const m of page) seen.set(m.id, m);
       setMessages([...seen.values()]);
     } catch (e) {
       setError(failureText(e, "Could not load this partner's correspondence."));
@@ -196,10 +220,10 @@ export default function PartnerThreads() {
         hint="It may have been removed, or the link may be from an older record."
         action={
           <Link
-            to="/partners"
+            to="/partners/mail"
             className="inline-flex h-8 items-center rounded-lg border border-border-strong bg-surface-1 px-3 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-2"
           >
-            Back to partners
+            Back to partner mail
           </Link>
         }
       />
@@ -209,10 +233,10 @@ export default function PartnerThreads() {
   return (
     <div>
       <Link
-        to="/partners"
+        to="/partners/mail"
         className="mb-4 inline-flex items-center gap-1 text-[12px] text-text-secondary hover:text-text-primary"
       >
-        <ChevronLeft size={14} /> Back to partners
+        <ChevronLeft size={14} /> Back to partner mail
       </Link>
 
       <PageHeader
@@ -260,10 +284,10 @@ export default function PartnerThreads() {
           hint="Correspondence is found by email address. Add one to this partner and their threads will appear here."
           action={
             <Link
-              to="/partners"
+              to={`/partners/${partner.id}/edit`}
               className="inline-flex h-8 items-center rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark"
             >
-              Edit this partner
+              Add an address
             </Link>
           }
         />

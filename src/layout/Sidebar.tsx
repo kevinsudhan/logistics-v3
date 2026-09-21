@@ -88,7 +88,12 @@ const groups: NavGroup[] = [
     // quiet -- and it outlives any one shipment.
     title: "Agents & partners",
     separated: true,
-    items: [{ to: "/partners", label: "Agents & partners", icon: Handshake }],
+    items: [
+      // Mail first: it is the daily work, and the directory is the thing you
+      // open when something about a partner has changed.
+      { to: "/partners/mail", label: "Partner mail", icon: Mail },
+      { to: "/partners", label: "Directory", icon: Handshake, end: true },
+    ],
   },
   // Spread rather than filtered at render, so that with the desk off the group
   // is not in the array at all. A runtime filter hides the links correctly but

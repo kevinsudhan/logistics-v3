@@ -60,6 +60,8 @@ const AcRcptDetail = accountsPage(() => import("./pages/accounts/ReceiptDetails"
 const AcPayDetail  = accountsPage(() => import("./pages/accounts/PaymentDetails"));
 const AcAgentSOA   = accountsPage(() => import("./pages/accounts/AgentSOA"));
 const Partners = lazy(() => import("./pages/Partners"));
+const PartnerEdit = lazy(() => import("./pages/PartnerEdit"));
+const PartnerMail = lazy(() => import("./pages/PartnerMail"));
 const PartnerThreads = lazy(() => import("./pages/PartnerThreads"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 
@@ -154,11 +156,22 @@ export default function App() {
                 <Route path="/payables" element={<Navigate to="/" replace />} />
               </>
             )}
+            {/*
+              Three jobs, three pages. The directory is maintenance — somebody
+              new, an address changed, somebody retired. Adding is its own page
+              because a half-finished partner is a thing you get interrupted in
+              the middle of, and a dialog has no URL to come back to. The mail
+              is the daily work and does not belong behind either of them.
+
+              `/partners/new` is declared before `/partners/mail/:id` only for
+              reading order; React Router ranks static segments above dynamic
+              ones regardless, so "new" is never taken for an id.
+            */}
             <Route path="/partners" element={<Partners />} />
-            {/* One partner, and the mail exchanged with them. Under /partners
-                rather than its own top-level path, because it is the same
-                pipeline seen one row at a time. */}
-            <Route path="/partners/:id" element={<PartnerThreads />} />
+            <Route path="/partners/new" element={<PartnerEdit />} />
+            <Route path="/partners/:id/edit" element={<PartnerEdit />} />
+            <Route path="/partners/mail" element={<PartnerMail />} />
+            <Route path="/partners/mail/:id" element={<PartnerThreads />} />
             <Route path="/analytics" element={<Analytics />} />
           </Route>
         </Route>

@@ -448,13 +448,23 @@ export async function sendTracked(input: {
  *
  * A filter would have to name every field an address can appear in — from,
  * toRecipients, ccRecipients — and `toRecipients/any(...)` collections are
- * exactly where Graph's filter support gets thin. $search covers all of them,
- * plus the body, which is what finds the thread where somebody was added
- * halfway through.
+ * exactly where Graph's filter support gets thin.
  *
- * It is a looser match, deliberately. A message that merely mentions the
- * address is a message about this partner, and on this screen that is a useful
- * thing to be shown rather than a false positive.
+ * THE QUERY IS KQL, AND THE CALLER WRITES IT
+ *
+ * `$search` on messages is interpreted as KQL, so `participants:"x@y.com"`
+ * matches the from, to, cc and bcc fields and a bare `"x@y.com"` matches the
+ * indexed text — subject and body.
+ *
+ * Those two are not interchangeable, and getting it wrong is quiet. A bare
+ * phrase does NOT reliably match an address that appears only in a recipient
+ * field, so searching a partner's address as free text finds the mail they sent
+ * us and misses most of what we sent them. Half an exchange, reading as though
+ * nobody ever replied.
+ *
+ * So this takes the query as written rather than wrapping it in quotes and
+ * deciding for the caller. `participants:` is what correspondence means;
+ * the bare phrase is a different question and belongs to whoever is asking it.
  *
  * WHY THE FOLDER IS INBOX FOR EVERYTHING
  *
@@ -464,18 +474,25 @@ export async function sendTracked(input: {
  * message by id does not depend on it either.
  * ---------------------------------------------------------------------------
  */
-export async function searchMailbox(mailbox: string, query: string): Promise<MailMessage[]> {
-  const q = query.trim();
+export async function searchMailbox(mailbox: string, kql: string): Promise<MailMessage[]> {
+  const q = kql.trim();
   if (!q) return [];
 
   const data = await graph<{ value: GraphMessage[] }>(
-    `/me/messages?$top=50&$select=${LIST_SELECT}&$search=${encodeURIComponent(`"${q}"`)}`,
+    `/me/messages?$top=50&$select=${LIST_SELECT}&$search=${encodeURIComponent(q)}`,
     // Required for $search on messages, same as the folder-scoped search.
     { headers: { ConsistencyLevel: "eventual" } }
   );
 
   return data.value.map((m) => adapt(m, mailbox, "inbox"));
 }
+
+/** `participants:"a@b.com"` — the from, to, cc and bcc of every message. */
+export const participantsQuery = (address: string) =>
+  `participants:"${address.trim().replace(/"/g, "")}"`;
+
+/** A bare phrase — subject and body, not the recipient fields. */
+export const mentionsQuery = (address: string) => `"${address.trim().replace(/"/g, "")}"`;
 
 export async function messagesInConversation(
   mailbox: string,

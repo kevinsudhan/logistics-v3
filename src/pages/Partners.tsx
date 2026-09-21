@@ -13,7 +13,6 @@ import {
   Search,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
-import PartnerForm from "../components/PartnerForm";
 import {
   listPartners,
   archivePartner,
@@ -39,7 +38,6 @@ export default function Partners() {
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<null | { partner?: Partner }>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,18 +98,18 @@ export default function Partners() {
   return (
     <div>
       <PageHeader
-        title="Agents & partners"
-        subtitle="Agents, consol partners, carriers and CHAs. Open one to read and answer the mail you have exchanged with them."
+        title="Partner directory"
+        subtitle="The directory: who they are, how to reach them, and the tags an enquiry matches them on. Their correspondence is under Partner mail."
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button
-          onClick={() => setEditing({})}
+        <Link
+          to="/partners/new"
           className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark text-white text-[12px] font-medium"
         >
           <Plus size={13} />
           Add partner
-        </button>
+        </Link>
 
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -180,13 +178,13 @@ export default function Partners() {
             Add the agents and consol partners you already work with, and tag them with the lanes
             and cargo they handle. Enquiries will then suggest them by themselves.
           </p>
-          <button
-            onClick={() => setEditing({})}
+          <Link
+            to="/partners/new"
             className="mt-4 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark text-white text-[12px] font-medium"
           >
             <Plus size={13} />
             Add partner
-          </button>
+          </Link>
         </div>
       ) : (
         <div className="space-y-2">
@@ -207,7 +205,7 @@ export default function Partners() {
                     thing that explains an empty thread list when it is wrong.
                   */}
                   <Link
-                    to={`/partners/${p.id}`}
+                    to={`/partners/mail/${p.id}`}
                     className="text-[14px] font-medium text-text-primary hover:text-text-accent hover:underline"
                   >
                     {p.organisation || p.name}
@@ -269,13 +267,13 @@ export default function Partners() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setEditing({ partner: p })}
+                  <Link
+                    to={`/partners/${p.id}/edit`}
                     className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary"
                   >
                     <Pencil size={12} />
                     Edit
-                  </button>
+                  </Link>
                   <button
                     onClick={() => void toggleArchive(p)}
                     className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary"
@@ -296,17 +294,6 @@ export default function Partners() {
         </div>
       )}
 
-      {editing && (
-        <PartnerForm
-          partner={editing.partner}
-          suggestions={tags}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }
