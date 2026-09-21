@@ -67,7 +67,7 @@ export default function DocumentsPanel({
       </button>
 
       {open && (
-        <div className="mt-2 space-y-1">
+        <div className="mt-2 space-y-2">
           {/* One route to the fields, above the list rather than repeated on
               every draft row — it is the same form whichever document sent you
               looking for it. */}
@@ -81,29 +81,46 @@ export default function DocumentsPanel({
             </button>
           )}
           {statuses.map(({ spec, ready, missingLabels, have, need }) => (
+            /*
+              A card each, the same as every other list on this desk.
+
+              They were thin rows a line and a half tall, separated by a hairline
+              and distinguished only by whether that hairline was dashed. Twelve
+              of them read as one block of text, and the thing you are actually
+              scanning for — which of these can be issued — was carried by the
+              border style, which is the least visible property on the row.
+
+              Not ready keeps the dashed border, because that reads as "not
+              finished" everywhere else here, but it is now a dashed card rather
+              than a dashed line.
+            */
             <div
               key={spec.id}
-              className={`flex items-start gap-3 rounded border px-2.5 py-2 ${
-                ready ? "border-border bg-surface-1" : "border-dashed border-border"
+              className={`flex items-start gap-3 p-4 ${
+                ready
+                  ? "card"
+                  : "rounded-card border border-dashed border-border-strong bg-surface-1"
               }`}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] text-text-primary">{spec.shortName}</span>
+                  <span className="text-[13px] font-medium text-text-primary">
+                    {spec.shortName}
+                  </span>
                   {ready ? (
-                    <Check size={11} className="text-text-success shrink-0" />
+                    <Check size={12} className="text-text-success shrink-0" />
                   ) : (
-                    <AlertTriangle size={11} className="text-text-warning shrink-0" />
+                    <AlertTriangle size={12} className="text-text-warning shrink-0" />
                   )}
                 </div>
-                <p className="text-[11px] text-text-muted">{spec.purpose}</p>
+                <p className="mt-0.5 text-[12px] text-text-secondary">{spec.purpose}</p>
                 {!ready && (
-                  <p className="mt-0.5 text-[11px] text-text-warning">
+                  <p className="mt-1 text-[12px] text-text-warning">
                     {have} of {need} — needs: {missingLabels.join(", ")}
                   </p>
                 )}
                 {blocked === spec.id && (
-                  <p className="mt-0.5 text-[11px] text-text-danger">
+                  <p className="mt-1 text-[12px] text-text-danger">
                     Your browser blocked the new tab. Allow pop-ups for this site, or use Generate.
                   </p>
                 )}
@@ -115,21 +132,21 @@ export default function DocumentsPanel({
                 onClick={() => {
                   if (!viewDocument(spec, data)) setBlocked(spec.id);
                 }}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-2"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
               >
-                <Eye size={11} />
+                <Eye size={13} />
                 View
               </button>
 
               <button
                 onClick={() => generateDocument(spec, data)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium ${
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors ${
                   ready
                     ? "bg-brand text-white hover:bg-brand-dark"
-                    : "border border-border text-text-secondary hover:bg-surface-2"
+                    : "border border-border text-text-secondary hover:border-border-strong hover:text-text-primary"
                 }`}
               >
-                <FileDown size={11} />
+                <FileDown size={13} />
                 {ready ? "Generate" : "Draft"}
               </button>
             </div>
