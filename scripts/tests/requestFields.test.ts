@@ -15,7 +15,7 @@ import {
   completeness,
   mergeExtractions,
   resolveSailingDate,
-} from "./requestFields";
+} from "../../src/data/requestFields";
 // mergeExtractions lives in the catalogue, not the extractor: it is pure logic, and
 // importing the extractor here would drag in the Deno-only npm: specifiers with it.
 

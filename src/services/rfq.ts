@@ -311,22 +311,37 @@ export async function findReplies(
   quotes: PartnerQuote[]
 ): Promise<FoundReply[]> {
   const waiting = quotes.filter((q) => q.conversation_id && q.status === "asked");
-  const found: FoundReply[] = [];
+  const ours = mailbox.toLowerCase();
 
-  for (const q of waiting) {
-    try {
-      const msgs = await conversationMessages(mailbox, q.conversation_id!);
-      const ours = mailbox.toLowerCase();
-      const reply = msgs
-        .filter((m) => (m.from.emailAddress.address ?? "").toLowerCase() !== ours)
-        .sort((a, b) => a.receivedDateTime.localeCompare(b.receivedDateTime))[0];
-      if (reply) found.push({ quote: q, message: reply });
-    } catch {
-      // One unreadable conversation should not stop the others being checked.
-    }
-  }
+  /*
+    All at once, not one after another.
 
-  return found;
+    This used to await inside the loop, so checking six partners for replies
+    was six Graph round trips end to end — and this runs behind a button an
+    operator presses while looking at the screen. They are independent
+    questions about different conversations; nothing here reads the previous
+    answer.
+
+    The catch stays per conversation, which is what it was for: one unreadable
+    thread should not stop the others being checked. `Promise.all` would reject
+    the lot on the first failure, so each promise swallows its own and returns
+    nothing.
+  */
+  const results = await Promise.all(
+    waiting.map(async (q): Promise<FoundReply | null> => {
+      try {
+        const msgs = await conversationMessages(mailbox, q.conversation_id!);
+        const reply = msgs
+          .filter((m) => (m.from.emailAddress.address ?? "").toLowerCase() !== ours)
+          .sort((a, b) => a.receivedDateTime.localeCompare(b.receivedDateTime))[0];
+        return reply ? { quote: q, message: reply } : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return results.filter((r): r is FoundReply => r !== null);
 }
 
 export interface QuoteReading {

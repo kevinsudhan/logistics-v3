@@ -3,7 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 import { useAuth, canAccess, type Role } from "../lib/auth";
 import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
-import { DOCUMENTS } from "../lib/documents";
+/*
+  From the registry, not from the barrel.
+
+  This page wants one number — how many documents the desk can issue — for a
+  line on the marketing panel. The barrel re-exports that list alongside
+  `generateDocument`, which reaches jsPDF and, through it, html2canvas: about
+  745KB of PDF machinery, pulled into the chunk that renders the sign-in screen,
+  to print a count.
+
+  `registry` imports nothing but types.
+*/
+import { DOCUMENTS } from "../lib/documents/registry";
 
 
 /**

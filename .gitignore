@@ -2,40 +2,17 @@ node_modules
 dist
 *.tsbuildinfo
 
-# Secrets — the live SnapServe key lives here, never commit it
+# Secrets. .env.local carries the anon key and the feature flags.
 .env
 .env.*
-snapserve-setup/.env
-
-# API response dumps from working against the live account.
-# These contain real call transcripts, customer phone numbers, wallet balance and
-# account ids — working artifacts, not source. The payloads we author are kept;
-# the responses the account sends back are not.
-snapserve-setup/*-result*.json
-snapserve-setup/*-fix.json
-snapserve-setup/*-refix.json
-snapserve-setup/agent-current*.json
-snapserve-setup/agent-now.json
-snapserve-setup/arun-current.json
-snapserve-setup/arun-after-tool.json
-snapserve-setup/call-*.json
-snapserve-setup/calls-list.json
-snapserve-setup/wallet.json
 
 # Local fallback store, used only when Supabase is unreachable. Holds real customer
 # names and phone numbers captured from actual calls — genuine PII, never committed.
 # Supabase is the system of record; this file is a cache.
 /data/
 
-snapserve-setup/agent-717-backup.json
-
-# Generated document samples — regenerate from any record rather than storing binaries.
-sample-documents/
-
-# Prompt backups written by set-language-rules.mjs — live snapshots, not source.
-snapserve-setup/agent-*-backup.json
-
-# Regenerable from scripts/generate-sample-documents.mjs
+# Generated document samples — regenerable from scripts/generate-sample-documents.mjs,
+# so the PDFs are evidence rather than source.
 sample-documents/
 
 # v2 Supabase service_role key and db password — bypasses RLS, never commit.
@@ -46,7 +23,8 @@ server-v2/.snapserve.json
 server-v2/.vaishnavi-identity-backup.json
 server-v2/.vaishnavi-glitch-backup.json
 
-# Supabase CLI scratch. The linked-project file it writes was committed pinned
-# to v1 — the project shared with the live voice agents — which would have made
-# any `supabase` command run from this folder target it.
+# Supabase CLI scratch. There is no supabase/ directory here any more — v2's
+# schema is supabase-v2/ — but the rule stays: running the CLI in this folder
+# recreates it, and the linked-project file it writes was once committed pinned
+# to v1, the project shared with the live voice agents.
 supabase/.temp/

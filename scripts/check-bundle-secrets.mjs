@@ -130,7 +130,7 @@ if (findings.length) {
   for (const f of new Set(findings)) console.error(`  ${f}`);
   console.error(
     "\nSecrets belong in Supabase function secrets, read with Deno.env.get() inside\n" +
-      "supabase/functions/. The browser reaches them only through the Edge Function.\n",
+      "supabase-v2/functions/. The browser reaches them only through the Edge Function.\n",
   );
   process.exit(1);
 }

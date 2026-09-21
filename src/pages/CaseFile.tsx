@@ -313,9 +313,10 @@ export default function CaseFile() {
             picture of how the cargo fits, and it was the largest thing on the
             page by a distance.
 
-            `components/CargoStowPanel.tsx` is still in the tree and still
-            drawing correctly — this is one line to put back. The stowage
-            planner on Space & containers is untouched.
+            `CargoStowPanel` went with it: nothing else rendered it, and a
+            component reachable from no screen is one somebody maintains for no
+            reason. The stowage planner on Space & containers is a separate
+            thing and is untouched.
           */}
 
           {/* ---- parties ---- */}
