@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import JobBilling from "../components/JobBilling";
-import { ACCOUNTS_DESK } from "../lib/features";
+import { ACCOUNTS_DESK, MAIL_ONLY_CASE_FILE } from "../lib/features";
 import { listQuotes, type PartnerQuote } from "../services/rfq";
 import QuotePanel from "../components/QuotePanel";
 import CargoPanel from "../components/CargoPanel";
@@ -85,10 +85,16 @@ type Section = (typeof SECTIONS)[number]["key"];
  * The sections this build actually has.
  *
  * Derived rather than baked in, so `?section=billing` on a build without the
- * accounts desk falls through to Details instead of rendering a tab strip with
- * nothing under it. The full list above stays as the source of the type.
+ * accounts desk falls through to the first one still standing instead of
+ * rendering a tab strip with nothing under it. The full list above stays as the
+ * source of the type.
  */
-const VISIBLE_SECTIONS = SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_DESK);
+const VISIBLE_SECTIONS = MAIL_ONLY_CASE_FILE
+  ? SECTIONS.filter((s) => s.key === "mail")
+  : SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_DESK);
+
+/** Where the file opens, and where an unknown `?section=` lands. */
+const DEFAULT_SECTION = VISIBLE_SECTIONS[0].key;
 
 /**
  * One enquiry, everything about it.
@@ -100,8 +106,10 @@ const VISIBLE_SECTIONS = SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_
 export default function CaseFile() {
   const { ref = "" } = useParams();
   const [params, setParams] = useSearchParams();
+  // A `?section=` naming one this build does not show falls through to the
+  // first that it does — rather than to "details", which may not be there.
   const section = (VISIBLE_SECTIONS.find((s) => s.key === params.get("section"))?.key ??
-    "details") as Section;
+    DEFAULT_SECTION) as Section;
   const goTo = (s: Section) =>
     setParams(
       (p) => {
@@ -133,14 +141,24 @@ export default function CaseFile() {
       const e = await getEnquiry(ref);
       setEnquiry(e);
       if (!e) return;
+
+      /*
+        The parties, quotes, booking and partner replies feed the sections a
+        mail-only build does not render. Fetching them anyway would be four
+        round trips per enquiry opened, for four panels nobody can reach — and
+        the correspondence, which is the whole screen here, would wait behind
+        them. The events are kept: the timeline interleaves them with the mail.
+      */
       const [p, q, ev, sh, pq] = await Promise.all([
-        partiesFor(ref),
-        quotesFor(ref),
+        MAIL_ONLY_CASE_FILE ? Promise.resolve<Party[]>([]) : partiesFor(ref),
+        MAIL_ONLY_CASE_FILE ? Promise.resolve<Quote[]>([]) : quotesFor(ref),
         eventsFor(ref),
-        shipmentFor(ref),
+        MAIL_ONLY_CASE_FILE ? Promise.resolve<Shipment | null>(null) : shipmentFor(ref),
         // Best-effort: a quotation can still be built if the replies will not
         // load, it just cannot show what each charge costs us.
-        listQuotes(ref).catch(() => [] as PartnerQuote[]),
+        MAIL_ONLY_CASE_FILE
+          ? Promise.resolve<PartnerQuote[]>([])
+          : listQuotes(ref).catch(() => [] as PartnerQuote[]),
       ]);
       setParties(p);
       setQuotes(q);
@@ -245,8 +263,15 @@ export default function CaseFile() {
         </div>
       )}
 
-      {/* ---- sections ---- */}
-      <nav className="mt-4 mb-4 flex flex-wrap gap-1 border-b border-border" aria-label="Case file sections">
+      {/* ---- sections ----
+          A strip of one tab is a label pretending to be a control: there is
+          nowhere else to go, and it takes a row of height to say so. */}
+      <nav
+        className={`mt-4 mb-4 flex-wrap gap-1 border-b border-border ${
+          VISIBLE_SECTIONS.length > 1 ? "flex" : "hidden"
+        }`}
+        aria-label="Case file sections"
+      >
         {VISIBLE_SECTIONS.map((s) => (
           <button
             key={s.key}

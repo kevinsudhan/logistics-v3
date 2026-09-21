@@ -52,3 +52,29 @@
  * undocumented one.
  */
 export const ACCOUNTS_DESK = import.meta.env.VITE_ACCOUNTS_DESK === "on";
+
+/**
+ * The case file, reduced to the correspondence.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY
+ *
+ * While this desk is a mailbox, an enquiry is a conversation and nothing else.
+ * The cargo fields, the partner rates, the quotation and the document register
+ * are all real and all built, and every one of them is a form somebody has to
+ * decide not to fill in. On a screen whose only job today is "read this and
+ * answer it", four sections of empty fields are four invitations to go and do
+ * something the desk is not doing yet.
+ *
+ * So the case file opens on the correspondence and shows only that. The
+ * enquiry's own header stays -- the reference, the customer, the route -- which
+ * is not a form, it is how you know which conversation you are in.
+ *
+ * WHAT THIS IS NOT
+ *
+ * Deletion. Every panel is still in the tree and still works; this decides
+ * whether the tab strip offers them. Turning it back on is `off` in
+ * `.env.local` and a rebuild, and the sections return exactly as they were.
+ * ---------------------------------------------------------------------------
+ */
+export const MAIL_ONLY_CASE_FILE = import.meta.env.VITE_CASE_FILE !== "full";
