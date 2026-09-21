@@ -28,10 +28,16 @@
  * records away from development is the Supabase project each build points at,
  * set by VITE_SUPABASE_URL. Two environments, one codebase.
  *
- * WHY IT DEFAULTS ON
+ * WHY IT DEFAULTS OFF
  *
- * So that an existing checkout does not quietly lose fourteen pages because
- * somebody's .env.local predates this file. Off is the deliberate act.
+ * It defaulted on at first, so that an existing checkout would not quietly
+ * lose fourteen pages. That was the wrong way round the moment this desk went
+ * to production on mail: `.env.local` is gitignored, so a deploy never sees it
+ * and would have built with the default -- putting the accounts desk back on
+ * the one build that is not supposed to have it.
+ *
+ * Off is what you get unless somebody asks for it. On is the deliberate act,
+ * and `.env.local` in a development checkout is where that is said.
  * ---------------------------------------------------------------------------
  */
 
@@ -45,4 +51,4 @@
  * the path is not a build without the accounts desk; it is a build with an
  * undocumented one.
  */
-export const ACCOUNTS_DESK = import.meta.env.VITE_ACCOUNTS_DESK !== "off";
+export const ACCOUNTS_DESK = import.meta.env.VITE_ACCOUNTS_DESK === "on";
