@@ -563,10 +563,16 @@ const BOARD_NAMES: Record<string, string> = {
 };
 
 function Back({ from }: { from?: string }) {
-  // Nothing in state means the case file was opened cold — a pasted reference,
-  // a fresh tab, a refresh. The shared board is the right place to land then,
-  // which is what this always did.
-  const to = from ?? "/enquiries";
+  const { pathname } = useLocation();
+
+  /*
+    Nothing in state means the case file was opened cold — a pasted reference,
+    a fresh tab, a refresh. The path is still a good answer in that case: one
+    read at /my-enquiries/ALG09002-26 belongs to that list whether or not
+    anybody clicked through to it, and sending a refresh to the shared board
+    would undo the whole point of the separate route.
+  */
+  const to = from ?? (pathname.startsWith("/my-enquiries") ? "/my-enquiries" : "/enquiries");
   const label = BOARD_NAMES[to.split("?")[0]] ?? "Back";
 
   return (

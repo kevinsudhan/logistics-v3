@@ -118,7 +118,21 @@ export default function App() {
             <Route path="/enquiries" element={<Enquiries />} />
             <Route path="/my-enquiries" element={<MyEnquiries />} />
             <Route path="/oversight" element={<Oversight />} />
+            {/*
+              The case file, on two paths, rendering the same component.
+
+              The sidebar matches on the path — `/enquiries` owns its subtree —
+              so a case file opened from My enquiries at `/enquiries/ALG09002-26`
+              lit up Inbound enquiries and read as though you had left your own
+              list for the shared board. You had not; the URL simply said so.
+
+              Under `/my-enquiries/:ref` the nav highlights where you actually
+              are, the address bar agrees, and Back has somewhere obvious to go.
+              `/enquiries/:ref` stays for every other way in — a pasted
+              reference, a link from the mail screen, a shipment.
+            */}
             <Route path="/enquiries/:ref" element={<CaseFile />} />
+            <Route path="/my-enquiries/:ref" element={<CaseFile />} />
             <Route path="/complaints" element={<Complaints />} />
             {/* Accounts. Each document its own page; raising one still happens
                 on the job, because a document is about a job.

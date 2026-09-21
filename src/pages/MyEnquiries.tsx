@@ -166,7 +166,7 @@ export default function MyEnquiries() {
         <div className="space-y-2">
           {mine.map((r) => (
             <article key={r.ref} className="card p-4">
-              <EnquiryLink to={`/enquiries/${r.ref}`} className="block group">
+              <EnquiryLink to={`/my-enquiries/${r.ref}`} className="block group">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-mono text-[12px] text-text-accent">{r.ref}</p>
