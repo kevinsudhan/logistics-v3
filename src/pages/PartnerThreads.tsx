@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Phone,
   Reply,
-  Sparkles,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
@@ -19,8 +18,6 @@ import MailBody from "../components/MailBody";
 import MessageHeader from "../components/MessageHeader";
 import ComposeMail from "../components/ComposeMail";
 import PushMailToQueue from "../components/PushMailToQueue";
-import ReadingPanel from "../components/ReadingPanel";
-import Drafting from "../components/Drafting";
 import { useAuth } from "../lib/auth";
 import { failureText, type FailureText } from "../lib/errorText";
 import { groupIntoThreads, involves, type Thread } from "../lib/threads";
@@ -31,7 +28,6 @@ import {
   participantsQuery,
   searchMailbox,
 } from "../services/graphMail";
-import { readMessage, type Reading } from "../services/classify";
 import {
   assignPartnerRef,
   refsFor,
@@ -86,10 +82,6 @@ export default function PartnerThreads() {
   const [threadBusy, setThreadBusy] = useState(false);
 
   const [composing, setComposing] = useState<null | { replyTo: MailMessage }>(null);
-
-  /** The AI reading of one message, keyed by message id. */
-  const [readings, setReadings] = useState<Record<string, Reading>>({});
-  const [reading, setReading] = useState<string | null>(null);
 
   /** ALG / PALG references, by conversation id, and which series to show. */
   const [refs, setRefs] = useState<Map<string, ThreadRef>>(new Map());
@@ -263,17 +255,6 @@ export default function PartnerThreads() {
     [openThread, mailbox]
   );
 
-  async function readWithAi(m: MailMessage) {
-    setReading(m.id);
-    try {
-      const r = await readMessage(m);
-      setReadings((prev) => ({ ...prev, [m.id]: r }));
-    } catch (e) {
-      setError(failureText(e, "Could not read that message."));
-    } finally {
-      setReading(null);
-    }
-  }
 
   if (loading && !partner) {
     return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
@@ -409,11 +390,8 @@ export default function PartnerThreads() {
             openThread={openThread}
             threadMessages={threadMessages}
             threadBusy={threadBusy}
-            readings={readings}
-            reading={reading}
             onOpen={openOn}
             onReply={(m) => setComposing({ replyTo: m })}
-            onRead={readWithAi}
             onChanged={load}
           />
 
@@ -429,12 +407,9 @@ export default function PartnerThreads() {
               openThread={openThread}
               threadMessages={threadMessages}
               threadBusy={threadBusy}
-              readings={readings}
-              reading={reading}
               onOpen={openOn}
               onReply={(m) => setComposing({ replyTo: m })}
-              onRead={readWithAi}
-              onChanged={load}
+                onChanged={load}
             />
           )}
         </>
@@ -478,11 +453,8 @@ function ThreadList({
   openThread,
   threadMessages,
   threadBusy,
-  readings,
-  reading,
   onOpen,
   onReply,
-  onRead,
   onChanged,
 }: {
   title: string;
@@ -496,11 +468,8 @@ function ThreadList({
   openThread: string | null;
   threadMessages: MailMessage[];
   threadBusy: boolean;
-  readings: Record<string, Reading>;
-  reading: string | null;
   onOpen: (t: Thread) => void;
   onReply: (m: MailMessage) => void;
-  onRead: (m: MailMessage) => void;
   onChanged: () => void;
 }) {
   return (
@@ -518,6 +487,16 @@ function ThreadList({
           {threads.map((t) => {
             const open = openThread === t.conversationId;
             const last = t.messages[t.messages.length - 1];
+            /**
+             * What the thread-level Reply answers.
+             *
+             * The last of the messages actually fetched, not `last` above —
+             * that one comes from the search and is only the newest message the
+             * search matched. Replying to it would answer the middle of the
+             * thread whenever the final message was one the search did not hit,
+             * which is exactly the case on a long exchange.
+             */
+            const newest = threadMessages[threadMessages.length - 1];
             return (
               <div key={t.conversationId} className="card overflow-hidden">
                 <button
@@ -608,53 +587,66 @@ function ThreadList({
                           </div>
                         )}
 
+                        {/*
+                          The thread's actions, at the top, acting on its most
+                          recent message.
+                          ------------------------------------------------------
+                          This is how every mail client does it and the reason
+                          is the same here: answering a thread means answering
+                          where it got to, so there is one Reply and it is
+                          reachable without reading to the bottom first. The
+                          buttons used to sit under every message, which meant
+                          five identical rows on a five-message thread and the
+                          only one you wanted at the very end of the scroll.
+
+                          Read and Send-to-enquiries come from the same panel
+                          the intake queue uses, so an agent's mail is turned
+                          into an enquiry by the same act as a customer's.
+                        */}
+                        {newest && (
+                          <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+                            <button
+                              onClick={() => onReply(newest)}
+                              className="flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white transition-colors hover:bg-brand-dark"
+                            >
+                              <Reply size={13} />
+                              Reply
+                            </button>
+                            <PushMailToQueue message={newest} onChanged={onChanged} />
+                          </div>
+                        )}
+
                         {threadMessages.map((m) => (
                           <article key={m.id} className="border-b border-border pb-5 last:border-0 last:pb-0">
-                            <MessageHeader
-                              message={m}
-                              complete
-                              when={new Date(m.receivedDateTime).toLocaleString("en-IN")}
-                            />
-                            <MailBody message={m} />
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <MessageHeader
+                                  message={m}
+                                  complete
+                                  when={new Date(m.receivedDateTime).toLocaleString("en-IN")}
+                                />
+                              </div>
 
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {/*
+                                Per message, the arrow alone. Answering one
+                                message in the middle of a thread is a real
+                                thing to want — a rate quoted three replies
+                                back — and it is rare enough that it does not
+                                need a word next to it.
+                              */}
                               <button
                                 onClick={() => onReply(m)}
-                                className="flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white transition-colors hover:bg-brand-dark"
+                                title="Reply to this message"
+                                aria-label={`Reply to the message from ${
+                                  m.from?.emailAddress?.name || m.from?.emailAddress?.address || "this sender"
+                                }`}
+                                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-text-muted transition-colors hover:border-border-strong hover:text-text-primary"
                               >
                                 <Reply size={13} />
-                                Reply
                               </button>
-
-                              {/* The same reading the intake queue uses. */}
-                              <button
-                                onClick={() => onRead(m)}
-                                disabled={reading === m.id}
-                                className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
-                              >
-                                {reading === m.id ? (
-                                  <Loader2 size={13} className="animate-spin" />
-                                ) : (
-                                  <Sparkles size={13} />
-                                )}
-                                Read it
-                              </button>
-
-                              {/* Turning an agent's mail into an enquiry is the
-                                  same act as turning a customer's into one. */}
-                              <PushMailToQueue message={m} onChanged={onChanged} />
                             </div>
 
-                            {reading === m.id && !readings[m.id] && (
-                              <div className="mt-3">
-                                <Drafting label="Reading the message" lines={3} compact />
-                              </div>
-                            )}
-                            {readings[m.id] && (
-                              <div className="mt-3">
-                                <ReadingPanel reading={readings[m.id]} />
-                              </div>
-                            )}
+                            <MailBody message={m} />
                           </article>
                         ))}
                       </div>
