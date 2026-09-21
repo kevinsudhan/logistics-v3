@@ -534,15 +534,24 @@ export default function CaseFile() {
           {timeline.map((entry) =>
             entry.kind === "event" ? (
               <li key={entry.event.id}>
-                <div className="card px-4 py-2.5">
-                  <div className="flex items-center gap-2 text-[11px] text-text-muted">
+                {/*
+                  p-4 and the same rhythm as a message below it. An event used
+                  to be the tighter of the two, so a timeline alternating
+                  between them stepped up and down the page for a reason that
+                  was never about the content — both are one thing that
+                  happened, at one time, and they should sit the same.
+                */}
+                <div className="card p-4">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
                     <EventIcon kind={entry.event.kind} />
                     <span className="uppercase tracking-wide">
                       {entry.event.kind.replace(/_/g, " ")}
                     </span>
                     <span className="ml-auto">{when(entry.at)}</span>
                   </div>
-                  <p className="mt-0.5 text-[13px] text-text-primary">{entry.event.summary}</p>
+                  <p className="mt-1 text-[13px] font-medium text-text-primary">
+                    {entry.event.summary}
+                  </p>
                 </div>
               </li>
             ) : (
