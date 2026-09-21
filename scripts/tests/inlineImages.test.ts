@@ -83,13 +83,13 @@ is("empty body", rewriteCidImages("", [{ cid: "a@x", uri: URI }]), "");
 is("an empty id is skipped", rewriteCidImages(`<img src="cid:a@x">`, [{ cid: "<>", uri: URI }]), `<img src="cid:a@x">`);
 
 console.log("\nwhich attachments are embedded images");
-is("inline png with an id", isEmbeddedImage({ contentType: "image/png", isInline: true, contentId: "a@x" }), true);
+is("an inline png", isEmbeddedImage({ contentType: "image/png", isInline: true }), true);
 // A packing list is a file somebody sent, not part of the body.
-is("a pdf attachment", isEmbeddedImage({ contentType: "application/pdf", isInline: false, contentId: null }), false);
-// Inline but no Content-ID: nothing in the body can be pointing at it.
-is("inline with no id", isEmbeddedImage({ contentType: "image/png", isInline: true, contentId: null }), false);
+is("a pdf attachment", isEmbeddedImage({ contentType: "application/pdf", isInline: false }), false);
 // An image sent as a real attachment belongs in the attachment list.
-is("an image, not inline", isEmbeddedImage({ contentType: "image/png", isInline: false, contentId: "a@x" }), false);
+is("an image, not inline", isEmbeddedImage({ contentType: "image/png", isInline: false }), false);
+// Inline but not an image — a signature stylesheet, say. Not ours to inline.
+is("inline, not an image", isEmbeddedImage({ contentType: "text/css", isInline: true }), false);
 is("missing fields", isEmbeddedImage({}), false);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);

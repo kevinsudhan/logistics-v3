@@ -356,7 +356,34 @@ export async function getMessage(
   );
   const full = adapt(m, mailbox, folder);
 
-  if (m.hasAttachments) {
+  /*
+    `hasAttachments` is NOT the test for whether there are attachments to fetch.
+
+    Graph documents it as excluding inline ones: "if a message contains only
+    inline attachments, this property is false". A signature logo is precisely
+    that -- inline, and the only attachment on the message -- so every message
+    whose sole attachment is the logo reports false, the fetch below never ran,
+    and the image was dropped exactly as it had been before any of this existed.
+
+    The body is the honest test. If it says `cid:` then something inline is
+    being pointed at, whatever the flag claims. `hasAttachments` stays in the
+    condition for the real files, which the body never mentions.
+  */
+  const referencesInline = full.body.content.includes("cid:");
+
+  if (m.hasAttachments || referencesInline) {
+    /*
+      `contentId` is deliberately NOT selected here.
+
+      It belongs to `fileAttachment`, a type derived from `attachment`, and the
+      collection is typed as the base. Asking for a derived property on a base
+      collection is how you get a 400 back — which would not cost a logo, it
+      would throw out of getMessage and take the whole message body with it.
+      Every field named below is on the base type.
+
+      The Content-ID comes from fetching the attachment itself, further down,
+      where the response IS a fileAttachment and carries it.
+    */
     const at = await graph<{
       value: Array<{
         id: string;
@@ -364,11 +391,10 @@ export async function getMessage(
         size: number;
         contentType: string;
         isInline?: boolean;
-        contentId?: string | null;
       }>;
     }>(
       `/me/messages/${encodeURIComponent(id)}/attachments` +
-        `?$select=id,name,size,contentType,isInline,contentId`
+        `?$select=id,name,size,contentType,isInline`
     );
 
     // Only the real ones. An Outlook signature's logo is an attachment by the
@@ -420,7 +446,6 @@ async function resolveInlineImages(
     contentType: string;
     size: number;
     isInline?: boolean;
-    contentId?: string | null;
   }>
 ): Promise<string> {
   const wanted = attachments.filter((a) => isEmbeddedImage(a) && a.size <= INLINE_IMAGE_CAP);
@@ -429,11 +454,14 @@ async function resolveInlineImages(
   const resolved = await Promise.all(
     wanted.map(async (a) => {
       try {
-        const one = await graph<{ contentBytes?: string }>(
+        // No $select: this response is a fileAttachment, and contentId and
+        // contentBytes are both on it. Naming fields here would put the same
+        // derived-property problem back, one level down.
+        const one = await graph<{ contentBytes?: string; contentId?: string | null }>(
           `/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(a.id)}`
         );
-        if (!one.contentBytes) return null;
-        return { cid: String(a.contentId), uri: `data:${a.contentType};base64,${one.contentBytes}` };
+        if (!one.contentBytes || !one.contentId) return null;
+        return { cid: one.contentId, uri: `data:${a.contentType};base64,${one.contentBytes}` };
       } catch {
         // One logo that will not load is not a reason to fail the message.
         return null;

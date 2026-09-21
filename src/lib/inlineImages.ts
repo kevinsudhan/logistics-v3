@@ -54,11 +54,22 @@ export function rewriteCidImages(html: string, images: ResolvedImage[]): string 
   return out;
 }
 
-/** Whether an attachment is an image the message draws in its own body. */
+/**
+ * Whether an attachment is an image the message draws in its own body.
+ *
+ * Decided from `isInline` and the type alone. The Content-ID is what resolving
+ * one needs, but it is not what makes it embedded, and it is not available at
+ * the point this question gets asked: it lives on `fileAttachment` rather than
+ * on the base `attachment` the collection returns, so it only arrives when the
+ * attachment itself is fetched.
+ *
+ * An inline image with no Content-ID is still not a file somebody attached —
+ * it is a picture the message draws and cannot be pointed at. Listing it as an
+ * attachment would be wrong for the same reason listing the logo is.
+ */
 export function isEmbeddedImage(a: {
   contentType?: string | null;
   isInline?: boolean | null;
-  contentId?: string | null;
 }): boolean {
-  return Boolean(a.isInline && a.contentId && a.contentType?.startsWith("image/"));
+  return Boolean(a.isInline && a.contentType?.startsWith("image/"));
 }
