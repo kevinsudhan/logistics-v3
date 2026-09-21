@@ -4,12 +4,18 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  # The accounts desk is off on the deployed build: no invoices, payments, bills
-  # or agent statements, and none of those pages in the bundle at all. Off is
-  # also the default in src/lib/features.ts, so this is saying out loud what the
-  # deploy would do anyway — the value somebody will come looking for when they
-  # want it back is better here than nowhere.
-  VITE_ACCOUNTS_DESK = "off"
+  # The accounts desk: invoices, proformas, notes, receipts, payments,
+  # outstanding, payables and the agent statement, plus the Costs and Invoices
+  # sections of a shipment and the Billing section of a case file.
+  #
+  # It has to be said here. `off` is the default in src/lib/features.ts, and
+  # .env.local is gitignored so a deploy never sees it — without this line the
+  # deployed build would come up without the desk.
+  VITE_ACCOUNTS_DESK = "on"
+  # The full case file: Details, Partners & quote, Documents and Billing
+  # alongside Mail and Timeline. Anything other than "full" leaves the enquiry
+  # as mail and its history only.
+  VITE_CASE_FILE = "full"
   # Not a secret: this is a public Edge Function URL and would be visible in the bundle
   # regardless. The real secrets (SnapServe key, service_role key) live in Supabase
   # function secrets and never reach the browser.
