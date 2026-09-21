@@ -341,7 +341,28 @@ function ThreadList({
                               <Reply size={13} />
                               Reply
                             </button>
-                            <PushMailToQueue message={newest} onChanged={onChanged} />
+
+                            {/*
+                              Making an enquiry out of this — but only where
+                              there is not one already.
+
+                              Both buttons in that panel mint a NEW enquiry:
+                              one into the shared queue, one straight onto your
+                              list. On a thread that is already filed against a
+                              shipment reference, pressing either produces a
+                              second reference for the same conversation. That
+                              is not clutter, it is a duplicate the desk cannot
+                              take back — a reference is never deleted, because
+                              the correspondence under it is the record of what
+                              a customer was told.
+
+                              A partner thread with a PALG, or none at all, is
+                              a different matter: a rate conversation becoming
+                              a shipment is exactly how this desk works.
+                            */}
+                            {refs.get(t.conversationId)?.kind !== "shipment" && (
+                              <PushMailToQueue message={newest} onChanged={onChanged} />
+                            )}
                           </div>
                         )}
 
