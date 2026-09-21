@@ -26,7 +26,6 @@ import PartnerQuotes from "../components/PartnerQuotes";
 import DocumentsPanel from "../components/DocumentsPanel";
 import { documentDataFromEnquiry } from "../lib/documents";
 import AcceptancePanel from "../components/AcceptancePanel";
-import CargoStowPanel from "../components/CargoStowPanel";
 import {
   correspondenceFor,
   shipmentFor,
@@ -270,11 +269,16 @@ export default function CaseFile() {
           <CargoPanel enquiry={enquiry} onSaved={load} />
 
           {/*
-            Straight after the measurements, because that is what it is made of.
-            It draws nothing until the cargo has dimensions and a piece count, so an
-            enquiry that has not been measured simply does not show it.
+            The 3D stowage view used to sit here, straight after the
+            measurements. It is off the case file while this desk is working
+            the mailbox: reading an enquiry and answering it does not need a
+            picture of how the cargo fits, and it was the largest thing on the
+            page by a distance.
+
+            `components/CargoStowPanel.tsx` is still in the tree and still
+            drawing correctly — this is one line to put back. The stowage
+            planner on Space & containers is untouched.
           */}
-          <CargoStowPanel enquiry={enquiry} />
 
           {/* ---- parties ---- */}
           <section className="mt-4 card p-5">

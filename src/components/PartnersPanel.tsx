@@ -14,6 +14,7 @@ import {
   type PartnerRole,
 } from "../services/partners";
 import type { Enquiry } from "../services/enquiries";
+import PartnerForm from "./PartnerForm";
 
 /**
  * Who is working this shipment with us.
@@ -45,6 +46,8 @@ export default function PartnersPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  /** The new-partner form, opened from inside the picker. */
+  const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   /** Which kind of partner is being looked for. Null means all of them. */
   const [pickRole, setPickRole] = useState<PartnerRole | null>(null);
@@ -78,6 +81,18 @@ export default function PartnersPanel({
   const available = useMemo(
     () => partners.filter((p) => !assignedIds.has(p.id)),
     [partners, assignedIds]
+  );
+
+  /**
+   * Tags already in use, offered to the new-partner form.
+   *
+   * Drawn from the partners already loaded rather than fetched again: the tags
+   * are what makes a partner findable later, and offering the existing ones is
+   * how "Jebel Ali" stays one tag instead of becoming three spellings.
+   */
+  const tagsInUse = useMemo(
+    () => [...new Set(partners.flatMap((p) => p.tags))].sort(),
+    [partners]
   );
 
   /**
@@ -260,9 +275,25 @@ export default function PartnersPanel({
           {/* ---- manual: pick the kind of partner, then the partner ---- */}
           {picking && (
             <div className="mt-4 rounded-lg border border-border p-3">
-              <h3 className="text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-2">
-                Assign partners
-              </h3>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+                  Assign partners
+                </h3>
+                {/*
+                  Adding somebody who is not on the list yet, without leaving
+                  the enquiry. The partner list is the pool this picker draws
+                  from, so the moment a new agent is needed the only way through
+                  used to be: open Partners in another tab, add them, come back,
+                  reopen this. The work is here; the form should be too.
+                */}
+                <button
+                  onClick={() => setCreating(true)}
+                  className="inline-flex items-center gap-1 text-[12px] text-text-accent hover:underline"
+                >
+                  <Plus size={12} />
+                  New partner
+                </button>
+              </div>
 
               {/*
                 The type comes first because that is how the desk thinks about
@@ -348,6 +379,25 @@ export default function PartnersPanel({
           <AlertCircle size={13} className="mt-px shrink-0" />
           {error}
         </div>
+      )}
+
+      {/*
+        The same form the Partners page uses, not a cut-down copy. A second
+        abbreviated form here would be the one that forgets a field, and the
+        two would drift.
+
+        Reloading afterwards puts the new partner into `partners`, so the
+        picker below is already showing them by the time the form closes.
+      */}
+      {creating && (
+        <PartnerForm
+          suggestions={tagsInUse}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            void load();
+          }}
+        />
       )}
     </section>
   );

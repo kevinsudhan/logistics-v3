@@ -44,13 +44,6 @@ interface NavGroup {
   items: NavItem[];
   adminOnly?: boolean;
   /**
-   * Only shown when the accounts desk is switched on.
-   *
-   * The routes are gone too when it is off — this is the nav agreeing with the
-   * router, not the whole of the hiding.
-   */
-  accountsDesk?: boolean;
-  /**
    * Draw a rule above this group.
    *
    * Accounts is not another kind of operation, it is a different desk — the
@@ -89,6 +82,13 @@ const groups: NavGroup[] = [
       { to: "/partners", label: "Partners", icon: Handshake },
     ],
   },
+  // Spread rather than filtered at render, so that with the desk off the group
+  // is not in the array at all. A runtime filter hides the links correctly but
+  // still ships fourteen labels and their paths in the bundle, which is a list
+  // of what this build is pretending not to have.
+  ...(!ACCOUNTS_DESK
+    ? []
+    : [
   {
     // Its own group rather than a line in Operations. The money is a different
     // kind of work from moving a box, and it is the half of the desk that had
@@ -98,7 +98,6 @@ const groups: NavGroup[] = [
     // invoice is about a job. What is here are the questions that span jobs.
     title: "Accounts",
     separated: true,
-    accountsDesk: true,
     items: [
       // In the order money moves: what we raise, what comes in, what goes out,
       // then the questions asked across all of it.
@@ -118,6 +117,7 @@ const groups: NavGroup[] = [
       { to: "/accounts/payment-details", label: "Payment details", icon: ListChecks },
     ],
   },
+      ]),
   {
     title: "Insights",
     // Accounts carries the rule when it is there. With it off, Insights would
@@ -153,9 +153,7 @@ const groups: NavGroup[] = [
  */
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session } = useAuth();
-  const visible = groups.filter(
-    (g) => (!g.adminOnly || session?.role === "admin") && (!g.accountsDesk || ACCOUNTS_DESK)
-  );
+  const visible = groups.filter((g) => !g.adminOnly || session?.role === "admin");
 
   return (
     <>
