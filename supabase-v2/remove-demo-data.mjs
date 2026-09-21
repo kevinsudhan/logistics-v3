@@ -57,11 +57,25 @@ import { accessToken, PROJECT } from "./token.mjs";
 
 const commit = process.argv.includes("--yes");
 
+/** Repeatable flags: --partner "Name", --enquiry ARX-C0001-E01 */
+const flagged = (flag) =>
+  process.argv.reduce((out, arg, i) => {
+    if (arg === flag && process.argv[i + 1]) out.push(process.argv[i + 1]);
+    return out;
+  }, []);
+
 /** Extra partners named on the command line, matched on name or organisation. */
-const extraPartners = process.argv.reduce((names, arg, i) => {
-  if (arg === "--partner" && process.argv[i + 1]) names.push(process.argv[i + 1]);
-  return names;
-}, []);
+const extraPartners = flagged("--partner");
+
+/**
+ * Enquiries to remove outright.
+ *
+ * Nothing here is inferred. An enquiry is never deleted by the app -- the
+ * correspondence filed against a reference is the record of what a customer was
+ * told -- so the only way one goes is if somebody names it, by reference, on
+ * the command line. That is the whole safeguard and it is deliberately dumb.
+ */
+const extraEnquiries = flagged("--enquiry");
 
 // Single-quoted into SQL, so a name containing one has to be doubled. Rejecting
 // the rest of what a name can contain would be worse than escaping it: real
@@ -106,6 +120,10 @@ const partnerList = [...SEEDED_PARTNERS, ...extraPartners].map(quote).join(", ")
 const partnerWhere =
   `name = 'Demo Consol Partner' or name in (${partnerList}) or organisation in (${partnerList})`;
 
+const enquiryWhere = extraEnquiries.length
+  ? `ref in (${extraEnquiries.map(quote).join(", ")})`
+  : `ref = 'DEMO-E01'`;
+
 async function sql(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT}/database/query`, {
     method: "POST",
@@ -123,7 +141,7 @@ async function sql(query) {
 /** What the seeds wrote, as a WHERE clause per table. */
 const TARGETS = [
   ["shipments", `id = 'DEMO-SHP-1'`],
-  ["enquiries", `ref = 'DEMO-E01'`],
+  ["enquiries", enquiryWhere],
   ["customers", `id = 'DEMO-CUS-1'`],
   ["partners", partnerWhere],
   // `seed-sailings.mjs` writes nine fixed ids — sl-jea-1, sl-cmb-2 and so on.
@@ -219,8 +237,16 @@ await sql(`
   delete from public.partner_assignments
    where partner_id in (select id from public.partners where ${partnerWhere});
 
+  -- Intake rows promoted into these enquiries go back to new. enquiry_ref is
+  -- ON DELETE SET NULL, so without this they sit in the queue marked promoted
+  -- with nothing to point at — a row that says it was dealt with and cannot say
+  -- where it went.
+  update public.intake
+     set status = 'new', enquiry_ref = null, settled_at = null, settled_by = null
+   where ${enquiryWhere.replace(/\bref\b/g, "enquiry_ref")};
+
   -- The enquiry takes its events, parties, quotes and threads with it.
-  delete from public.enquiries where ref = 'DEMO-E01';
+  delete from public.enquiries where ${enquiryWhere};
 
   delete from public.intake
    where message_id in ('DEMO-MSG-0001','DEMO-MSG-KEVIN-01')
