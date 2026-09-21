@@ -1,5 +1,10 @@
 import { supabase } from "../lib/supabase";
 import type { FolderId, MailMessage, Recipient } from "./mockMail";
+import {
+  isEmbeddedImage,
+  rewriteCidImages,
+  type ResolvedImage,
+} from "../lib/inlineImages";
 
 /**
  * Declared here rather than imported from backend.ts, which imports this file —
@@ -352,16 +357,94 @@ export async function getMessage(
   const full = adapt(m, mailbox, folder);
 
   if (m.hasAttachments) {
-    const at = await graph<{ value: Array<{ name: string; size: number; contentType: string }> }>(
-      `/me/messages/${encodeURIComponent(id)}/attachments?$select=name,size,contentType`
+    const at = await graph<{
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        contentType: string;
+        isInline?: boolean;
+        contentId?: string | null;
+      }>;
+    }>(
+      `/me/messages/${encodeURIComponent(id)}/attachments` +
+        `?$select=id,name,size,contentType,isInline,contentId`
     );
-    full.attachments = at.value.map((a) => ({
-      name: a.name,
-      size: a.size,
-      contentType: a.contentType,
-    }));
+
+    // Only the real ones. An Outlook signature's logo is an attachment by the
+    // same mechanism as a packing list, and listing it as though somebody sent
+    // a file called image001.png is noise on every message from that sender.
+    full.attachments = at.value
+      .filter((a) => !isEmbeddedImage(a))
+      .map((a) => ({ name: a.name, size: a.size, contentType: a.contentType }));
+
+    full.body.content = await resolveInlineImages(id, full.body.content, at.value);
   }
   return full;
+}
+
+/**
+ * Turns `cid:` references into data URIs the browser can actually draw.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE BODY IS REWRITTEN HERE AND NOT IN THE VIEW
+ *
+ * Because `cid:` is not a scheme a browser resolves. It names an attachment
+ * that travelled with the message, and the bytes come from a second Graph call.
+ * MailBody used to delete these images — correctly, given that nothing had
+ * fetched the bytes — which is why every signature arrived without its logo.
+ *
+ * Resolving them at fetch time means the body handed to the view is already
+ * complete, and MailBody's removal of unresolved `cid:` images stays as the
+ * right fallback for the ones this could not get.
+ *
+ * WHY THERE IS A SIZE CAP
+ *
+ * A data URI is base64, so it costs about a third more than the bytes and it
+ * lives in the HTML string rather than in a cache. A signature logo is a few
+ * kilobytes and worth it. Somebody's 8MB inline screenshot is not: it would be
+ * carried in memory, re-parsed by DOMPurify on every render, and inlined again
+ * in the quoted copy of every reply underneath it.
+ *
+ * Over the cap the image is left as `cid:` and MailBody drops it, which is the
+ * behaviour everything had before this existed.
+ * ---------------------------------------------------------------------------
+ */
+const INLINE_IMAGE_CAP = 512 * 1024;
+
+async function resolveInlineImages(
+  messageId: string,
+  html: string,
+  attachments: Array<{
+    id: string;
+    contentType: string;
+    size: number;
+    isInline?: boolean;
+    contentId?: string | null;
+  }>
+): Promise<string> {
+  const wanted = attachments.filter((a) => isEmbeddedImage(a) && a.size <= INLINE_IMAGE_CAP);
+  if (!wanted.length || !html.includes("cid:")) return html;
+
+  const resolved = await Promise.all(
+    wanted.map(async (a) => {
+      try {
+        const one = await graph<{ contentBytes?: string }>(
+          `/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(a.id)}`
+        );
+        if (!one.contentBytes) return null;
+        return { cid: String(a.contentId), uri: `data:${a.contentType};base64,${one.contentBytes}` };
+      } catch {
+        // One logo that will not load is not a reason to fail the message.
+        return null;
+      }
+    })
+  );
+
+  return rewriteCidImages(
+    html,
+    resolved.filter((r): r is ResolvedImage => r !== null)
+  );
 }
 
 export async function setRead(_mailbox: string, id: string, isRead: boolean): Promise<void> {

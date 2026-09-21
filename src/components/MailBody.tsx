@@ -33,10 +33,16 @@ import type { MailMessage } from "../services/backend";
  *
  * WHAT IS DELIBERATELY LOST
  *
- * Images embedded in the message itself, which arrive as `cid:` references to
- * attachments Graph serves separately. There is nothing to resolve them
- * against here, so rather than show a column of broken-image icons through
- * every signature, they are dropped.
+ * Images embedded in the message itself arrive as `cid:` references to
+ * attachments Graph serves separately. `getMessage` now fetches those and
+ * rewrites them to data URIs before the body gets here, so a signature logo
+ * draws — which it did not for a long time, because this used to be the end of
+ * the line for them.
+ *
+ * What still goes is the ones it could not resolve: an inline image over the
+ * size cap, or one whose attachment would not load. `cid:` is not a scheme a
+ * browser knows, so the alternative is a broken-image icon in the middle of
+ * every signature.
  *
  * Images hosted elsewhere do load, which is how a sender's logo appears and
  * also how a tracking pixel reports that the message was opened. Outlook makes
