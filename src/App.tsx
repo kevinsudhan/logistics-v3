@@ -31,6 +31,7 @@ const ShipmentDetail = lazy(() => import("./pages/ShipmentDetail"));
 const ShipmentOverview = lazy(() => import("./pages/shipment/ShipmentOverview"));
 const ShipmentInvoices = accountsPage(() => import("./pages/shipment/ShipmentInvoices"));
 const ShipmentContainers = lazy(() => import("./pages/shipment/ShipmentContainers"));
+const ShipmentMail = lazy(() => import("./pages/shipment/ShipmentMail"));
 const ShipmentParties = lazy(() => import("./pages/shipment/ShipmentParties"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
 const SpaceContainers = lazy(() => import("./pages/SpaceContainers"));
@@ -110,6 +111,7 @@ export default function App() {
             */}
             <Route path="/shipments/:id" element={<ShipmentDetail />}>
               <Route index element={<ShipmentOverview />} />
+              <Route path="mail" element={<ShipmentMail />} />
               <Route path="parties" element={<ShipmentParties />} />
               <Route path="containers" element={<ShipmentContainers />} />
               {/*

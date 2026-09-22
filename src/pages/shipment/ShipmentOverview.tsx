@@ -1,4 +1,5 @@
 import { useState } from "react";
+import RevertShipment from "../../components/RevertShipment";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useShipment } from "../ShipmentDetail";
 import {
@@ -158,6 +159,25 @@ export default function ShipmentOverview() {
           Volume and gross weight are computed from the piece dimensions on the enquiry, not entered
           by hand. Correct them on the case file and they recompute here.
         </p>
+      </section>
+
+      {/*
+        At the foot of the overview, not in the toolbar.
+
+        It deletes the booking, so it should take a decision to reach rather
+        than sit beside the things somebody presses all day. Promotion is one
+        press and easy to do early; this is the way back when the ready date
+        moves or the volume changes and there is no shipment to operate yet.
+      */}
+      <section className="card p-5">
+        <h2 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+          Not ready to be a booking?
+        </h2>
+        <p className="mb-3 max-w-prose text-[12px] text-text-secondary">
+          Send it back to the enquiry and start it again when it is. Refused once an invoice has
+          been raised against it — that takes a credit note, not a deletion.
+        </p>
+        <RevertShipment shipmentId={s.id} enquiryRef={s.enquiry_ref} />
       </section>
     </div>
   );

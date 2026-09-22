@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
+import ShipmentCheckpoints from "../components/ShipmentCheckpoints";
 import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, ChevronLeft, FileText, PackageSearch } from "lucide-react";
 import PageHeader from "../components/PageHeader";
@@ -96,6 +97,11 @@ function Money({
 
 const TABS = [
   { to: ".", label: "Overview", end: true },
+  // The correspondence, the quotation and the agents — the same three things
+  // the enquiry had. A booking is the second half of one job, and having to go
+  // back to the enquiry to read the thread it came from is how a desk ends up
+  // working the mailbox instead of the system.
+  { to: "mail", label: "Mail", end: false },
   { to: "parties", label: "Parties & B/L", end: false },
   { to: "containers", label: "Containers", end: false },
   // Registered as routes only when the accounts desk is on, so the tabs follow.
@@ -330,6 +336,17 @@ export default function ShipmentDetail() {
           </NavLink>
         ))}
       </nav>
+
+      {/*
+        The follow-ups, above the sections rather than inside one.
+
+        "Where are we on this job" is the question somebody brings to the page,
+        and answering it should not require choosing a tab first — the same
+        reason the enquiry's workflow bar sits above its tab strip.
+      */}
+      <div className="mb-4">
+        <ShipmentCheckpoints shipmentId={s.id} />
+      </div>
 
       <Outlet context={{ shipment: s, reload: load } satisfies ShipmentContext} />
     </div>
