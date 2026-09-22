@@ -441,7 +441,13 @@ export default function CaseFile() {
         Directly under the quote, because it is the answer to it. A verbal yes
         shows here as unfinished business rather than as an acceptance.
       */}
-      <AcceptancePanel enquiry={enquiry} quotes={quotes} mail={mail} onChanged={load} />
+      <AcceptancePanel
+        enquiry={enquiry}
+        quotes={quotes}
+        mail={mail}
+        onChanged={load}
+        onRecheck={load}
+      />
 
       {/* ---- the handover to operations ---- */}
       {/*

@@ -71,13 +71,10 @@ create trigger enquiries_derive_cargo
   before insert or update on public.enquiries
   for each row execute function public.derive_cargo_figures();
 
--- The same on the booking, which is copied from the enquiry and then edited on
--- its own. A shipment whose dimensions are corrected must not keep the volume
--- that followed from the old ones.
-drop trigger if exists shipments_derive_cargo on public.shipments;
-create trigger shipments_derive_cargo
-  before insert or update on public.shipments
-  for each row execute function public.derive_cargo_figures();
+-- NOTE: a trigger was also put on `shipments` here and removed again in 058.
+-- That table has no piece dimensions — it carries the totals the enquiry
+-- derived — so the function failed at run time on every insert and
+-- `promote_enquiry` could not create a booking at all.
 
 -- ---------------------------------------------------------------------------
 -- Backfill

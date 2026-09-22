@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, Loader2, MailCheck, PhoneCall, ShieldCheck } from "lucide-react";
 import { confirmAcceptance, type Enquiry, type FiledMessage, type Quote } from "../services/enquiries";
 import { mailIsLive } from "../services/backend";
+import { acceptanceEvidence, type AcceptanceEvidence } from "../services/publicQuote";
 
 /**
  * The customer's yes, in writing.
@@ -31,21 +32,54 @@ export default function AcceptancePanel({
   quotes,
   mail,
   onChanged,
+  onRecheck,
 }: {
   enquiry: Enquiry;
   quotes: Quote[];
   /** Correspondence already filed against this enquiry. */
   mail: FiledMessage[];
   onChanged: () => void;
+  /**
+   * Re-read the mailbox and the quotes, on demand.
+   *
+   * The candidates below come from correspondence loaded when the page opened,
+   * so a reply that arrived since is invisible until somebody reloads — and
+   * the same is true of an acceptance the customer made from the emailed link.
+   * Waiting on a customer is exactly when a desk refreshes, so there is a
+   * button for it rather than an instruction to press F5.
+   */
+  onRecheck?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
+  /** What the last check found, so pressing it says something either way. */
+  const [checked, setChecked] = useState<null | "found" | "nothing">(null);
   const [note, setNote] = useState("");
 
   const last = <T,>(xs: T[]): T | null => (xs.length ? xs[xs.length - 1] : null);
 
   const accepted = quotes.find((q) => q.status === "accepted" && q.accepted_via);
+
+  /**
+   * What the customer did, where they did it themselves.
+   *
+   * Only asked for once a quotation is accepted — there is nothing to read
+   * before that, and a query per enquiry opened to find nothing is a query for
+   * nothing. Null is the ordinary answer for an acceptance the desk recorded
+   * off a reply, and is not an error.
+   */
+  const [evidence, setEvidence] = useState<AcceptanceEvidence | null>(null);
+  useEffect(() => {
+    if (!accepted) return;
+    let live = true;
+    void acceptanceEvidence(accepted.id)
+      .then((e) => live && setEvidence(e))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [accepted?.id]);
   /** The one awaiting an answer. */
   const open = last(quotes.filter((q) => q.status === "sent" || q.status === "draft"));
   const verbal = quotes.find((q) => q.verbal_accept_at && q.status !== "accepted");
@@ -97,12 +131,47 @@ export default function AcceptancePanel({
         <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-2">
           <ShieldCheck size={12} /> Acceptance
         </h2>
+        {/*
+          Said as plainly as the record allows.
+
+          "The customer accepted this themselves" and "somebody here recorded an
+          acceptance" are different claims, and only one of them is evidence you
+          could show a customer who says they never agreed. The panel used to
+          read the same for both.
+        */}
         <p className="text-[13px] text-text-success">
-          Confirmed {accepted.accepted_via === "email" ? "in writing by the customer" : "by the desk"} — ₹
-          {Number(accepted.amount_inr).toLocaleString("en-IN")}
+          {evidence
+            ? "The customer accepted this quotation themselves"
+            : accepted.accepted_via === "email"
+              ? "Confirmed in writing by the customer"
+              : "Recorded as accepted by the desk"}{" "}
+          — ₹{Number(accepted.amount_inr).toLocaleString("en-IN")}
         </p>
-        {accepted.acceptance_note && (
-          <p className="mt-1 text-[12px] text-text-secondary">{accepted.acceptance_note}</p>
+
+        {evidence ? (
+          <p className="mt-1 text-[12px] text-text-secondary">
+            Accepted from the emailed quotation
+            {evidence.accepted_name ? ` by ${evidence.accepted_name}` : ""} on{" "}
+            {new Date(evidence.accepted_at).toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            .
+          </p>
+        ) : (
+          accepted.acceptance_note && (
+            <p className="mt-1 text-[12px] text-text-secondary">{accepted.acceptance_note}</p>
+          )
+        )}
+
+        {/* Their own words, where they left any. */}
+        {evidence?.accepted_note && (
+          <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-[12px] italic text-text-secondary">
+            &ldquo;{evidence.accepted_note}&rdquo;
+          </p>
         )}
         {accepted.verbal_accept_at && (
           <p className="mt-1 text-[11px] text-text-muted">
@@ -134,6 +203,55 @@ export default function AcceptancePanel({
         <p className="text-[12px] text-text-secondary mb-3">
           Quoted, waiting for the customer. Confirm from their reply once it arrives.
         </p>
+      )}
+
+      {/*
+        Checking by hand.
+
+        Nothing here polls: a reply arriving in Outlook, or a customer pressing
+        accept on their phone, does not reach a page already open. The desk
+        knows when it is waiting on somebody, so the check is a button — and it
+        reports what it found, because a button that refreshes silently is one
+        people press twice wondering whether it did anything.
+      */}
+      {onRecheck && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={async () => {
+              setBusy("recheck");
+              setError(null);
+              const before = candidates.length;
+              try {
+                await onRecheck();
+                // Read off the props after the parent reloads; if the parent
+                // has not re-rendered yet this still reports honestly, because
+                // "nothing" only means nothing was visible at that moment.
+                setChecked(candidates.length > before ? "found" : "nothing");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Could not check just now.");
+              } finally {
+                setBusy(null);
+              }
+            }}
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] font-medium text-text-primary hover:bg-surface-2 disabled:opacity-60"
+          >
+            {busy === "recheck" ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <MailCheck size={13} />
+            )}
+            Check for their acceptance
+          </button>
+          {checked && busy === null && (
+            <span className="text-[11.5px] text-text-muted">
+              {checked === "found"
+                ? "Something new came in — it is below."
+                : "Nothing new since the quotation went out."}
+            </span>
+          )}
+        </div>
       )}
 
       {/* ---- their replies ---- */}

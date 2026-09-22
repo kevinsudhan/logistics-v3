@@ -131,3 +131,44 @@ export function isReachable(url: string): boolean {
     return false;
   }
 }
+
+/** What the customer did, as the link recorded it. */
+export interface AcceptanceEvidence {
+  accepted_at: string;
+  /** What they typed as their name. Optional on the page, so often null. */
+  accepted_name: string | null;
+  /** Anything they added — "please proceed", "can we bring it forward". */
+  accepted_note: string | null;
+}
+
+/**
+ * How a quotation came to be accepted, where it was accepted from the link.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS READ SEPARATELY FROM THE QUOTE
+ *
+ * The quote carries that it was accepted and roughly how. The link carries the
+ * evidence: the moment the button was pressed, the name the person typed, and
+ * anything they said while doing it.
+ *
+ * That distinction matters exactly once, and badly — when a customer says they
+ * never agreed. "Accepted" on a row is an assertion by this system; a
+ * timestamp against a token that was only ever in their mailbox is something
+ * to show them.
+ *
+ * Returns null for a quotation accepted any other way, which is not a failure:
+ * the desk recording an acceptance off a reply is an ordinary path and has its
+ * own evidence in the mail.
+ * ---------------------------------------------------------------------------
+ */
+export async function acceptanceEvidence(quoteId: string): Promise<AcceptanceEvidence | null> {
+  const { data, error } = await supabase
+    .from("quote_links")
+    .select("accepted_at, accepted_name, accepted_note")
+    .eq("quote_id", quoteId)
+    .not("accepted_at", "is", null)
+    .order("accepted_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return ((data ?? [])[0] as AcceptanceEvidence) ?? null;
+}
