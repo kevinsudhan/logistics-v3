@@ -16,10 +16,23 @@
   # alongside Mail and Timeline. Anything other than "full" leaves the enquiry
   # as mail and its history only.
   VITE_CASE_FILE = "full"
-  # Not a secret: this is a public Edge Function URL and would be visible in the bundle
-  # regardless. The real secrets (SnapServe key, service_role key) live in Supabase
-  # function secrets and never reach the browser.
-  VITE_API_BASE = "https://wremiarcmppuncgfzrqb.supabase.co/functions/v1/api"
+  # VITE_API_BASE is deliberately NOT set.
+  #
+  # It used to carry v1's project ref, inherited from v1's own netlify.toml —
+  # `wremiarcmppuncgfzrqb`, the production system that shares a Supabase project
+  # and a SnapServe account with the live voice agents. v2 reads and writes
+  # through Supabase directly; the only thing left using this base is a handful
+  # of legacy REST paths in services/backend.ts, and pointing them at v1 means a
+  # booking made on this demo changes what a real caller is told.
+  #
+  # Unset, it falls back to localhost:8787 and fails loudly. That is the correct
+  # failure: a deploy that cannot reach a legacy endpoint is a nuisance, and one
+  # that quietly writes to production is not.
+
+  # The mock backend stays ON unless a deploy deliberately turns it off, which
+  # is the same rule services/backend.ts states: real only when told, because
+  # one missing variable should never mean "write to production".
+  VITE_MOCK_BACKEND = "on"
 
 # The CRM is a single-page app using client-side routing. Without this, every deep link
 # (/shipments/in-process, /knowledge-base) 404s on refresh or when shared, because Netlify
