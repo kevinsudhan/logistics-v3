@@ -7,6 +7,8 @@ import { withToken } from "../services/caseFile";
 import RichTextEditor from "./RichTextEditor";
 import Drafting from "./Drafting";
 import { greetingHtml } from "../lib/greeting";
+import MailAttachments, { type Attachable, type Attached } from "./MailAttachments";
+import { bytesToBase64 } from "../lib/base64";
 
 /**
  * Compose, and reply.
@@ -26,6 +28,10 @@ export default function ComposeMail({
   onSent,
   partnerId,
   reference,
+  enquiryRef,
+  attachables,
+  loadAttachables,
+  attachments: initialAttachments,
 }: {
   mailbox: string;
   fromName: string;
@@ -48,6 +54,29 @@ export default function ComposeMail({
    * because a reply to a customer is still logged but is not theirs.
    */
   partnerId?: string | null;
+  /**
+   * The enquiry this message belongs to, when it has one.
+   *
+   * Two things depend on it: the files already filed against it become
+   * attachable, and anything sent from here can be filed back onto it.
+   */
+  enquiryRef?: string | null;
+  /**
+   * Documents the caller can generate and attach — the quotation, the booking
+   * confirmation. Passed as makers rather than files so nothing is rendered
+   * for an attachment nobody chooses.
+   */
+  attachables?: Attachable[];
+  /** The same, for a caller that must fetch the enquiry first. */
+  loadAttachables?: () => Promise<Attachable[]>;
+  /**
+   * Files already on the message when it opens.
+   *
+   * For the case where the attachment IS the point of the mail — a quotation
+   * going out with its PDF. Still removable before sending: prefilled is not
+   * the same as compulsory.
+   */
+  attachments?: Array<{ name: string; contentType: string; bytes: Uint8Array }>;
   /**
    * The reference this conversation carries, ALG or PALG.
    *
@@ -144,6 +173,16 @@ export default function ComposeMail({
   // The TAIL, not the whole body: a draft supplies its own opening, so writing
   // it above the prefilled greeting would produce two salutations.
   const base = useRef(tail);
+  const [attachments, setAttachments] = useState<Attached[]>(() =>
+    (initialAttachments ?? []).map((a, i) => ({
+      key: `initial-${i}-${a.name}`,
+      name: a.name,
+      contentType: a.contentType,
+      contentBytes: bytesToBase64(a.bytes),
+      size: a.bytes.byteLength,
+      origin: "generated" as const,
+    }))
+  );
   const [drafting, setDrafting] = useState(false);
   const [drafted, setDrafted] = useState(false);
   const [instruction, setInstruction] = useState("");
@@ -221,6 +260,14 @@ export default function ComposeMail({
           message being replied TO, not from the conversation it sits in.
         */
         replyToId: replyTo?.id,
+        // Stripped of the display-only fields the picker carries around.
+        attachments: attachments.length
+          ? attachments.map((a) => ({
+              name: a.name,
+              contentType: a.contentType,
+              contentBytes: a.contentBytes,
+            }))
+          : undefined,
       });
 
       /*
@@ -407,6 +454,14 @@ export default function ComposeMail({
             </div>
           )}
         </form>
+
+        <MailAttachments
+          enquiryRef={enquiryRef}
+          generated={attachables}
+          loadGenerated={loadAttachables}
+          value={attachments}
+          onChange={setAttachments}
+        />
 
         <footer className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border">
           <p className="text-[11px] text-text-muted">

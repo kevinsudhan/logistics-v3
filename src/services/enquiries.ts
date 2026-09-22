@@ -84,9 +84,57 @@ export interface Enquiry {
   upright_only: boolean | null;
   special_handling: string | null;
 
-  container_type: string | null;
+  /**
+   * How it travels (047).
+   *
+   * Asked rather than derived: the chargeable-weight ratios are per mode and
+   * are not interchangeable, and an enquiry has no sailing to read it off at
+   * the point somebody wants the figure.
+   */
+  transport_mode: "sea_lcl" | "sea_fcl" | "air" | "road" | null;
+
+  /**
+   * Which way the cargo is going (031).
+   *
+   * On the table since 031 and guessed from the route where it was not given,
+   * but never declared here — so every reader of it went through a cast. It
+   * decides which charge heads apply and which rates match.
+   */
+  trade_direction: "export" | "import" | "cross_trade" | null;
+
   consignee_name: string | null;
+  consignee_address: string | null;
   consignee_country: string | null;
+
+  /* What a consol agent asks for before they will quote (046, 047). */
+  cfs_location: string | null;
+  cargo_cutoff: string | null;
+  si_cutoff: string | null;
+  marks_and_numbers: string | null;
+  freight_terms: "prepaid" | "collect" | null;
+  notify_name: string | null;
+  notify_address: string | null;
+
+  /* The packing list and the customs entry (047). */
+  package_count: number | null;
+  package_type: string | null;
+  hs_code: string | null;
+  net_weight_kg: number | null;
+
+  /* Dangerous goods, as the carrier's DG desk asks for them (046, 047). */
+  un_number: string | null;
+  imo_class: string | null;
+  packing_group: "I" | "II" | "III" | null;
+  flash_point_c: number | null;
+  msds_provided: boolean | null;
+
+  /**
+   * How far the correspondence has been read for the above (048).
+   *
+   * The `receivedDateTime` of the newest message already read. See
+   * services/autoFill.ts, which is the only thing that writes it.
+   */
+  details_read_at: string | null;
 
   notes: string | null;
   /**
@@ -138,6 +186,23 @@ export interface Quote {
   accepted_message_id: string | null;
   acceptance_note: string;
   created_at: string;
+
+  /* The quotation's own header (055). */
+  currency: string;
+  /** Rate of exchange from the quote currency to INR, as agreed on the quotation. */
+  fx_rate: number;
+  quote_type: "standard" | "spot" | "contract";
+  multi_carrier: boolean;
+
+  /* Where the quotation is with US, rather than with the customer (052). */
+  approval_status: "draft" | "pending" | "approved" | "rejected";
+  submitted_at: string | null;
+  submitted_by: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  approval_note: string;
+  /** The terms printed under the charges, copied on at the time of sending. */
+  terms: Array<{ scope: string; text: string }>;
 }
 
 export type ShipmentStage =
@@ -835,6 +900,11 @@ export async function addQuote(input: {
   basis: string;
   validUntil?: string;
   sailingDate?: string;
+  /** What the customer is quoted in, and what it converts at (055). */
+  currency?: string;
+  fxRate?: number;
+  quoteType?: "standard" | "spot" | "contract";
+  multiCarrier?: boolean;
 }): Promise<Quote> {
   const ref = input.ref.toUpperCase();
   const existing = await quotesFor(ref);
@@ -855,6 +925,13 @@ export async function addQuote(input: {
       basis: input.basis,
       valid_until: input.validUntil ?? null,
       sailing_date: input.sailingDate ?? null,
+      currency: input.currency ?? "INR",
+      // A rupee quotation converts at 1. Anything else needs a rate, and
+      // defaulting a foreign quotation to 1 would print the figure unchanged
+      // and call it rupees.
+      fx_rate: input.fxRate && input.fxRate > 0 ? input.fxRate : 1,
+      quote_type: input.quoteType ?? "standard",
+      multi_carrier: input.multiCarrier ?? false,
       status: "draft",
       created_by: user.user?.id ?? null,
     })
@@ -1086,9 +1163,27 @@ export function missingForQuote(e: Enquiry): string[] {
     ["piece_length_cm", "Piece length"],
     ["piece_width_cm", "Piece width"],
     ["piece_height_cm", "Piece height"],
-    ["weight_per_piece_kg", "Weight per piece"],
   ];
-  return need.filter(([k]) => e[k] === null || e[k] === undefined || e[k] === "").map(([, l]) => l);
+  const blank = (k: keyof Enquiry) => e[k] === null || e[k] === undefined || e[k] === "";
+  const missing = need.filter(([k]) => blank(k)).map(([, l]) => l);
+
+  /*
+    The weight, by either route.
+
+    This used to demand `weight_per_piece_kg` and nothing else, which blocked
+    quoting on the ordinary case: a shipper writes "gross weight 2000 kgs
+    total", because that is how weights are quoted in this trade. The enquiry
+    then held a perfectly good total and the quote button stayed dead, asking
+    for a figure nobody had been given.
+
+    Either establishes the weight. Which one is present decides nothing else —
+    the chargeable weight is computed from the total, and the total is either
+    stated or derived from the pieces.
+  */
+  if (blank("gross_weight_kg") && blank("weight_per_piece_kg")) {
+    missing.push("Weight (total or per piece)");
+  }
+  return missing;
 }
 
 /**

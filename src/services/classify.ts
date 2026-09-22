@@ -49,6 +49,39 @@ export interface Reading {
   phone: string | null;
   origin: string | null;
   destination: string | null;
+
+  /** What a consol agent asks for. Added to the function's schema in 046's pass. */
+  incoterm?: string | null;
+  ready_date?: string | null;
+  pickup_location?: string | null;
+  piece_count?: number | null;
+  piece_length_cm?: number | null;
+  piece_width_cm?: number | null;
+  piece_height_cm?: number | null;
+  weight_per_piece_kg?: number | null;
+  gross_weight_kg?: number | null;
+  volume_cbm?: number | null;
+  consignee_name?: string | null;
+  consignee_country?: string | null;
+  stackable?: boolean | null;
+  transport_mode?: "sea_lcl" | "sea_fcl" | "air" | "road" | null;
+  consignee_address?: string | null;
+  package_count?: number | null;
+  package_type?: string | null;
+  hs_code?: string | null;
+  net_weight_kg?: number | null;
+  msds_provided?: boolean | null;
+  cfs_location?: string | null;
+  cargo_cutoff?: string | null;
+  si_cutoff?: string | null;
+  marks_and_numbers?: string | null;
+  freight_terms?: "prepaid" | "collect" | null;
+  notify_name?: string | null;
+  notify_address?: string | null;
+  un_number?: string | null;
+  imo_class?: string | null;
+  packing_group?: "I" | "II" | "III" | null;
+  flash_point_c?: number | null;
   cargo: string | null;
 
   model: string;

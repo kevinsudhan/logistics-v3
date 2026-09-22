@@ -1,7 +1,22 @@
 import { jsPDF } from "jspdf";
 import type { DocSpec, DocumentData } from "./types";
 import { readiness } from "./data";
-import { AASHISH_MARK_PNG } from "./mark";
+import {
+  BRAND,
+  CONTENT_W,
+  drawLetterhead,
+  FAINT,
+  FOOTER_Y,
+  INK,
+  MARGIN,
+  MUTED,
+  PAGE_W,
+  RULE,
+  TINT,
+  WARN,
+} from "./letterhead";
+
+const TBD = "TBD";
 
 /**
  * Draws any document in the registry.
@@ -34,34 +49,6 @@ import { AASHISH_MARK_PNG } from "./mark";
  * ---------------------------------------------------------------------------
  */
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const MARGIN = 16;
-const CONTENT_W = PAGE_W - MARGIN * 2;
-const FOOTER_Y = PAGE_H - 20;
-const TBD = "TBD";
-
-/** The house palette, matched to the CRM so the two look like one system. */
-const BRAND: [number, number, number] = [15, 110, 86];
-const INK: [number, number, number] = [20, 21, 15];
-const MUTED: [number, number, number] = [110, 112, 100];
-const FAINT: [number, number, number] = [155, 157, 146];
-const RULE: [number, number, number] = [214, 216, 206];
-const TINT: [number, number, number] = [241, 242, 237];
-const WARN: [number, number, number] = [150, 70, 20];
-
-/** The issuer, as it appears on the letterhead. */
-const COMPANY = {
-  name: "AASHISH LOGISTICS GLOBAL",
-  tagline: "Freight forwarding, consolidation & customs documentation",
-  address: [
-    "The Calamine Canary Building, No.55, 3B, 3rd Floor",
-    "W-Block, 3rd Main Road, Anna Nagar, Chennai 600040",
-  ],
-  contact: ["Tel: 044-4811 6348", "www.aashishlogisticsglobal.com"],
-  gst: "GSTIN: 33ABDCA2229C1ZD",
-};
-
 const today = () =>
   new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -82,48 +69,7 @@ export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
     y = MARGIN;
   };
 
-  // ------------------------------------------------------------- letterhead
-  /*
-    The mark, the name, and the address block on the right.
-    ------------------------------------------------------------------------
-    A letterhead without an address is a header. These documents are presented
-    to carriers, banks and customs, all of whom expect to see who issued it and
-    where they are — so the registered address and the GSTIN are part of the
-    document, not decoration.
-  */
-  const LOGO = 14;
-  try {
-    doc.addImage(AASHISH_MARK_PNG, "PNG", MARGIN, y, LOGO, LOGO);
-  } catch {
-    // A letterhead without its mark is still a valid document. Failing the
-    // whole render because an image would not decode is not.
-  }
-
-  const nameX = MARGIN + LOGO + 4;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14.5);
-  set(BRAND);
-  doc.text(COMPANY.name, nameX, y + 5.5);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.6);
-  set(MUTED);
-  doc.text(COMPANY.tagline, nameX, y + 10);
-  doc.text(COMPANY.gst, nameX, y + 13.6);
-
-  // Address right-aligned, so the two blocks frame the head of the page.
-  doc.setFontSize(7.4);
-  let ay = y + 3;
-  for (const line of [...COMPANY.address, ...COMPANY.contact]) {
-    doc.text(line, PAGE_W - MARGIN, ay, { align: "right" });
-    ay += 3.4;
-  }
-
-  y += 18;
-  // A brand rule under the letterhead, weighted so it reads as a division
-  // rather than another hairline in a page that has several.
-  fill(BRAND);
-  doc.rect(MARGIN, y, CONTENT_W, 0.8, "F");
-  y += 7;
+  y = drawLetterhead(doc, y);
 
   // ------------------------------------------------------------------ title
   /*

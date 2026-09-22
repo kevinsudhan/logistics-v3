@@ -34,7 +34,20 @@ export interface QuoteLine {
   fx_rate: number;
   amount: number;
   amount_inr: number;
-  /** What this charge costs us, where a partner has quoted it. */
+  /** The code the desk quotes against — ADO, CDO, ASFRT. */
+  charge_code: string | null;
+  /** The floor for this charge, in the line's own currency. */
+  min_amount: number | null;
+
+  /* The buying side, in the currency it was bought in (055). */
+  cost_currency: string;
+  cost_fx_rate: number;
+  /** Cost per unit in `cost_currency`. `cost_inr` is derived from it. */
+  cost_rate: number | null;
+  /** Who the cost is with. Free text: not every vendor is in the partner book. */
+  vendor: string | null;
+
+  /** What this charge costs us in rupees. Derived when a cost rate is given. */
   cost_inr: number | null;
   partner_quote_id: string | null;
   created_at: string;

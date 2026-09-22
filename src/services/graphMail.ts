@@ -402,7 +402,7 @@ export async function getMessage(
     // a file called image001.png is noise on every message from that sender.
     full.attachments = at.value
       .filter((a) => !isEmbeddedImage(a))
-      .map((a) => ({ name: a.name, size: a.size, contentType: a.contentType }));
+      .map((a) => ({ id: a.id, name: a.name, size: a.size, contentType: a.contentType }));
 
     full.body.content = await resolveInlineImages(id, full.body.content, at.value);
   }
@@ -509,11 +509,98 @@ export async function moveMessage(
  * CONVERSATION id does not, and that is the one the partner's reply will carry.
  * ---------------------------------------------------------------------------
  */
+/**
+ * A file to go out on a message.
+ *
+ * `contentBytes` is base64 WITHOUT the `data:` prefix, which is what Graph
+ * wants and is not what `FileReader.readAsDataURL` produces — see
+ * `bytesToBase64` in services/attachments.ts, which is the one place that
+ * conversion happens.
+ */
+export interface OutgoingAttachment {
+  name: string;
+  contentType: string;
+  contentBytes: string;
+}
+
+/**
+ * Graph's ceiling for attaching files to a message in the request itself.
+ *
+ * ---------------------------------------------------------------------------
+ * Above roughly 3MB the attachment has to go up through an upload session:
+ * create it, PUT the bytes in ranges, then send. That is a different and much
+ * longer code path, and the documents this desk sends are a few pages of
+ * generated PDF — far under it.
+ *
+ * So the limit is enforced rather than worked around, and it is checked
+ * BEFORE the draft is created. Graph's own failure arrives after the draft
+ * exists, which would leave an unsent draft in the mailbox for every oversized
+ * attachment somebody tried — and the error it returns names a request size
+ * rather than a file, so nobody would know which one.
+ * ---------------------------------------------------------------------------
+ */
+const ATTACHMENT_CAP = 3 * 1024 * 1024;
+
+/** The `attachments` array for a Graph message, or nothing when there are none. */
+function attachmentPayload(list: OutgoingAttachment[] | undefined) {
+  if (!list?.length) return {};
+
+  // base64 is 4 characters per 3 bytes; this is the size of what actually goes
+  // over the wire, which is the thing Graph measures.
+  const total = list.reduce((n, a) => n + a.contentBytes.length, 0);
+  if (total > ATTACHMENT_CAP) {
+    const biggest = [...list].sort((a, b) => b.contentBytes.length - a.contentBytes.length)[0];
+    throw new Error(
+      `Attachments come to ${(total / 1024 / 1024).toFixed(1)}MB, over the 3MB a single mail can carry. ` +
+        `The largest is ${biggest.name}. Send it from Outlook, or send fewer at a time.`
+    );
+  }
+
+  return {
+    attachments: list.map((a) => ({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: a.name,
+      contentType: a.contentType,
+      contentBytes: a.contentBytes,
+    })),
+  };
+}
+
+/**
+ * The bytes of one attachment on one message.
+ *
+ * Fetched to be copied elsewhere. The id is only meaningful against the
+ * mailbox the token belongs to, which is exactly why anything that wants to
+ * keep the file has to take the bytes rather than the reference.
+ */
+export async function getAttachmentBytes(
+  messageId: string,
+  attachmentId: string
+): Promise<{ name: string; contentType: string; size: number; contentBytes: string }> {
+  // No $select. contentBytes belongs to fileAttachment, a type derived from
+  // attachment, and naming a derived property on the base type is a 400 —
+  // the same trap the inline-image fetch documents further down.
+  const a = await graph<{
+    name: string;
+    contentType: string;
+    size: number;
+    contentBytes?: string;
+  }>(`/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+
+  if (!a.contentBytes) {
+    // An itemAttachment (a forwarded mail) or a referenceAttachment (a OneDrive
+    // link) has no bytes of its own. Neither is a file to be filed.
+    throw new Error(`"${a.name}" is not a file attachment, so there is nothing to save.`);
+  }
+  return { name: a.name, contentType: a.contentType, size: a.size, contentBytes: a.contentBytes };
+}
+
 export async function sendTracked(input: {
   to: string[];
   cc?: string[];
   subject: string;
   content: string;
+  attachments?: OutgoingAttachment[];
 }): Promise<{ conversationId: string; draftId: string }> {
   const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
 
@@ -524,6 +611,7 @@ export async function sendTracked(input: {
       body: { contentType: "HTML", content: asOutgoingHtml(input.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
+      ...attachmentPayload(input.attachments),
     }),
   });
 
@@ -655,8 +743,13 @@ export async function replyTracked(input: {
   cc?: string[];
   subject: string;
   content: string;
+  attachments?: OutgoingAttachment[];
 }): Promise<{ conversationId: string }> {
   const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
+
+  // Before the draft exists, so an oversized attachment does not leave one
+  // behind in the mailbox.
+  const files = attachmentPayload(input.attachments);
 
   const draft = await graph<{ id: string; conversationId: string }>(
     `/me/messages/${encodeURIComponent(input.replyToId)}/createReply`,
@@ -670,6 +763,7 @@ export async function replyTracked(input: {
       body: { contentType: "HTML", content: asOutgoingHtml(input.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
+      ...files,
     }),
   });
 
@@ -692,6 +786,7 @@ export async function sendMessage(input: {
   cc?: string[];
   subject: string;
   content: string;
+  attachments?: OutgoingAttachment[];
 }): Promise<void> {
   const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
 
@@ -710,6 +805,7 @@ export async function sendMessage(input: {
         // Omitted entirely when empty. An explicit empty array is legal but
         // there is no reason to send a header nobody asked for.
         ...(input.cc?.length ? { ccRecipients: recipients(input.cc) } : {}),
+        ...attachmentPayload(input.attachments),
       },
       saveToSentItems: true,
     }),

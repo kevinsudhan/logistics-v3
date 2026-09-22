@@ -8,6 +8,7 @@ import {
   readiness,
 } from "./data";
 import { renderDocument } from "./render";
+import { renderQuotationPdf, type QuotationPdfInput } from "./quotation";
 import type { DocSpec, DocumentData } from "./types";
 
 export {
@@ -57,4 +58,54 @@ export function viewDocument(spec: DocSpec, data: DocumentData): boolean {
 /** Readiness for every document against one record, for the UI list. */
 export function documentStatuses(data: DocumentData) {
   return DOCUMENTS.map((spec) => ({ spec, ...readiness(data, spec.requires) }));
+}
+
+/**
+ * The same PDF, as bytes to attach to a mail.
+ *
+ * ---------------------------------------------------------------------------
+ * The third thing you can do with a generated document, after saving it and
+ * opening it. It is the one that was missing, and its absence set the shape of
+ * the working day: generate the quotation, find it in Downloads, switch to
+ * Outlook, attach it, write the mail there — at which point the thread is in
+ * Outlook, the CRM never sees the reply, and nothing it knows about this
+ * enquiry includes the fact that a quotation went out.
+ *
+ * `arraybuffer` rather than the blob url `viewDocument` uses: nothing is being
+ * shown, so there is no object url to hold open and revoke.
+ * ---------------------------------------------------------------------------
+ */
+export function documentBytes(
+  spec: DocSpec,
+  data: DocumentData
+): { name: string; contentType: string; bytes: Uint8Array } {
+  const buffer = renderDocument(spec, data).output("arraybuffer") as ArrayBuffer;
+  return {
+    name: filename(spec, data),
+    contentType: "application/pdf",
+    bytes: new Uint8Array(buffer),
+  };
+}
+
+export { renderQuotationPdf, type QuotationPdfInput } from "./quotation";
+
+/**
+ * The quotation as a file, ready to attach or save.
+ *
+ * Its own path rather than going through `documentBytes`, because the
+ * quotation is not built from the registry's label-and-value sections — it is a
+ * rate table, and it needs the charge lines and the terms that the generic
+ * `DocumentData` bag does not carry.
+ */
+export function quotationFile(input: QuotationPdfInput): {
+  name: string;
+  contentType: string;
+  bytes: Uint8Array;
+} {
+  const version = input.quote.version > 1 ? `-v${input.quote.version}` : "";
+  return {
+    name: `Quotation-${input.enquiry.ref}${version}.pdf`,
+    contentType: "application/pdf",
+    bytes: new Uint8Array(renderQuotationPdf(input).output("arraybuffer") as ArrayBuffer),
+  };
 }

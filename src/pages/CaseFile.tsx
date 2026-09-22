@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../lib/auth";
 import JobBilling from "../components/JobBilling";
 import { ACCOUNTS_DESK, MAIL_ONLY_CASE_FILE } from "../lib/features";
+import { sectionsFor, type Section } from "../lib/caseFileSections";
 import { listQuotes, type PartnerQuote } from "../services/rfq";
 import QuotePanel from "../components/QuotePanel";
 import CargoPanel from "../components/CargoPanel";
@@ -25,7 +26,16 @@ import PartnersPanel from "../components/PartnersPanel";
 import PartnerQuotes from "../components/PartnerQuotes";
 import DocumentsPanel from "../components/DocumentsPanel";
 import { documentDataFromEnquiry } from "../lib/documents";
+import {
+  attachablesFrom,
+  liveQuoteOf,
+} from "../lib/attachableDocuments";
+import type { Attachable } from "../components/MailAttachments";
 import AcceptancePanel from "../components/AcceptancePanel";
+import ShipmentDetailsPanel, { CONSOL_KEYS } from "../components/ShipmentDetailsPanel";
+import Collapsible from "../components/Collapsible";
+import EnquiryWorkflow from "../components/EnquiryWorkflow";
+import { CARGO_KEYS, fillFromNewMail, type AutoFilled } from "../services/autoFill";
 import ThreadReader from "../components/ThreadReader";
 import {
   correspondenceFor,
@@ -47,66 +57,6 @@ import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
 
 /**
- * The sections this file is read in.
- *
- * ---------------------------------------------------------------------------
- * WHY IT IS NOT ONE PAGE ANY MORE
- *
- * It was nine panels stacked vertically, and it grew that way honestly — each
- * one was the right thing to add at the time. But the result is a page where
- * the documents are four screens below the cargo, and where somebody who opened
- * it to check a partner's rate scrolls past the quote, the acceptance and the
- * confirmation to get there.
- *
- * WHY A SEARCH PARAMETER AND NOT A NESTED ROUTE
- *
- * The shipment page uses nested routes, because its sections need almost
- * nothing from each other. These nine panels all read the same enquiry, quotes,
- * mail, events and parties, loaded once at the top of this component. Splitting
- * them into routed children would mean threading all of that through an outlet
- * context for no gain — the URL is what matters, and `?section=` puts it in the
- * URL just as well.
- * ---------------------------------------------------------------------------
- */
-const SECTIONS = [
-  // Mail first, and the default. On a desk whose work is the mailbox, "read
-  // this and answer it" is what opening an enquiry is for; everything else on
-  // this file is something you go to afterwards.
-  { key: "mail", label: "Mail" },
-  // The history, on a page of its own. It used to share the correspondence
-  // section, interleaved with the messages — which meant four rows of "mail
-  // linked", "assigned", "promoted from intake" sitting above the one thing
-  // somebody opened the enquiry to read. It answers how this got here, which
-  // is a different question asked at a different time.
-  { key: "timeline", label: "Timeline" },
-  { key: "details", label: "Details" },
-  // Partners and the quotation are one section, in that order. You ask the
-  // agents for a rate, their replies come back, and the quotation is built from
-  // them — putting those on two tabs made the operator hold a figure in their
-  // head while they navigated.
-  { key: "quote", label: "Partners & quote" },
-  { key: "documents", label: "Documents" },
-  { key: "billing", label: "Billing" },
-] as const;
-
-type Section = (typeof SECTIONS)[number]["key"];
-
-/**
- * The sections this build actually has.
- *
- * Derived rather than baked in, so `?section=billing` on a build without the
- * accounts desk falls through to the first one still standing instead of
- * rendering a tab strip with nothing under it. The full list above stays as the
- * source of the type.
- */
-const VISIBLE_SECTIONS = MAIL_ONLY_CASE_FILE
-  ? SECTIONS.filter((s) => s.key === "mail" || s.key === "timeline")
-  : SECTIONS.filter((s) => s.key !== "billing" || ACCOUNTS_DESK);
-
-/** Where the file opens, and where an unknown `?section=` lands. */
-const DEFAULT_SECTION = VISIBLE_SECTIONS[0].key;
-
-/**
  * One enquiry, everything about it.
  *
  * The inbound half of the job lives here: what the customer wants, what is
@@ -119,10 +69,6 @@ export default function CaseFile() {
   // Which board this was opened from, put there by EnquiryLink. Absent when
   // somebody pasted the reference or refreshed the page.
   const cameFrom = (useLocation().state as { from?: string } | null)?.from;
-  // A `?section=` naming one this build does not show falls through to the
-  // first that it does — rather than to "details", which may not be there.
-  const section = (VISIBLE_SECTIONS.find((s) => s.key === params.get("section"))?.key ??
-    DEFAULT_SECTION) as Section;
   const goTo = (s: Section) =>
     setParams(
       (p) => {
@@ -141,8 +87,39 @@ export default function CaseFile() {
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [partnerQuotes, setPartnerQuotes] = useState<PartnerQuote[]>([]);
   const [mail, setMail] = useState<FiledMessage[]>([]);
+  // What the correspondence filled in on its own this time round. Null when
+  // nothing arrived since the last reading, or when what arrived answered
+  // nothing that was still blank.
+  const [autoFilled, setAutoFilled] = useState<AutoFilled | null>(null);
+  /**
+   * Enquiries already read on this mount.
+   *
+   * StrictMode runs effects twice in development, and a second `load()` racing
+   * the first would see the same unmoved high-water mark: two model calls, two
+   * identical writes and two timeline entries saying the same thing. The mark
+   * alone cannot prevent it because neither call has written it yet.
+   */
+  const readOnce = useRef(new Set<string>());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const visibleSections = useMemo(
+    () =>
+      sectionsFor(enquiry, shipment, {
+        accountsDesk: ACCOUNTS_DESK,
+        mailOnlyCaseFile: MAIL_ONLY_CASE_FILE,
+      }),
+    [enquiry, shipment]
+  );
+
+  /*
+    A `?section=` naming one this enquiry does not show falls through to the
+    first that it does. That covers the ordinary case as well as the awkward
+    one: somebody reading the billing of a won job, which is then cancelled,
+    lands on the mail rather than on a tab that is no longer in the strip.
+  */
+  const section = (visibleSections.find((s) => s.key === params.get("section"))?.key ??
+    visibleSections[0].key) as Section;
 
   const [view, setView] = useState<"timeline" | "grouped">("timeline");
   const [shown, setShown] = useState<PartyRole[]>([]);
@@ -179,7 +156,34 @@ export default function CaseFile() {
       setShipment(sh);
       setPartnerQuotes(pq);
       // Mail is best-effort: a mailbox that will not load must not blank the file.
-      setMail(await correspondenceFor(ref, mailbox).catch(() => []));
+      const m = await correspondenceFor(ref, mailbox).catch(() => []);
+      setMail(m);
+
+      /*
+        Fill the shipment details the new mail answers.
+
+        After the file is on screen rather than before it: this makes a model
+        call, and holding the whole page on it would turn every enquiry opened
+        into a two-second wait for a panel most visits never look at. It writes
+        blanks only and does nothing at all when no mail has arrived since the
+        last reading, so the common case costs one comparison.
+
+        Best-effort like the mail itself — an enquiry must still open when the
+        reader is down.
+      */
+      if (!MAIL_ONLY_CASE_FILE && m.length && !readOnce.current.has(ref)) {
+        readOnce.current.add(ref);
+        void fillFromNewMail(e, m, [...CARGO_KEYS, ...CONSOL_KEYS], mailbox)
+          .then((filled) => {
+            if (!filled) return;
+            setAutoFilled(filled);
+            // The fields were written server-side; re-read so the form shows
+            // them rather than the blanks it was rendered with.
+            void getEnquiry(ref).then(setEnquiry);
+            void eventsFor(ref).then(setEvents);
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load this enquiry.");
     } finally {
@@ -197,6 +201,15 @@ export default function CaseFile() {
         (g) => g.items.length
       ),
     [mail]
+  );
+
+  /** The documents that can be attached to a reply from this file. */
+  const attachables: Attachable[] = useMemo(
+    () =>
+      !enquiry || MAIL_ONLY_CASE_FILE
+        ? []
+        : attachablesFrom(enquiry, enquiry.customer, liveQuoteOf(quotes)?.amount_inr ?? null),
+    [enquiry, quotes]
   );
 
   const filtering = shown.length > 0;
@@ -235,10 +248,7 @@ export default function CaseFile() {
    * rather than whatever was offered last. Drafts do not count: a rate nobody
    * has been told cannot appear on a document addressed to them.
    */
-  const liveQuote =
-    quotes.find((q) => q.status === "accepted") ??
-    quotes.filter((q) => q.status === "sent").sort((a, b) => b.version - a.version)[0] ??
-    null;
+  const liveQuote = liveQuoteOf(quotes);
 
   return (
     <div>
@@ -249,8 +259,26 @@ export default function CaseFile() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="font-mono text-[13px] text-text-accent">{enquiry.ref}</p>
+            {/*
+              The customer's name is a link to their file.
+
+              This is how somebody gets from "the job in front of me" to "what
+              else have we done for these people" — which is the question asked
+              halfway through reading a thread, and which had no answer at all
+              until there was a customer directory to land on.
+            */}
             <h1 className="mt-0.5 text-[19px] font-semibold tracking-tight text-text-primary">
-              {customer?.company || customer?.name || "Unknown customer"}
+              {customer ? (
+                <Link
+                  to={`/customers/${customer.id}`}
+                  className="hover:text-text-accent"
+                  title="Everything this desk has done for them"
+                >
+                  {customer.company || customer.name}
+                </Link>
+              ) : (
+                "Unknown customer"
+              )}
             </h1>
             <p className="mt-0.5 text-[13px] text-text-secondary">
               {customer?.name}
@@ -279,13 +307,24 @@ export default function CaseFile() {
       {/* ---- sections ----
           A strip of one tab is a label pretending to be a control: there is
           nowhere else to go, and it takes a row of height to say so. */}
+      {!MAIL_ONLY_CASE_FILE && (
+        <div className="mb-4">
+          <EnquiryWorkflow
+            enquiry={enquiry}
+            quotes={quotes}
+            partnerQuotes={partnerQuotes}
+            shipment={shipment}
+          />
+        </div>
+      )}
+
       <nav
         className={`mt-4 mb-4 flex-wrap gap-1 border-b border-border ${
-          VISIBLE_SECTIONS.length > 1 ? "flex" : "hidden"
+          visibleSections.length > 1 ? "flex" : "hidden"
         }`}
         aria-label="Case file sections"
       >
-        {VISIBLE_SECTIONS.map((s) => (
+        {visibleSections.map((s) => (
           <button
             key={s.key}
             onClick={() => goTo(s.key)}
@@ -301,7 +340,20 @@ export default function CaseFile() {
         ))}
       </nav>
 
-      {section === "details" && (
+      {section === "quote" && (
+        <>
+      {/*
+        Who is carrying it, and what they came back with — above the quotation,
+        because the quotation is built out of their answers.
+      */}
+      <PartnersPanel enquiry={enquiry} onChanged={load} />
+      <PartnerQuotes enquiry={enquiry} />
+
+      {/* ---- quoting and acceptance ---- */}
+        </>
+      )}
+
+      {section === "shipment" && (
         <>
           {/* ---- what we know, and what is still missing ---- */}
           <CargoPanel enquiry={enquiry} onSaved={load} />
@@ -320,10 +372,15 @@ export default function CaseFile() {
           */}
 
           {/* ---- parties ---- */}
-          <section className="mt-4 card p-5">
-            <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-3">
-              <Users size={12} /> Parties
-            </h2>
+          <Collapsible
+            id="case:parties"
+            title="Parties"
+            icon={<Users size={12} className="shrink-0 text-text-muted" />}
+            badge={parties.length ? `${parties.length}` : undefined}
+            /* Folded when there are none: an empty section explaining that
+               it is empty is the longest way to say nothing. */
+            defaultOpen={parties.length > 0}
+          >
             {!parties.length ? (
               <p className="text-[12px] text-text-muted">
                 Nobody recorded yet. Correspondents are added as they appear, and the role is what
@@ -347,25 +404,37 @@ export default function CaseFile() {
                 ))}
               </div>
             )}
-          </section>
-        </>
-      )}
+          </Collapsible>
 
-      {section === "quote" && (
-        <>
-      {/*
-        Who is carrying it, and what they came back with — above the quotation,
-        because the quotation is built out of their answers.
-      */}
-      <PartnersPanel enquiry={enquiry} onChanged={load} />
-      <PartnerQuotes enquiry={enquiry} />
+          {/*
+            The consol block, under the cargo it describes. Same page now:
+            both answer "what is being shipped", both are filled in from the
+            same mails in the same sitting, and two tabs meant deciding which
+            one a fact belonged in before you could write it down.
+          */}
+          <ShipmentDetailsPanel
+            enquiry={enquiry}
+            mail={mail}
+            autoFilled={autoFilled}
+            onSaved={load}
+          />
 
-      {/* ---- quoting and acceptance ---- */}
+          {/*
+            The customer-facing half of the job, on the page describing the
+            shipment it is about.
+
+            It used to sit under Partners & quote, which put the quotation two
+            clicks from the dimensions it is priced on — so building one meant
+            reading the cargo on one tab and typing the rate on another.
+            Asking agents for rates is a different activity and stays where it
+            was.
+          */}
       <QuotePanel
         enquiry={enquiry}
         quotes={quotes}
         onChanged={load}
         partnerQuotes={partnerQuotes}
+        customer={customer}
       />
 
       {/*
@@ -414,6 +483,7 @@ export default function CaseFile() {
         buying prices, and putting one on a customer's quotation sends the
         agent's cost to the shipper.
       */}
+
       {section === "documents" && (
         <section className="card mt-4 p-5">
           <h2 className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
@@ -484,6 +554,8 @@ export default function CaseFile() {
               : "Outlook is not connected on this session, so the correspondence cannot be read."
           }
           onChanged={load}
+          enquiryRef={enquiry.ref}
+          attachables={attachables}
         />
       )}
 

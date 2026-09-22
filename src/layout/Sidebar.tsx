@@ -3,6 +3,8 @@ import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
 import { useAuth } from "../lib/auth";
 import { ACCOUNTS_DESK } from "../lib/features";
 import {
+  Building2,
+  IndianRupee,
   Handshake,
   LayoutDashboard,
   Inbox,
@@ -64,6 +66,10 @@ const groups: NavGroup[] = [
       { to: "/intake", label: "Enquiries", icon: ClipboardList },
       { to: "/enquiries", label: "Inbound enquiries", icon: Inbox },
       { to: "/my-enquiries", label: "My enquiries", icon: UserCheck },
+      // In Operations rather than Admin: clearing a quotation is part of the
+      // day's work for the people who do it, and a queue behind an admin
+      // heading is a queue somebody visits once a week.
+      { to: "/approvals", label: "Quote approvals", icon: ShieldCheck },
       { to: "/shipments/in-process", label: "In-process shipments", icon: PackageSearch },
       { to: "/shipments/completed", label: "Completed shipments", icon: PackageCheck },
     ],
@@ -77,9 +83,23 @@ const groups: NavGroup[] = [
       { to: "/containers", label: "Containers", icon: Ship },
       { to: "/space-containers", label: "Space & containers", icon: Boxes },
       { to: "/documentation", label: "Documentation", icon: FileCheck2 },
+      // Maintenance rather than daily work, but it belongs beside the work it
+      // feeds: a rate is corrected the moment somebody quoting notices it is
+      // wrong, and a page they have to go looking for is corrected later or
+      // never.
+      { to: "/rates", label: "Rate master", icon: IndianRupee },
       { to: "/mail", label: "Mail", icon: Mail },
       { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
     ],
+  },
+  {
+    // Its own group for the same reason as partners below: a customer is a
+    // relationship, not a job. The difference is which side of the shipment
+    // they are on — these are the people the work is done FOR, and what you
+    // want from their record is history rather than a rate.
+    title: "Customers",
+    separated: true,
+    items: [{ to: "/customers", label: "Directory", icon: Building2, end: true }],
   },
   {
     // Its own group rather than a line in Operations, because a partner is a

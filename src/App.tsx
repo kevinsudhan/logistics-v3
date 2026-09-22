@@ -59,6 +59,12 @@ const AcPayables   = accountsPage(() => import("./pages/accounts/PayablesReport"
 const AcRcptDetail = accountsPage(() => import("./pages/accounts/ReceiptDetails"));
 const AcPayDetail  = accountsPage(() => import("./pages/accounts/PaymentDetails"));
 const AcAgentSOA   = accountsPage(() => import("./pages/accounts/AgentSOA"));
+const QuoteAccept = lazy(() => import("./pages/QuoteAccept"));
+const RateMaster = lazy(() => import("./pages/RateMaster"));
+const QuoteApprovals = lazy(() => import("./pages/QuoteApprovals"));
+const Customers = lazy(() => import("./pages/Customers"));
+const CustomerFile = lazy(() => import("./pages/CustomerFile"));
+const CustomerEdit = lazy(() => import("./pages/CustomerEdit"));
 const Partners = lazy(() => import("./pages/Partners"));
 const PartnerEdit = lazy(() => import("./pages/PartnerEdit"));
 const PartnerMail = lazy(() => import("./pages/PartnerMail"));
@@ -76,6 +82,15 @@ export default function App() {
         {/* Sign-in — the two doors. */}
         <Route path="/login" element={<Login role="employee" />} />
         <Route path="/admin/login" element={<Login role="admin" />} />
+
+        {/*
+          The customer's quotation page — outside the guard, because the person
+          reading it has no account here and should not need one to say yes.
+          Its token is the whole of its authority, and everything it can reach
+          is fixed by `quote_by_token` (053) rather than by a policy somebody
+          could widen later.
+        */}
+        <Route path="/q/:token" element={<QuoteAccept />} />
 
         {/* Admin area. */}
         <Route element={<RequireAuth role="admin" />}>
@@ -181,6 +196,29 @@ export default function App() {
               reading order; React Router ranks static segments above dynamic
               ones regardless, so "new" is never taken for an id.
             */}
+            {/*
+              The customers, the same three jobs as partners and in the same
+              shape: a directory to find them by, a file holding everything
+              they have ever given us, and an edit page of its own because
+              somebody typing a GSTIN off a letterhead gets interrupted.
+
+              `/customers/new` is declared before `/customers/:id` for reading
+              order only; React Router ranks static segments above dynamic ones,
+              so "new" is never taken for a customer id.
+            */}
+            <Route path="/rates" element={<RateMaster />} />
+            {/*
+              Not gated by the router. The page checks the approver flag itself
+              and explains, which is better than a 404 for somebody following a
+              colleague's link — and the rule that matters is enforced in
+              `decide_quote`, where the browser cannot reach it.
+            */}
+            <Route path="/approvals" element={<QuoteApprovals />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/customers/new" element={<CustomerEdit />} />
+            <Route path="/customers/:id" element={<CustomerFile />} />
+            <Route path="/customers/:id/edit" element={<CustomerEdit />} />
+
             <Route path="/partners" element={<Partners />} />
             <Route path="/partners/new" element={<PartnerEdit />} />
             <Route path="/partners/:id/edit" element={<PartnerEdit />} />

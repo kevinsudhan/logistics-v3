@@ -118,6 +118,207 @@ const SCHEMA = {
     destination: { type: "string", nullable: true, description: "Port or city of discharge." },
     cargo: { type: "string", nullable: true, description: "What is being shipped, and how much." },
     summary: { type: "string", description: "One or two sentences a colleague could act on." },
+
+    // ---- what a consol agent asks for --------------------------------------
+    //
+    // A co-loader quotes on these, and until now the answers arrived in a mail
+    // and stayed there. The schema is what the model is ALLOWED to return: a
+    // field absent here is one it cannot give however plainly the sender wrote
+    // it, which is why adding them to the CRM's own catalogue was not enough.
+    //
+    // Every one is nullable and the prompt says to return nulls freely. These
+    // are facts a carrier acts on — a wrong IMO class is a refused booking, a
+    // wrong cut-off is cargo that misses the boat — so a gap is wanted over a
+    // guess, and nothing here is written without somebody pressing apply.
+    // How it travels. Worth the model's attention because the chargeable
+    // weight is computed from it: air converts at six times the sea ratio, so
+    // a mode read wrong is a quotation wrong by a factor of six. Which is also
+    // why the description refuses the obvious inference — a rate request to a
+    // seaport is not somebody saying "by sea".
+    // ---------------------------------------------------------------------
+    // The cargo itself.
+    //
+    // These were missing, and their absence was the reason a details panel sat
+    // empty in front of a mail that described the consignment completely: a
+    // field the schema does not name is one the model cannot return however
+    // plainly the shipper wrote it. `origin`, `destination` and `cargo` were
+    // here; everything that makes them quotable was not.
+    // ---------------------------------------------------------------------
+    incoterm: {
+      type: "string",
+      nullable: true,
+      description:
+        "Three-letter Incoterm as written: EXW, FOB, CIF, DAP, DDP. Only if stated; never inferred from who is arranging the freight.",
+    },
+    ready_date: {
+      type: "string",
+      nullable: true,
+      description:
+        "YYYY-MM-DD. When the cargo is ready for collection or delivery into the CFS. NOT the sailing date and NOT a cut-off.",
+    },
+    pickup_location: {
+      type: "string",
+      nullable: true,
+      description:
+        "Where cargo is collected FROM, if a pickup is asked for. Different from the CFS it is delivered into.",
+    },
+    piece_count: {
+      type: "integer",
+      nullable: true,
+      description:
+        "How many pieces the dimensions below describe, e.g. 10 for '10 cases of 100x120x130'. May equal the package count; may not.",
+    },
+    piece_length_cm: {
+      type: "number",
+      nullable: true,
+      description:
+        "Length of ONE piece in centimetres. Convert from inches (x2.54) or metres (x100) and never from a total.",
+    },
+    piece_width_cm: {
+      type: "number",
+      nullable: true,
+      description: "Width of ONE piece in centimetres.",
+    },
+    piece_height_cm: {
+      type: "number",
+      nullable: true,
+      description: "Height of ONE piece in centimetres.",
+    },
+    weight_per_piece_kg: {
+      type: "number",
+      nullable: true,
+      description:
+        "Weight of ONE piece in kilograms, only where stated per piece. A single total weight is gross_weight_kg.",
+    },
+    gross_weight_kg: {
+      type: "number",
+      nullable: true,
+      description:
+        "TOTAL gross weight of the consignment in kilograms, including packaging. An unqualified weight is this one. Convert from tonnes (x1000) or pounds (x0.4536).",
+    },
+    volume_cbm: {
+      type: "number",
+      nullable: true,
+      description:
+        "Total volume in cubic metres, only where the sender states it. Do NOT calculate it from the dimensions — the application does that.",
+    },
+    consignee_name: {
+      type: "string",
+      nullable: true,
+      description: "The receiver's company name, as it should appear on the bill of lading.",
+    },
+    consignee_country: {
+      type: "string",
+      nullable: true,
+      description: "The consignee's country, where it is given or unambiguous from their address.",
+    },
+    stackable: {
+      type: "boolean",
+      nullable: true,
+      description:
+        "True or false only where the sender says so, e.g. 'non-stackable' or 'do not stack'. Null when unmentioned.",
+    },
+    transport_mode: {
+      type: "string",
+      nullable: true,
+      enum: ["sea_lcl", "sea_fcl", "air", "road"],
+      description:
+        "Only where the sender says so: 'LCL', 'full container', 'we need an air quote', 'by road'. A port of loading is NOT a mode. Null unless stated.",
+    },
+    // The party block and the packing list. These have been on `shipments`
+    // since 028 and on the CRM's field catalogue for as long, but were never
+    // in this schema — so the details panel offered them, the operator saw
+    // them blank, and no reading could ever fill one however plainly the
+    // shipper had written it.
+    consignee_address: {
+      type: "string",
+      nullable: true,
+      description:
+        "The consignee's full address as it should print on the bill of lading. Copy as written, including the country line.",
+    },
+    package_count: {
+      type: "integer",
+      nullable: true,
+      description:
+        "How many packages the B/L declares, e.g. 42 for '42 cartons'. NOT the piece count used for stowage dimensions if the mail distinguishes them.",
+    },
+    package_type: {
+      type: "string",
+      nullable: true,
+      description: "What the packages are: cartons, pallets, drums, crates, bales.",
+    },
+    hs_code: {
+      type: "string",
+      nullable: true,
+      description:
+        "The HS / tariff code, digits only with any dots kept as written. Only if quoted; never inferred from the cargo description.",
+    },
+    net_weight_kg: {
+      type: "number",
+      nullable: true,
+      description:
+        "Net weight in kilograms, excluding packaging. Only when stated as net; a single unqualified weight is the GROSS weight, not this.",
+    },
+    msds_provided: {
+      type: "boolean",
+      nullable: true,
+      description:
+        "True only where the MSDS has actually been sent or attached. A promise to send one is not true.",
+    },
+    cfs_location: {
+      type: "string",
+      nullable: true,
+      description:
+        "Where cargo is delivered to be consolidated. NOT the pickup address: a shipper in Tirupur usually delivers into a Chennai CFS. Only if a place is actually named.",
+    },
+    cargo_cutoff: {
+      type: "string",
+      nullable: true,
+      description:
+        "YYYY-MM-DD. Last date the consol agent accepts cargo. Never inferred from the sailing date.",
+    },
+    si_cutoff: {
+      type: "string",
+      nullable: true,
+      description: "YYYY-MM-DD. Last date for shipping instructions, only if stated as such.",
+    },
+    marks_and_numbers: {
+      type: "string",
+      nullable: true,
+      description:
+        "What is stencilled on the packages, printed as-is on the bill of lading. Often literally 'NIL'. Copy what was written; do not tidy it.",
+    },
+    freight_terms: {
+      type: "string",
+      nullable: true,
+      enum: ["prepaid", "collect"],
+      description:
+        "Who pays the carrier. Do NOT derive it from the incoterm — EXW cargo is frequently shipped prepaid by arrangement.",
+    },
+    notify_name: {
+      type: "string",
+      nullable: true,
+      description:
+        "Who is told on arrival. Often the consignee and often not, commonly the buyer's customs broker. Only if named separately.",
+    },
+    notify_address: { type: "string", nullable: true },
+    un_number: {
+      type: "string",
+      nullable: true,
+      description: "Hazardous only. Four digits, written 'UN 1263'. Return just the digits.",
+    },
+    imo_class: {
+      type: "string",
+      nullable: true,
+      description:
+        "Hazardous only. The IMDG class, such as '3' or '8'. NEVER inferred from the cargo description.",
+    },
+    packing_group: { type: "string", nullable: true, enum: ["I", "II", "III"] },
+    flash_point_c: {
+      type: "number",
+      nullable: true,
+      description: "Hazardous only, in Celsius. Convert from Fahrenheit if given that way.",
+    },
   },
   required: ["is_enquiry", "confidence", "reason", "summary"],
 };

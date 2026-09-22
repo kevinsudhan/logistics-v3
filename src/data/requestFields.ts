@@ -19,7 +19,15 @@
  * ---------------------------------------------------------------------------
  */
 
-export type FieldKind = "text" | "number" | "boolean" | "enum";
+/**
+ * `date` is its own kind rather than text carrying a YYYY-MM-DD.
+ *
+ * The form renders a date picker from it, which is the difference between an
+ * operator typing "14th" and the field holding a date the cut-off can actually
+ * be compared against. Older date fields in this catalogue are still "text";
+ * they predate the form and changing them is a separate, testable job.
+ */
+export type FieldKind = "text" | "number" | "boolean" | "enum" | "date";
 export type FieldGroup = "booking" | "documentation" | "handling";
 
 export interface FieldDef {
@@ -309,6 +317,103 @@ export const REQUEST_FIELDS: FieldDef[] = [
   },
 
   // ---------------------------------------------------------------- handling
+  // ---- what a consol agent asks for before they will take the cargo ----
+  //
+  // A co-loader quotes on these. Until now the answers arrived in a mail,
+  // somebody read them, and they stayed in the mail — the catalogue is what the
+  // extractor is constrained to, so a field absent here is one the model is not
+  // allowed to return however plainly the sender wrote it.
+  // How it travels. Asked because the chargeable weight is computed per mode
+  // and the ratios differ by a factor of six between air and sea — a mode
+  // guessed wrong is a quotation wrong in the direction that loses money.
+  {
+    key: "transport_mode",
+    label: "Transport mode",
+    group: "booking",
+    kind: "enum",
+    options: ["sea_lcl", "sea_fcl", "air", "road"],
+    hint: "Only where the sender says so — 'LCL', 'we need an air quote', 'by road'. A request for a rate to a seaport is not by itself a mode; leave it null rather than assuming sea.",
+  },
+  {
+    key: "cfs_location",
+    label: "CFS / stuffing point",
+    group: "booking",
+    kind: "text",
+    hint: "Where cargo is delivered to be consolidated. NOT the pickup address — a shipper in Tirupur usually delivers into a Chennai CFS. Only if a place is actually named.",
+  },
+  {
+    key: "cargo_cutoff",
+    label: "Cargo cut-off",
+    group: "booking",
+    kind: "date",
+    hint: "The last date the consol agent accepts cargo for the sailing. Earlier than the carrier's own cut-off. Never inferred from the sailing date.",
+  },
+  {
+    key: "si_cutoff",
+    label: "SI cut-off",
+    group: "documentation",
+    kind: "date",
+    hint: "Last date for shipping instructions. Only if stated as such.",
+  },
+  {
+    key: "marks_and_numbers",
+    label: "Marks & numbers",
+    group: "documentation",
+    kind: "text",
+    hint: "What is stencilled on the packages, printed as-is on the B/L. Often literally 'NIL'. Copy what was written; do not tidy it.",
+  },
+  {
+    key: "freight_terms",
+    label: "Freight terms",
+    group: "booking",
+    kind: "enum",
+    options: ["prepaid", "collect"],
+    hint: "Who pays the carrier: prepaid is the shipper, collect is the consignee. Do not guess it from the incoterm — EXW cargo is frequently shipped prepaid by arrangement.",
+  },
+  {
+    key: "notify_name",
+    label: "Notify party",
+    group: "documentation",
+    kind: "text",
+    hint: "Who is told on arrival. Often the consignee and often not — commonly the buyer's customs broker. Only if named separately.",
+  },
+  {
+    key: "notify_address",
+    label: "Notify address",
+    group: "documentation",
+    kind: "text",
+    hint: "The notify party's full address, as it should print on the bill of lading.",
+  },
+  {
+    key: "un_number",
+    label: "UN number",
+    group: "handling",
+    kind: "text",
+    hint: "Hazardous cargo only. Four digits, usually written 'UN 1263'. Return the digits.",
+  },
+  {
+    key: "imo_class",
+    label: "IMO class",
+    group: "handling",
+    kind: "text",
+    hint: "Hazardous cargo only. The IMDG class, such as '3' or '8' or '9'. Never inferred from the cargo description — a wrong class on a DG declaration is a refused booking at best.",
+  },
+  {
+    key: "packing_group",
+    label: "Packing group",
+    group: "handling",
+    kind: "enum",
+    options: ["I", "II", "III"],
+    hint: "Hazardous cargo only. Roman numerals I, II or III, only if stated.",
+  },
+  {
+    key: "flash_point_c",
+    label: "Flash point",
+    group: "handling",
+    kind: "number",
+    unit: "degC",
+    hint: "Hazardous cargo only. In Celsius. Convert from Fahrenheit if that is how it was given, and only if a figure was given.",
+  },
   {
     key: "msds_provided",
     label: "MSDS provided",
@@ -520,3 +625,7 @@ export function completeness(details: RequestDetails): { filled: number; total: 
   const filled = FIELD_KEYS.filter((k) => details[k] !== null && details[k] !== undefined).length;
   return { filled, total: FIELD_KEYS.length };
 }
+
+/** One field by key, or undefined when nothing in the catalogue has it. */
+export const byKey = (key: string): FieldDef | undefined =>
+  REQUEST_FIELDS.find((f) => f.key === key);

@@ -52,6 +52,16 @@ export interface Session {
   role: Role;
   /** Appended to new messages. Graph cannot read the Outlook one, so we keep our own. */
   signature: string;
+  /**
+   * May clear a quotation to go to a customer (052).
+   *
+   * Deliberately not the same as `role === "admin"`. Administering the system
+   * and being allowed to commit the company to a price are different
+   * authorities, and the person who does one is not always the person who
+   * should do the other. Read from the profile, so the set of approvers can
+   * change without a deploy.
+   */
+  canApproveQuotes: boolean;
 }
 
 interface AuthValue {
@@ -73,7 +83,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 async function loadProfile(userId: string, fallbackEmail: string): Promise<Session | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, signature")
+    .select("id, email, full_name, role, signature, can_approve_quotes")
     .eq("id", userId)
     .single();
 
@@ -85,6 +95,7 @@ async function loadProfile(userId: string, fallbackEmail: string): Promise<Sessi
     name: data.full_name || (data.email ?? fallbackEmail).split("@")[0],
     role: data.role === "admin" ? "admin" : "employee",
     signature: data.signature ?? "",
+    canApproveQuotes: data.can_approve_quotes === true,
   };
 }
 

@@ -413,6 +413,7 @@ export const sendMail = async (body: {
   content: string;
   conversationId?: string;
   replyToId?: string;
+  attachments?: graph.OutgoingAttachment[];
 }) => {
   if (live()) {
     /*
@@ -430,6 +431,7 @@ export const sendMail = async (body: {
         cc: body.cc,
         subject: body.subject,
         content: body.content,
+        attachments: body.attachments,
       });
       return;
     }
@@ -439,6 +441,7 @@ export const sendMail = async (body: {
       cc: body.cc,
       subject: body.subject,
       content: body.content,
+      attachments: body.attachments,
     });
     return;
   }

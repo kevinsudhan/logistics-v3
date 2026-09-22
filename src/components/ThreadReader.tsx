@@ -1,8 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertCircle, Hash, Loader2, MessageSquare, Reply } from "lucide-react";
 import MailBody from "./MailBody";
+import MessageAttachments from "./MessageAttachments";
 import MessageHeader from "./MessageHeader";
 import ComposeMail from "./ComposeMail";
+import type { Attachable } from "./MailAttachments";
+import { attachablesForEnquiry } from "../lib/attachableDocuments";
 import PushMailToQueue from "./PushMailToQueue";
 import FileToEnquiry from "./FileToEnquiry";
 import StatusPill from "./StatusPill";
@@ -58,6 +61,16 @@ export interface ThreadReaderProps {
   emptyHint: string;
   /** Something changed that the page around this should reload. */
   onChanged: () => void;
+  /**
+   * The enquiry these threads belong to, on a case file.
+   *
+   * Absent on the partner screen, where a thread may concern several enquiries
+   * or none — there is no single case to file an attachment onto, and guessing
+   * one would put a customer's packing list on the wrong job.
+   */
+  enquiryRef?: string | null;
+  /** Documents the case can generate, offered in the attachment menu. */
+  attachables?: Attachable[];
 }
 
 export default function ThreadReader({
@@ -73,6 +86,8 @@ export default function ThreadReader({
   hint,
   emptyHint,
   onChanged,
+  enquiryRef,
+  attachables,
 }: ThreadReaderProps) {
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<MailMessage[]>([]);
@@ -81,6 +96,7 @@ export default function ThreadReader({
   const [error, setError] = useState<FailureText | null>(null);
 
   const threads = groupIntoThreads(messages);
+
 
   const onOpen = useCallback(
     async (t: Thread) => {
@@ -126,6 +142,40 @@ export default function ThreadReader({
     }
   }
 
+  /**
+   * The enquiry a thread is about, or null.
+   *
+   * On a case file the prop answers it — every thread there belongs to that
+   * enquiry. On the partner screen it depends on the reference the thread
+   * carries: an ALG thread is about a shipment, a PALG thread is a rate
+   * discussion or a claim belonging to no single job, and an unreferenced one
+   * has nowhere to file anything.
+   */
+  const enquiryFor = (conversationId: string): string | null =>
+    enquiryRef ??
+    (refs.get(conversationId)?.kind === "shipment"
+      ? refs.get(conversationId)?.ref ?? null
+      : null);
+
+  const composingRef = composing ? enquiryFor(composing.replyTo.conversationId) : null;
+
+  /**
+   * How the reply box finds this enquiry's documents.
+   *
+   * Only where the screen did not supply them outright — the case file has the
+   * record in memory and has no reason to fetch it again. Memoised on the
+   * reference rather than rebuilt each render: the picker runs this inside an
+   * effect keyed on the function, so a fresh identity every render would
+   * refetch continuously.
+   */
+  const loadAttachables = useMemo(
+    () =>
+      attachables?.length || !composingRef
+        ? undefined
+        : () => attachablesForEnquiry(composingRef),
+    [attachables, composingRef]
+  );
+
   return (
     <>
       {error && (
@@ -152,6 +202,7 @@ export default function ThreadReader({
         onOpen={onOpen}
         onReply={(m) => setComposing({ replyTo: m })}
         onChanged={onChanged}
+        enquiryFor={enquiryFor}
       />
 
       {composing && (
@@ -162,6 +213,19 @@ export default function ThreadReader({
           replyTo={composing.replyTo}
           partnerId={partnerId}
           reference={refs.get(composing.replyTo.conversationId)?.ref ?? null}
+          // The enquiry this thread is about, so a reply to an agent can carry
+          // the shipper's packing list without anybody hunting down the mail it
+          // arrived on.
+          enquiryRef={composingRef}
+          attachables={attachables}
+          /*
+            No static list, but the thread names an enquiry — so the documents
+            are fetched rather than done without. This is what lets an agent be
+            sent the quotation from their own screen, instead of the operator
+            navigating to the case file to attach it and losing the thread they
+            were answering.
+          */
+          loadAttachables={loadAttachables}
           onClose={() => setComposing(null)}
           onSent={() => {
             setComposing(null);
@@ -186,6 +250,7 @@ function ThreadList({
   onOpen,
   onReply,
   onChanged,
+  enquiryFor,
 }: {
   title: string;
   hint: string;
@@ -195,6 +260,12 @@ function ThreadList({
   onGiveRef?: (conversationId: string, subject: string) => void;
   threads: Thread[];
   emptyHint: string;
+  /**
+   * The case a given thread belongs to, so an attachment can be filed onto it.
+   * Decided by the caller, which is the only place that knows whether this is a
+   * case file or a partner's mixed correspondence.
+   */
+  enquiryFor: (conversationId: string) => string | null;
   openThread: string | null;
   threadMessages: MailMessage[];
   threadBusy: boolean;
@@ -407,6 +478,27 @@ function ThreadList({
                             </div>
 
                             <MailBody message={m} />
+
+                            {/*
+                              The case this thread's attachments belong to.
+
+                              Per thread, not per screen. On a case file every
+                              thread is that enquiry's, so the prop answers it.
+                              On the partner screen it depends: a thread
+                              carrying an ALG reference is about that shipment
+                              and its packing list belongs on it, while a PALG
+                              thread is a rate discussion or a claim that
+                              belongs to no single job — and an unreferenced
+                              one has nowhere to put a file at all. Offering
+                              "save" on those would mean guessing a case, and a
+                              customer's document on the wrong job is worse
+                              than one still in the mailbox.
+                            */}
+                            <MessageAttachments
+                              message={m}
+                              enquiryRef={enquiryFor(t.conversationId)}
+                              onFiled={onChanged}
+                            />
                           </article>
                         ))}
                       </div>

@@ -6,10 +6,13 @@ import {
   declineQuote,
   markQuoteSent,
   missingForQuote,
+  type Customer,
   type Enquiry,
   type Quote,
 } from "../services/enquiries";
 import QuoteCharges from "./QuoteCharges";
+import { LINE_CURRENCIES } from "../services/charges";
+import QuoteSend from "./QuoteSend";
 import type { PartnerQuote } from "../services/rfq";
 
 /**
@@ -29,8 +32,11 @@ export default function QuotePanel({
   quotes,
   onChanged,
   partnerQuotes,
+  customer,
 }: {
   enquiry: Enquiry;
+  /** Who it is addressed to, for the quotation mail and the PDF. */
+  customer?: Customer | null;
   quotes: Quote[];
   onChanged: () => void;
   /** Replies from partners, offered as the cost against a charge line. */
@@ -39,6 +45,10 @@ export default function QuotePanel({
   const [basis, setBasis] = useState("");
   const [sailing, setSailing] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  const [currency, setCurrency] = useState("INR");
+  const [fxRate, setFxRate] = useState("1");
+  const [quoteType, setQuoteType] = useState<"standard" | "spot" | "contract">("standard");
+  const [multiCarrier, setMultiCarrier] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
@@ -82,8 +92,8 @@ export default function QuotePanel({
         </div>
       ) : missing.length > 0 && !live ? (
         <p className="text-[12px] text-text-muted">
-          Fill in the shipment details above before quoting — a rate without dimensions is a guess,
-          and space cannot be checked in three dimensions without them.
+          Quoting without {missing.join(", ").toLowerCase()} — the rate will be an indication, and
+          the quotation prints those as TBD. Fill them in above if the customer has given them.
         </p>
       ) : null}
 
@@ -104,19 +114,6 @@ export default function QuotePanel({
             </div>
 
             <div className="flex items-center gap-2">
-              {live.status === "draft" && (
-                <button
-                  onClick={() =>
-                    run("send", () => markQuoteSent(live.id, enquiry.ref, Number(live.amount_inr)))
-                  }
-                  disabled={busy !== null}
-                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark disabled:opacity-60 text-white text-[12px] font-medium"
-                >
-                  {busy === "send" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                  Mark sent
-                </button>
-              )}
-
               {live.status === "sent" && (
                 <>
                   <button
@@ -161,9 +158,34 @@ export default function QuotePanel({
               quoteId={live.id}
               locked={live.status !== "draft"}
               partnerQuotes={partnerQuotes}
+              /*
+                What the rate master is asked about. `transport_mode` is the
+                asked field from 047 rather than a guess: the ratios and the
+                rates both differ by mode, and a sea rate offered on an air job
+                is worse than no rate at all.
+              */
+              quoteCurrency={live.currency}
+              quoteFxRate={live.fx_rate}
+              lane={{
+                origin: enquiry.origin,
+                destination: enquiry.destination,
+                mode: enquiry.transport_mode,
+                direction: enquiry.trade_direction ?? null,
+              }}
               onChanged={onChanged}
             />
           </div>
+
+          {/*
+            Everything between "the figures are right" and "the customer has
+            it": the terms, the approval, and the three ways it can leave.
+          */}
+          <QuoteSend
+            enquiry={enquiry}
+            customer={customer ?? null}
+            quote={live}
+            onChanged={onChanged}
+          />
         </div>
       )}
 
@@ -173,8 +195,22 @@ export default function QuotePanel({
           {!drafting ? (
             <button
               onClick={() => setDrafting(true)}
-              disabled={missing.length > 0}
-              className="h-8 px-3 rounded-lg border border-border bg-surface-1 text-[12px] font-medium text-text-primary hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              /*
+                Never disabled.
+
+                A desk quotes on partial information constantly: a customer
+                rings for an indication before the packing list exists, an agent
+                wants a number today and the dimensions on Thursday, a regular
+                lane is quoted from last month's figures. Refusing to open the
+                form until every field is answered does not produce better data
+                — it produces a quotation typed into a mail instead, which is
+                the same price with none of the record.
+
+                What is missing is said above, and printed on the document as
+                TBD. That is the honest treatment: tell somebody what they are
+                quoting without, and let them decide.
+              */
+              className="h-8 px-3 rounded-lg border border-border bg-surface-1 text-[12px] font-medium text-text-primary hover:bg-surface-2"
             >
               {live ? "Revise quote" : "Add quote"}
             </button>
@@ -191,6 +227,72 @@ export default function QuotePanel({
                 <Field label="Valid until" value={validUntil} onChange={setValidUntil} type="date" />
               </div>
 
+              {/*
+                The quotation's own header. Separate from the charges because it
+                describes the document rather than any line on it: a quotation
+                presented in USD can still carry a charge bought in AED.
+              */}
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block">
+                  <span className="mb-1 block text-[11.5px] text-text-secondary">Quote currency</span>
+                  <select
+                    value={currency}
+                    onChange={(e) => {
+                      setCurrency(e.target.value);
+                      // Back to parity when it returns to rupees, so a rate left
+                      // over from a foreign draft cannot multiply a rupee quote.
+                      if (e.target.value === "INR") setFxRate("1");
+                    }}
+                    className="h-8 w-full"
+                  >
+                    {LINE_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11.5px] text-text-secondary">
+                    Rate of exchange
+                  </span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min={0}
+                    value={fxRate}
+                    disabled={currency === "INR"}
+                    onChange={(e) => setFxRate(e.target.value)}
+                    className="h-8 w-full disabled:opacity-60"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11.5px] text-text-secondary">Quote type</span>
+                  <select
+                    value={quoteType}
+                    onChange={(e) =>
+                      setQuoteType(e.target.value as "standard" | "spot" | "contract")
+                    }
+                    className="h-8 w-full"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="spot">Spot</option>
+                    <option value="contract">Contract</option>
+                  </select>
+                </label>
+
+                <label className="flex items-center gap-2 pt-5 text-[12px] text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={multiCarrier}
+                    onChange={(e) => setMultiCarrier(e.target.checked)}
+                  />
+                  Multi-carrier
+                </label>
+              </div>
+
               <div className="mt-3 flex items-center gap-2">
                 <button
                   onClick={() =>
@@ -204,6 +306,10 @@ export default function QuotePanel({
                         basis: basis.trim(),
                         sailingDate: sailing || undefined,
                         validUntil: validUntil || undefined,
+                        currency,
+                        fxRate: Number(fxRate) || 1,
+                        quoteType,
+                        multiCarrier,
                       });
                       setBasis("");
                       setSailing("");

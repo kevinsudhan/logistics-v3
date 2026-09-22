@@ -47,7 +47,15 @@ export interface MailMessage {
   isRead: boolean;
   isDraft: boolean;
   hasAttachments: boolean;
-  attachments: Array<{ name: string; size: number; contentType: string }>;
+  /**
+   * The real attachments — inline signature logos are filtered out.
+   *
+   * `id` is Graph's, and is only resolvable with a token for the mailbox that
+   * holds the message. It is here so the bytes can be fetched once, to be
+   * copied somewhere that does not depend on one person's mailbox; it is not
+   * something to store.
+   */
+  attachments: Array<{ id?: string; name: string; size: number; contentType: string }>;
   importance: "low" | "normal" | "high";
   /**
    * The raw internet headers, when they were asked for.

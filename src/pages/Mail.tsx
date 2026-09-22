@@ -5,7 +5,6 @@ import {
   Archive,
   Inbox,
   Mail as MailIcon,
-  Paperclip,
   PenSquare,
   PenLine,
   RefreshCw,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ComposeMail from "../components/ComposeMail";
+import MessageAttachments from "../components/MessageAttachments";
 import SignatureEditor from "../components/SignatureEditor";
 import PushMailToQueue from "../components/PushMailToQueue";
 import FileToEnquiry from "../components/FileToEnquiry";
@@ -635,26 +635,15 @@ export default function Mail() {
                 )}
               </div>
 
-              {selected.attachments.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-2">
-                    {selected.attachments.length} attachment
-                    {selected.attachments.length > 1 ? "s" : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {selected.attachments.map((a) => (
-                      <span
-                        key={a.name}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[12px] text-text-secondary"
-                      >
-                        <Paperclip size={11} />
-                        {a.name}
-                        <span className="text-text-muted">{Math.round(a.size / 1024)} KB</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/*
+                No enquiryRef: this screen is the mailbox, not a case. A message
+                here may belong to no enquiry, or to one nobody has decided on
+                yet — saving an attachment would have to guess which, and a
+                customer's packing list filed onto the wrong job is worse than
+                one not filed at all. File the thread first, then save from the
+                case file.
+              */}
+              <MessageAttachments message={selected} />
             </article>
           )}
         </div>

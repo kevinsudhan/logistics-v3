@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Collapsible from "./Collapsible";
 import { AlertCircle, Check, Loader2, Package, Pencil } from "lucide-react";
 import {
   computeGrossKg,
@@ -63,7 +64,17 @@ export default function CargoPanel({
           special_handling: form.special_handling ?? null,
           // Derived, not entered.
           volume_cbm: computeVolumeCbm(form),
-          gross_weight_kg: computeGrossKg(form),
+          /*
+            Derived where the pieces give it, kept where they do not.
+
+            This used to be `computeGrossKg(form)` outright, which returns null
+            when there is no per-piece weight — so opening Edit on an enquiry
+            whose mail said "gross 2000 kgs total" and pressing Save silently
+            erased the 2000. The total is a fact in its own right; the
+            calculation is a convenience for when the shipper gave weights per
+            piece instead.
+          */
+          gross_weight_kg: computeGrossKg(form) ?? numberOrNull(form.gross_weight_kg),
           // First real detail moves it out of "new" on its own.
           status: enquiry.status === "new" ? "qualifying" : enquiry.status,
         },
@@ -79,20 +90,28 @@ export default function CargoPanel({
   }
 
   return (
-    <section className="mt-4 card p-5">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          <Package size={12} /> Shipment details
-        </h2>
-        {!editing && (
+    <Collapsible
+      id="case:cargo"
+      title="Shipment details"
+      icon={<Package size={12} className="shrink-0 text-text-muted" />}
+      /*
+        Open by default and, unlike the rest, open even when empty: this is
+        the block a quotation cannot be built without, and the banner naming
+        what is still missing is the most useful thing on the page. Folding
+        it away by default would hide the one prompt that moves the job on.
+      */
+      action={
+        editing ? undefined : (
           <button
+            type="button"
             onClick={() => setEditing(true)}
             className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary"
           >
             <Pencil size={12} /> Edit
           </button>
-        )}
-      </div>
+        )
+      }
+    >
 
       {/*
         Missing fields are named, not counted. "Four fields missing" sends
@@ -104,7 +123,7 @@ export default function CargoPanel({
         <div className="mb-3 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] text-text-warning">
           <AlertCircle size={13} className="mt-px shrink-0" />
           <span>
-            <strong className="font-medium">Not ready to quote.</strong> Still needed:{" "}
+            <strong className="font-medium">Not everything a rate needs.</strong> Still needed:{" "}
             {missing.join(", ")}.
           </span>
         </div>
@@ -163,6 +182,19 @@ export default function CargoPanel({
               on={(x) => set("weight_per_piece_kg", x)}
               type="number"
             />
+            {/*
+              The total, typed directly. Shippers quote a total far more often
+              than a per-piece weight, and without this field the only way to
+              record one was to divide it by the piece count by hand — which is
+              arithmetic the desk should not be doing on a figure it was given.
+            */}
+            <In
+              label="Gross total (kg)"
+              v={form.gross_weight_kg}
+              on={(x) => set("gross_weight_kg", x)}
+              type="number"
+              placeholder={derivedKg ? `${derivedKg} from the pieces` : undefined}
+            />
             <In label="Ready date" v={form.ready_date} on={(x) => set("ready_date", x)} type="date" />
             <In label="Pickup" v={form.pickup_location} on={(x) => set("pickup_location", x)} />
             <In label="Consignee" v={form.consignee_name} on={(x) => set("consignee_name", x)} />
@@ -217,7 +249,7 @@ export default function CargoPanel({
           </div>
         </div>
       )}
-    </section>
+    </Collapsible>
   );
 }
 
@@ -269,4 +301,11 @@ function In({
       />
     </div>
   );
+}
+
+/** A form value that may be a string from an input, as a number or null. */
+function numberOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
