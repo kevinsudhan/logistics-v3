@@ -84,6 +84,16 @@ export interface Enquiry {
   upright_only: boolean | null;
   special_handling: string | null;
 
+  /* Cargo details (063). */
+  /** Dangerous goods. Null is "nobody has said", not "no". */
+  hazardous: boolean | null;
+  expected_delivery_date: string | null;
+  /**
+   * The unit the dimension lines are entered in. The totals above are always
+   * centimetres, kilos and CBM whatever this says.
+   */
+  dimension_unit: "cm_kg" | "in_lb";
+
   /**
    * How it travels (047).
    *
@@ -1165,34 +1175,24 @@ export function computeGrossKg(e: Partial<Enquiry>): number | null {
  * depends on, not a wish list.
  */
 export function missingForQuote(e: Enquiry): string[] {
-  const need: Array<[keyof Enquiry, string]> = [
-    ["origin", "Origin"],
-    ["destination", "Destination"],
-    ["cargo", "Cargo description"],
-    ["piece_count", "Number of packages"],
-    ["piece_length_cm", "Piece length"],
-    ["piece_width_cm", "Piece width"],
-    ["piece_height_cm", "Piece height"],
-  ];
-  const blank = (k: keyof Enquiry) => e[k] === null || e[k] === undefined || e[k] === "";
-  const missing = need.filter(([k]) => blank(k)).map(([, l]) => l);
+  const blank = (v: unknown) => v === null || v === undefined || v === "";
+  const missing: string[] = [];
+
+  if (blank(e.transport_mode)) missing.push("Service");
+  if (blank(e.origin)) missing.push("Origin");
+  if (blank(e.destination)) missing.push("Destination");
+  if (blank(e.cargo)) missing.push("Commodity");
 
   /*
-    The weight, by either route.
+    Size and weight, by whatever route they arrived.
 
-    This used to demand `weight_per_piece_kg` and nothing else, which blocked
-    quoting on the ordinary case: a shipper writes "gross weight 2000 kgs
-    total", because that is how weights are quoted in this trade. The enquiry
-    then held a perfectly good total and the quote button stayed dead, asking
-    for a figure nobody had been given.
-
-    Either establishes the weight. Which one is present decides nothing else —
-    the chargeable weight is computed from the total, and the total is either
-    stated or derived from the pieces.
+    The volume is the total — summed from the dimension lines, or stated in the
+    mail — so one check covers both. FCL is bought by the box and does not need
+    one. The weight is a stated total or pieces times a per-piece figure; either
+    establishes it.
   */
-  if (blank("gross_weight_kg") && blank("weight_per_piece_kg")) {
-    missing.push("Weight (total or per piece)");
-  }
+  if (e.transport_mode !== "sea_fcl" && blank(e.volume_cbm)) missing.push("Dimensions");
+  if (blank(e.gross_weight_kg) && blank(e.weight_per_piece_kg)) missing.push("Weight");
   return missing;
 }
 

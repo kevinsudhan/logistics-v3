@@ -19,7 +19,6 @@ import { ACCOUNTS_DESK, MAIL_ONLY_CASE_FILE } from "../lib/features";
 import { sectionsFor, type Section } from "../lib/caseFileSections";
 import { listQuotes, type PartnerQuote } from "../services/rfq";
 import QuotePanel from "../components/QuotePanel";
-import CargoPanel from "../components/CargoPanel";
 import PromotePanel from "../components/PromotePanel";
 import ConfirmPanel from "../components/ConfirmPanel";
 import PartnersPanel from "../components/PartnersPanel";
@@ -32,7 +31,12 @@ import {
 } from "../lib/attachableDocuments";
 import type { Attachable } from "../components/MailAttachments";
 import AcceptancePanel from "../components/AcceptancePanel";
-import ShipmentDetailsPanel, { CONSOL_KEYS } from "../components/ShipmentDetailsPanel";
+import BookingParticularsPanel, { PARTICULAR_KEYS } from "../components/BookingParticularsPanel";
+import CargoDetailsPanel, { DG_KEYS } from "../components/CargoDetailsPanel";
+import DimensionsPanel from "../components/DimensionsPanel";
+import MailFillBar from "../components/MailFillBar";
+import { listDimensions } from "../services/enquiryDimensions";
+import { ownedByLines, type DimensionLine } from "../lib/dimensions";
 import Collapsible from "../components/Collapsible";
 import CustomerDetailsPanel from "../components/CustomerDetailsPanel";
 import ServiceDetailsPanel from "../components/ServiceDetailsPanel";
@@ -57,6 +61,16 @@ import {
 } from "../services/enquiries";
 import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
+
+/**
+ * Everything a reading of the mail may write on this page, less whatever the
+ * dimension lines already own. One list, used by the automatic fill and the
+ * "read the mail again" button alike, so they cannot disagree.
+ */
+function fillKeysFor(lines: DimensionLine[]): string[] {
+  const owned = new Set(ownedByLines(lines));
+  return [...new Set([...CARGO_KEYS, ...DG_KEYS, ...PARTICULAR_KEYS])].filter((k) => !owned.has(k));
+}
 
 /**
  * One enquiry, everything about it.
@@ -89,6 +103,7 @@ export default function CaseFile() {
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [partnerQuotes, setPartnerQuotes] = useState<PartnerQuote[]>([]);
   const [mail, setMail] = useState<FiledMessage[]>([]);
+  const [dims, setDims] = useState<DimensionLine[]>([]);
   // What the correspondence filled in on its own this time round. Null when
   // nothing arrived since the last reading, or when what arrived answered
   // nothing that was still blank.
@@ -141,7 +156,7 @@ export default function CaseFile() {
         the correspondence, which is the whole screen here, would wait behind
         them. The events are kept: the timeline interleaves them with the mail.
       */
-      const [p, q, ev, sh, pq] = await Promise.all([
+      const [p, q, ev, sh, pq, d] = await Promise.all([
         MAIL_ONLY_CASE_FILE ? Promise.resolve<Party[]>([]) : partiesFor(ref),
         MAIL_ONLY_CASE_FILE ? Promise.resolve<Quote[]>([]) : quotesFor(ref),
         eventsFor(ref),
@@ -151,12 +166,16 @@ export default function CaseFile() {
         MAIL_ONLY_CASE_FILE
           ? Promise.resolve<PartnerQuote[]>([])
           : listQuotes(ref).catch(() => [] as PartnerQuote[]),
+        MAIL_ONLY_CASE_FILE
+          ? Promise.resolve<DimensionLine[]>([])
+          : listDimensions(ref).catch(() => [] as DimensionLine[]),
       ]);
       setParties(p);
       setQuotes(q);
       setEvents(ev);
       setShipment(sh);
       setPartnerQuotes(pq);
+      setDims(d);
       // Mail is best-effort: a mailbox that will not load must not blank the file.
       const m = await correspondenceFor(ref, mailbox).catch(() => []);
       setMail(m);
@@ -175,7 +194,7 @@ export default function CaseFile() {
       */
       if (!MAIL_ONLY_CASE_FILE && m.length && !readOnce.current.has(ref)) {
         readOnce.current.add(ref);
-        void fillFromNewMail(e, m, [...CARGO_KEYS, ...CONSOL_KEYS], mailbox)
+        void fillFromNewMail(e, m, fillKeysFor(d), mailbox)
           .then((filled) => {
             if (!filled) return;
             setAutoFilled(filled);
@@ -183,6 +202,8 @@ export default function CaseFile() {
             // them rather than the blanks it was rendered with.
             void getEnquiry(ref).then(setEnquiry);
             void eventsFor(ref).then(setEvents);
+            // A size read out of the mail becomes the first dimension line.
+            void listDimensions(ref).then(setDims).catch(() => {});
           })
           .catch(() => {});
       }
@@ -310,7 +331,7 @@ export default function CaseFile() {
           A strip of one tab is a label pretending to be a control: there is
           nowhere else to go, and it takes a row of height to say so. */}
       {!MAIL_ONLY_CASE_FILE && (
-        <div className="mb-4">
+        <div className="mt-4">
           <EnquiryWorkflow
             enquiry={enquiry}
             quotes={quotes}
@@ -358,133 +379,59 @@ export default function CaseFile() {
       {section === "shipment" && (
         <>
           {/*
-            Who the job is for, first. Every figure below is quoted to somebody,
-            and on an enquiry the intake created from an unfamiliar address,
-            "who" is the first thing that is wrong.
+            The inbound job, in the order it is done: who it is for, what the
+            service is, what the cargo is and how big, then the price — and
+            after a yes, the particulars, the confirmation and the handover.
+            Each fact is asked in exactly one place.
           */}
-          <CustomerDetailsPanel enquiry={enquiry} customer={customer} onSaved={load} />
-
-          {/* What the job is — mode, trade, lane, terms — before what it carries. */}
-          <ServiceDetailsPanel enquiry={enquiry} onSaved={load} />
-
-          {/* ---- what we know, and what is still missing ---- */}
-          <CargoPanel enquiry={enquiry} onSaved={load} />
-
-          {/*
-            The 3D stowage view used to sit here, straight after the
-            measurements. It is off the case file while this desk is working
-            the mailbox: reading an enquiry and answering it does not need a
-            picture of how the cargo fits, and it was the largest thing on the
-            page by a distance.
-
-            `CargoStowPanel` went with it: nothing else rendered it, and a
-            component reachable from no screen is one somebody maintains for no
-            reason. The stowage planner on Space & containers is a separate
-            thing and is untouched.
-          */}
-
-          {/* ---- parties ---- */}
-          <Collapsible
-            id="case:parties"
-            title="Parties"
-            icon={<Users size={12} className="shrink-0 text-text-muted" />}
-            badge={parties.length ? `${parties.length}` : undefined}
-            /* Folded when there are none: an empty section explaining that
-               it is empty is the longest way to say nothing. */
-            defaultOpen={parties.length > 0}
-          >
-            {!parties.length ? (
-              <p className="text-[12px] text-text-muted">
-                Nobody recorded yet. Correspondents are added as they appear, and the role is what
-                groups their mail below.
-              </p>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {parties.map((p) => (
-                  <div key={p.id} className="rounded-lg bg-surface-2 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-text-muted">
-                      {ROLE_LABEL[p.role]}
-                    </p>
-                    <p className="mt-0.5 text-[13px] text-text-primary">{p.name}</p>
-                    {p.organisation && (
-                      <p className="text-[11px] text-text-secondary">{p.organisation}</p>
-                    )}
-                    <p className="mt-0.5 text-[11px] text-text-muted truncate">
-                      {p.emails.join(", ")}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Collapsible>
-
-          {/*
-            The consol block, under the cargo it describes. Same page now:
-            both answer "what is being shipped", both are filled in from the
-            same mails in the same sitting, and two tabs meant deciding which
-            one a fact belonged in before you could write it down.
-          */}
-          <ShipmentDetailsPanel
+          <MailFillBar
             enquiry={enquiry}
             mail={mail}
             autoFilled={autoFilled}
+            keys={fillKeysFor(dims)}
             onSaved={load}
           />
+          <CustomerDetailsPanel enquiry={enquiry} customer={customer} onSaved={load} />
+          <ServiceDetailsPanel enquiry={enquiry} onSaved={load} />
+          <CargoDetailsPanel enquiry={enquiry} onSaved={load} />
+          <DimensionsPanel enquiry={enquiry} lines={dims} onSaved={load} />
 
-          {/*
-            The customer-facing half of the job, on the page describing the
-            shipment it is about.
+          <QuotePanel
+            enquiry={enquiry}
+            quotes={quotes}
+            onChanged={load}
+            partnerQuotes={partnerQuotes}
+            customer={customer}
+          />
 
-            It used to sit under Partners & quote, which put the quotation two
-            clicks from the dimensions it is priced on — so building one meant
-            reading the cargo on one tab and typing the rate on another.
-            Asking agents for rates is a different activity and stays where it
-            was.
-          */}
-      <QuotePanel
-        enquiry={enquiry}
-        quotes={quotes}
-        onChanged={load}
-        partnerQuotes={partnerQuotes}
-        customer={customer}
-      />
+          {/* Directly under the quote, because it is the answer to it. */}
+          <AcceptancePanel
+            enquiry={enquiry}
+            quotes={quotes}
+            mail={mail}
+            onChanged={load}
+            onRecheck={load}
+          />
 
-      {/*
-        Directly under the quote, because it is the answer to it. A verbal yes
-        shows here as unfinished business rather than as an acceptance.
-      */}
-      <AcceptancePanel
-        enquiry={enquiry}
-        quotes={quotes}
-        mail={mail}
-        onChanged={load}
-        onRecheck={load}
-      />
+          {/* What the paperwork needs — after the price, because it does not
+              change it. Folded until somebody needs it. */}
+          <BookingParticularsPanel enquiry={enquiry} onSaved={load} />
 
-      {/* ---- the handover to operations ---- */}
-      {/*
-        Between quoting and booking, because that is the order it happens in:
-        a price is agreed, it is put in writing, and then the shipment starts.
+          {/* The confirmation letter is for an agreed job only; the quotation
+              itself goes out from the quote above. */}
+          {enquiry.status === "accepted" && (
+            <ConfirmPanel
+              enquiry={enquiry}
+              customer={enquiry.customer}
+              quotes={quotes}
+              mailbox={mailbox}
+              fromName={session?.name ?? mailbox}
+              signature={session?.signature ?? ""}
+              onChanged={load}
+            />
+          )}
 
-        Shown whether or not a mailbox is connected. Hiding it when Outlook is
-        disconnected makes the button look missing rather than unavailable, and
-        somebody looking for it has no way to tell which.
-      */}
-      <ConfirmPanel
-        enquiry={enquiry}
-        customer={enquiry.customer}
-        quotes={quotes}
-        mailbox={mailbox}
-        fromName={session?.name ?? mailbox}
-        signature={session?.signature ?? ""}
-        onChanged={load}
-      />
-
-      {/*
-        The handover to operations, at the end of the section that produces it:
-        a price is agreed, it is put in writing, and then the shipment starts.
-      */}
-      <PromotePanel enquiry={enquiry} shipment={shipment} onChanged={load} />
+          <PromotePanel enquiry={enquiry} shipment={shipment} onChanged={load} />
         </>
       )}
 
@@ -575,6 +522,47 @@ export default function CaseFile() {
           enquiryRef={enquiry.ref}
           attachables={attachables}
         />
+      )}
+
+      {/*
+        Who is writing, on the tab where their mail is read. It used to sit in
+        the shipment page between the cargo and the B/L parties, which made
+        two sections called "Parties" about different people.
+      */}
+      {section === "mail" && !MAIL_ONLY_CASE_FILE && (
+        <Collapsible
+          id="case:parties"
+          title="Parties"
+          icon={<Users size={12} className="shrink-0 text-text-muted" />}
+          badge={parties.length ? `${parties.length}` : undefined}
+          /* Folded when there are none: an empty section explaining that
+             it is empty is the longest way to say nothing. */
+          defaultOpen={parties.length > 0}
+        >
+          {!parties.length ? (
+            <p className="text-[12px] text-text-muted">
+              Nobody recorded yet. Correspondents are added as they appear, and the role is what
+              groups their mail below.
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {parties.map((p) => (
+                <div key={p.id} className="rounded-lg bg-surface-2 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-text-muted">
+                    {ROLE_LABEL[p.role]}
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-text-primary">{p.name}</p>
+                  {p.organisation && (
+                    <p className="text-[11px] text-text-secondary">{p.organisation}</p>
+                  )}
+                  <p className="mt-0.5 text-[11px] text-text-muted truncate">
+                    {p.emails.join(", ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Collapsible>
       )}
 
       {section === "timeline" && (

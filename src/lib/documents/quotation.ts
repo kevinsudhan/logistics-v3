@@ -16,7 +16,7 @@ import { groupTerms } from "../quotationMail";
 import type { Customer, Enquiry, Quote } from "../../services/enquiries";
 import type { QuoteLine } from "../../services/quoteLines";
 import type { QuoteTerm } from "../../services/quoteApproval";
-import { chargeableWeight, describeChargeable, modeFor, volumeFromPieces } from "../chargeableWeight";
+import { chargeableWeight, describeChargeable, volumeFromPieces } from "../chargeableWeight";
 
 /**
  * The quotation, as a document rather than as a screen.
@@ -362,8 +362,18 @@ function volumeOf(e: Enquiry): number | null {
   );
 }
 
+/**
+ * The same figure the Dimension details panel shows, by the same rule.
+ *
+ * `modeFor` was written for container types and maps anything that is not air
+ * to sea — so a road quotation printed a chargeable weight at the sea ratio,
+ * three times the one on screen, and an FCL one printed a figure FCL is not
+ * charged on. Only the three modes with a ratio get one.
+ */
 function chargeableFor(e: Enquiry) {
-  return chargeableWeight(e.gross_weight_kg, volumeOf(e), modeFor(e.transport_mode));
+  const m = e.transport_mode;
+  if (m !== "air" && m !== "sea_lcl" && m !== "road") return null;
+  return chargeableWeight(e.gross_weight_kg, volumeOf(e), m);
 }
 
 const amount = (n: number | null | undefined) =>

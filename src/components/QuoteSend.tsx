@@ -119,7 +119,13 @@ export default function QuoteSend({
     [enquiry, customer, quote, lines, terms]
   );
 
-  const ready = sendable(quote);
+  /*
+    Admins and named approvers never wait for approval (062). For them there is
+    no approval step on screen at all: any draft can be sent, and sending it is
+    the clearance — the database records it as cleared by them.
+  */
+  const exempt = session?.canApproveQuotes === true;
+  const ready = sendable(quote) || (exempt && quote.status === "draft");
   const to = customer?.emails?.[0] ?? "";
 
   const run = async (key: string, fn: () => Promise<unknown>) => {
@@ -167,7 +173,14 @@ export default function QuoteSend({
    * from the first is how a customer ends up holding two quotations.
    */
   function openMail() {
-    void issueLink(quote.id)
+    // The accept link is only issued for a cleared quotation, so an admin's
+    // send clears it first. For everybody else `ready` already means cleared.
+    const cleared =
+      exempt && quote.approval_status !== "approved"
+        ? submitForApproval(quote.id).then(() => onChanged())
+        : Promise.resolve();
+    void cleared
+      .then(() => issueLink(quote.id))
       .then((l) => setLink(acceptUrl(l.token)))
       // Best-effort: a quotation that cannot carry an accept button is still a
       // quotation worth sending.
@@ -186,40 +199,28 @@ export default function QuoteSend({
     <section className="mt-3 border-t border-border pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          <ShieldCheck size={12} /> Approval &amp; sending
+          <ShieldCheck size={12} /> {exempt ? "Send to customer" : "Approval & sending"}
         </h3>
-        <span
-          className={`rounded-full border px-2 py-0.5 text-[11px] ${
-            quote.approval_status === "approved"
-              ? "border-text-success text-text-success"
-              : quote.approval_status === "rejected"
-                ? "border-text-danger text-text-danger"
-                : quote.approval_status === "pending"
-                  ? "border-text-warning text-text-warning"
-                  : "border-border text-text-muted"
-          }`}
-        >
-          {APPROVAL_LABEL[quote.approval_status]}
-        </span>
+        {!exempt && (
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[11px] ${
+              quote.approval_status === "approved"
+                ? "border-text-success text-text-success"
+                : quote.approval_status === "rejected"
+                  ? "border-text-danger text-text-danger"
+                  : quote.approval_status === "pending"
+                    ? "border-text-warning text-text-warning"
+                    : "border-border text-text-muted"
+            }`}
+          >
+            {APPROVAL_LABEL[quote.approval_status]}
+          </span>
+        )}
       </div>
 
       {quote.approval_status === "rejected" && quote.approval_note && (
         <p className="mt-2 rounded-lg bg-bg-danger px-3 py-2 text-[12px] text-text-danger">
           Sent back: {quote.approval_note}
-        </p>
-      )}
-
-      {/*
-        Why it is already cleared, said rather than left to be worked out.
-
-        An approver writing their own quotation sees "Approved to send" on a
-        quotation they never submitted, which reads like something went wrong
-        unless the reason is on the screen next to it.
-      */}
-      {quote.approval_status === "approved" && session?.canApproveQuotes && (
-        <p className="mt-2 text-[11.5px] text-text-muted">
-          {quote.approval_note || "Cleared to send."} You are named as an approver, so your own
-          quotations do not go to the queue.
         </p>
       )}
 
@@ -328,7 +329,8 @@ export default function QuoteSend({
 
       {/* ---- the three acts ---- */}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        {(quote.approval_status === "draft" || quote.approval_status === "rejected") && (
+        {!exempt &&
+          (quote.approval_status === "draft" || quote.approval_status === "rejected") && (
           <button
             type="button"
             onClick={() => void run("submit", () => submitForApproval(quote.id))}
@@ -344,7 +346,7 @@ export default function QuoteSend({
           </button>
         )}
 
-        {quote.approval_status === "pending" && (
+        {!exempt && quote.approval_status === "pending" && (
           <p className="flex items-center gap-1.5 text-[12px] text-text-warning">
             <Loader2 size={13} className="animate-spin" />
             With the approvers. It cannot go to the customer until one of them clears it.

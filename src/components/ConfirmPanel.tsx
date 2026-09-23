@@ -1,53 +1,39 @@
 import { useState } from "react";
-import { AlertCircle, IndianRupee, Loader2, MailCheck } from "lucide-react";
+import { AlertCircle, Loader2, MailCheck } from "lucide-react";
 import ComposeMail from "./ComposeMail";
 import { subjectToken } from "../services/caseFile";
 import { mailIsLive } from "../services/backend";
 import {
   linkCustomerEmail,
   logEvent,
-  markQuoteSent,
   type Customer,
   type Enquiry,
   type Quote,
 } from "../services/enquiries";
 
-/** Which letter is being written. They differ in wording, not in machinery. */
-type Kind = "quotation" | "confirmation";
-
 /**
- * The two letters that turn a phone call into a paper trail.
+ * The booking confirmation: what was agreed, in writing, before we book.
  *
  * ---------------------------------------------------------------------------
- * WHY THIS EXISTS
+ * WHY THIS NO LONGER SENDS THE QUOTATION
  *
- * A call ends with a rate named and a customer saying yes, and then nothing
- * written down on their side. They have no reference, no record of the figure,
- * and nothing to reply to -- so when they write next week it arrives as an
- * unfiled message from a stranger. Both letters here carry our reference in the
- * subject, which is what makes their reply file itself against this case.
+ * It used to draft the quotation too, and marking that letter sent moved the
+ * quote to `sent` with no reference to approval — a second way to put a rate
+ * in front of a customer that skipped the check the first way enforces. The
+ * quotation now goes out from one place, the quote's own Send, and the
+ * database refuses to mark an uncleared one sent whichever button asks (062).
  *
- * QUOTATION comes first: the rate in writing, before anybody has agreed.
- * Sending it moves the quote from draft to sent, so the pipeline reflects what
- * the customer has actually been shown rather than what was said on a call.
+ * WHY IT IS A DRAFT AND NOT A SEND
  *
- * CONFIRMATION comes after they accept: the same details, worded as agreed
- * rather than offered, sent before the booking is made.
- *
- * WHY THEY ARE DRAFTS AND NOT SENDS
- *
- * Both open the composer pre-filled rather than sending on click. They go out
- * under a real person's name, quoting a price to a customer, and whoever is
- * named on them should read them first. Everything in them comes from the
- * enquiry -- nothing is invented to fill a gap, and a field we do not hold is
- * simply not a line in the letter.
+ * It goes out under a real person's name, confirming a price to a customer,
+ * and whoever is named on it should read it first. Everything in it comes from
+ * the enquiry — a field we do not hold is simply not a line in the letter.
  *
  * WHY THERE IS AN ADDRESS FIELD
  *
- * Often there is no address on file, because the agent took the call and never
- * asked. Rather than refusing, the panel asks for one and writes it to the
- * customer through link_email_to_customer -- so the first letter out is also
- * what connects this customer's phone number to their mailbox.
+ * Often there is no address on file, because the job came in by phone. Rather
+ * than refusing, the panel asks for one and writes it to the customer once the
+ * message has gone — so their replies file themselves against this case.
  * ---------------------------------------------------------------------------
  */
 export default function ConfirmPanel({
@@ -69,50 +55,26 @@ export default function ConfirmPanel({
 }) {
   const known = customer?.emails ?? [];
   const [address, setAddress] = useState(known[0] ?? "");
-  const [composing, setComposing] = useState<Kind | null>(null);
+  const [composing, setComposing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * The figure this letter is about: what they accepted, else the latest one
-   * put to them, else the latest one there is. A superseded quote is not it.
-   */
-  const last = <T,>(xs: T[]): T | null => (xs.length ? xs[xs.length - 1] : null);
-  const quote =
-    quotes.find((q) => q.status === "accepted") ??
-    last(quotes.filter((q) => q.status === "sent")) ??
-    last(quotes);
+  const quote = quotes.find((q) => q.status === "accepted") ?? null;
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.trim());
   const isNew = valid && !known.some((e) => e.toLowerCase() === address.trim().toLowerCase());
-  const accepted = enquiry.status === "accepted";
 
-  /**
-   * Recorded only once the message has actually gone.
-   *
-   * Marking a quote sent, or writing an address to the customer, before the
-   * send would leave the record claiming something that never happened -- and
-   * the address is what all future mail from this customer is matched on.
-   */
-  async function sent(kind: Kind) {
-    setComposing(null);
+  /** Recorded only once the message has actually gone. */
+  async function sent() {
+    setComposing(false);
     setSaving(true);
     setError(null);
     try {
-      // Only when it actually went. A demo send records nothing, because the
-      // address would then be on the customer with no message to explain it.
       if (mailIsLive() && isNew && customer) await linkCustomerEmail(customer.id, address.trim());
-
-      if (kind === "quotation" && quote && quote.status === "draft") {
-        await markQuoteSent(quote.id, enquiry.ref, quote.amount_inr);
-      } else {
-        await logEvent(
-          enquiry.ref,
-          kind === "quotation" ? "quotation_emailed" : "confirmation_sent",
-          `${kind === "quotation" ? "Quotation" : "Confirmation"} emailed to ${address.trim()}`,
-          { to: address.trim(), quote_id: quote?.id ?? null }
-        );
-      }
+      await logEvent(enquiry.ref, "confirmation_sent", `Confirmation emailed to ${address.trim()}`, {
+        to: address.trim(),
+        quote_id: quote?.id ?? null,
+      });
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sent, but the record could not be updated.");
@@ -124,14 +86,8 @@ export default function ConfirmPanel({
   return (
     <section className="mt-4 card p-5">
       <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-3">
-        <MailCheck size={12} /> Write to the customer
+        <MailCheck size={12} /> Confirm to the customer
       </h2>
-
-      <p className="text-[12px] text-text-secondary mb-3">
-        {known.length
-          ? "Both letters carry our reference in the subject, so the customer's reply files itself against this case."
-          : "We have no email address for this customer — the call never captured one. Adding it here sends the letter and links their mailbox to this record, so their replies find this enquiry."}
-      </p>
 
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex-1 min-w-[240px]">
@@ -156,59 +112,16 @@ export default function ConfirmPanel({
           )}
         </label>
 
-        {/*
-          The quotation is offered whenever there is a figure to quote, whether
-          or not it has been accepted -- a customer who agreed on the phone will
-          still ask for it in writing, and re-sending it is a normal thing to do.
-        */}
         <button
-          onClick={() => setComposing("quotation")}
-          disabled={!valid || !quote || saving}
-          className={`flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-[12px] font-medium disabled:opacity-60 ${
-            accepted
-              ? "border border-border-strong bg-surface-1 text-text-primary hover:bg-surface-2"
-              : "bg-brand hover:bg-brand-dark text-white"
-          }`}
-          title={
-            !quote
-              ? "No rate has been recorded yet — add a quote first"
-              : valid
-              ? undefined
-              : "Enter an email address first"
-          }
-        >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : <IndianRupee size={13} />}
-          Draft quotation
-        </button>
-
-        <button
-          onClick={() => setComposing("confirmation")}
+          onClick={() => setComposing(true)}
           disabled={!valid || saving}
-          className={`flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-[12px] font-medium disabled:opacity-60 ${
-            accepted
-              ? "bg-brand hover:bg-brand-dark text-white"
-              : "border border-border-strong bg-surface-1 text-text-primary hover:bg-surface-2"
-          }`}
+          className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-[12px] font-medium disabled:opacity-60 bg-brand hover:bg-brand-dark text-white"
           title={valid ? undefined : "Enter an email address first"}
         >
           {saving ? <Loader2 size={13} className="animate-spin" /> : <MailCheck size={13} />}
-          {accepted ? "Send confirmation" : "Draft process-start email"}
+          Send confirmation
         </button>
       </div>
-
-      {!quote && (
-        <p className="mt-2 text-[11px] text-text-muted">
-          No rate recorded yet, so there is nothing to quote — add one above and the quotation
-          letter fills itself in.
-        </p>
-      )}
-
-      {quote?.status === "draft" && (
-        <p className="mt-2 text-[11px] text-text-muted">
-          Sending the quotation marks it as sent, so the pipeline shows what the customer has
-          actually been shown.
-        </p>
-      )}
 
       {!mailIsLive() && (
         <p className="mt-2 text-[11px] text-text-warning">
@@ -238,11 +151,11 @@ export default function ConfirmPanel({
           signature={signature}
           initial={{
             to: address.trim(),
-            subject: subjectFor(composing, enquiry),
-            body: draft(composing, enquiry, customer, quote),
+            subject: subjectFor(enquiry),
+            body: draft(enquiry, customer, quote),
           }}
-          onClose={() => setComposing(null)}
-          onSent={() => void sent(composing)}
+          onClose={() => setComposing(false)}
+          onSent={() => void sent()}
         />
       )}
     </section>
@@ -253,29 +166,20 @@ const route = (e: Enquiry) => [e.origin, e.destination].filter(Boolean).join(" t
 
 const money = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
 
-/**
- * The reference goes in brackets at the front, where a reply-all cannot lose it.
- * Everything after it is for the human reading their inbox.
- */
-function subjectFor(kind: Kind, e: Enquiry): string {
-  const what =
-    kind === "quotation"
-      ? "Quotation"
-      : e.status === "accepted"
-      ? "Booking confirmation"
-      : "Your shipment enquiry";
-  return `${subjectToken(e.ref)} ${what}${route(e) ? ` — ${route(e)}` : ""}`;
+/** The reference goes in brackets at the front, where a reply-all cannot lose it. */
+function subjectFor(e: Enquiry): string {
+  return `${subjectToken(e.ref)} Booking confirmation${route(e) ? ` — ${route(e)}` : ""}`;
 }
 
 /**
  * Builds the letter out of what the enquiry actually holds.
  *
  * Every line is conditional. An enquiry with no ready date produces a letter
- * with no ready-date line, rather than one saying "Ready: not specified" -- the
+ * with no ready-date line, rather than one saying "Ready: not specified" — the
  * customer is being asked to check this, and a placeholder invites them to
  * confirm something nobody established.
  */
-function draft(kind: Kind, e: Enquiry, customer: Customer | null, quote: Quote | null): string {
+function draft(e: Enquiry, customer: Customer | null, quote: Quote | null): string {
   const rows: Array<[string, string]> = [];
   const add = (label: string, value: string | number | null | undefined) => {
     if (value !== null && value !== undefined && String(value).trim() !== "")
@@ -286,6 +190,8 @@ function draft(kind: Kind, e: Enquiry, customer: Customer | null, quote: Quote |
   add("Route", route(e));
   add("Cargo", e.cargo);
   add("Incoterm", e.incoterm);
+  // Totals, not one piece's size: a consignment of several sizes has no
+  // single one to print.
   add(
     "Pieces",
     e.piece_count
@@ -294,36 +200,23 @@ function draft(kind: Kind, e: Enquiry, customer: Customer | null, quote: Quote |
         : String(e.piece_count)
       : null
   );
-  add("Weight per piece", e.weight_per_piece_kg ? `${e.weight_per_piece_kg} kg` : null);
+  add("Gross weight", e.gross_weight_kg ? `${e.gross_weight_kg} kg` : null);
   add("Volume", e.volume_cbm ? `${e.volume_cbm} CBM` : null);
   add("Cargo ready", e.ready_date);
-  add("Collection from", e.pickup_location);
+  add("Collection from", e.pickup_required ? e.pickup_location : null);
+  add("Delivery to", e.delivery_required ? e.delivery_location : null);
   add("Consignee", [e.consignee_name, e.consignee_country].filter(Boolean).join(", "));
+  add("Your reference", e.customer_reference);
   add("Special handling", e.special_handling);
   if (quote) {
     add(
-      kind === "quotation" ? "Our rate" : "Rate quoted",
+      "Rate agreed",
       quote.basis ? `${money(quote.amount_inr)} — ${quote.basis}` : money(quote.amount_inr)
     );
     add("Sailing", quote.sailing_date);
-    add("Valid until", quote.valid_until);
   }
 
   const greeting = customer?.name ? `Dear ${escapeHtml(customer.name)},` : "Dear Sir or Madam,";
-
-  const opening =
-    kind === "quotation"
-      ? "Thank you for your enquiry. Our quotation is below, against the details we hold — please check them and tell us if anything is wrong, as the rate follows from them."
-      : e.status === "accepted"
-      ? "Thank you for your call. Confirming below what we agreed, so you have it in writing before we book."
-      : "Thank you for your enquiry. Below is what we have recorded — please check it and let us know if anything needs correcting.";
-
-  const closing =
-    kind === "quotation"
-      ? "To go ahead, reply to this message and we will confirm the booking. If any of the cargo details above are not right, tell us and we will requote."
-      : e.status === "accepted"
-      ? "If everything above is correct, please reply to confirm and we will proceed with the booking. Any corrections, just reply to this message."
-      : "Reply to this message with any corrections or the details still outstanding, and we will come back to you with the booking.";
 
   const list = rows
     .map(
@@ -338,9 +231,9 @@ function draft(kind: Kind, e: Enquiry, customer: Customer | null, quote: Quote |
   // Gmail and on a phone. This is a business letter, not a layout.
   return (
     `<p>${greeting}</p>` +
-    `<p>${opening}</p>` +
+    `<p>Thank you for confirming. Below is what we agreed, so you have it in writing before we book.</p>` +
     `<table style="border-collapse:collapse;font-size:14px">${list}</table>` +
-    `<p>${closing}</p>` +
+    `<p>If everything above is correct, please reply to confirm and we will proceed with the booking. Any corrections, just reply to this message.</p>` +
     `<p style="color:#555;font-size:13px">Please keep <strong>${escapeHtml(
       e.ref
     )}</strong> in the subject line when you reply — it is how we keep every message about this shipment together.</p>`
