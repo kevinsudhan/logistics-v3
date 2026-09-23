@@ -224,6 +224,14 @@ export default function QuoteSend({
         </p>
       )}
 
+      {/* Why an approved quotation is back at "Not submitted" (064): it was
+          changed after approval, and the approver had seen other figures. */}
+      {!exempt && quote.approval_status === "draft" && quote.approval_note && (
+        <p className="mt-2 rounded-lg bg-bg-warning px-3 py-2 text-[12px] text-text-warning">
+          {quote.approval_note}
+        </p>
+      )}
+
       {/* ---- terms ---- */}
       <div className="mt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

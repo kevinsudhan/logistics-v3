@@ -101,7 +101,10 @@ export default function Collapsible({
           <h2 className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
             {title}
           </h2>
-          {badge && <span className="text-[11px] text-text-muted">{badge}</span>}
+          {/* Only while folded, as documented above: open, the section itself
+              shows the same thing, and "SERVICE DETAILS  AIR" over a form
+              that says AIR reads like a mislabelled heading. */}
+          {!open && badge && <span className="text-[11px] text-text-muted">{badge}</span>}
           {/* The hint only while open: collapsed, it is a second line of text
               under a heading nobody is reading. */}
           {open && hint && (
