@@ -41,6 +41,8 @@ export interface UpdateInput {
   latest: { label: string; at: string } | null;
   /** The next open step. */
   next: string | null;
+  /** The customer's tracking page, when one has been issued (074). Never issued just for this mail. */
+  trackUrl?: string | null;
 }
 
 export function shipmentUpdateSubject(i: Pick<UpdateInput, "ref" | "origin" | "destination">): string {
@@ -103,11 +105,14 @@ export function shipmentUpdateHtml(i: UpdateInput): string {
     `<p>${greeting}</p>` +
     `<p>Please find the latest on this shipment below.</p>` +
     `<table style="border-collapse:collapse;font-size:14px">${list}</table>` +
+    (i.trackUrl
+      ? `<p>You can follow the shipment at any time here: <a href="${esc(i.trackUrl)}">${esc(i.trackUrl)}</a></p>`
+      : "") +
     `<p>Please keep <strong>${esc(i.ref)}</strong> in the subject line when you reply, so it reaches the right file.</p>`
   );
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /**
  * The instruction to a transporter: collect from here, or deliver to there.

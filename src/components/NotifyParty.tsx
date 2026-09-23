@@ -5,6 +5,8 @@ import { useAuth } from "../lib/auth";
 import { shipmentUpdateHtml, shipmentUpdateSubject } from "../lib/shipmentUpdateMail";
 import { checkpointsFor } from "../services/checkpoints";
 import { logEvent, stageLabel, type Shipment } from "../services/enquiries";
+import { isReachable } from "../services/publicQuote";
+import { currentTrackLink, trackUrl } from "../services/tracking";
 
 /**
  * Tell one party where their shipment is.
@@ -48,7 +50,12 @@ export default function NotifyParty({
     try {
       // The latest step and the next one, read now rather than when the page
       // loaded: somebody may have ticked one since.
-      const steps = await checkpointsFor(shipment.id).catch(() => []);
+      const [steps, link] = await Promise.all([
+        checkpointsFor(shipment.id).catch(() => []),
+        // The customer's page, if one was issued: the update points to it.
+        currentTrackLink(shipment.id).catch(() => null),
+      ]);
+      const url = link ? trackUrl(link.token) : null;
       const done = steps.filter((c) => c.done_at).sort((a, b) => (a.done_at! < b.done_at! ? 1 : -1));
       const next = steps.find((c) => !c.done_at);
       const input = {
@@ -75,6 +82,7 @@ export default function NotifyParty({
         volumeCbm: shipment.volume_cbm === null ? null : Number(shipment.volume_cbm),
         latest: done[0] ? { label: done[0].label, at: done[0].done_at! } : null,
         next: next?.label ?? null,
+        trackUrl: url && isReachable(url) ? url : null,
       };
       setDraft({ subject: shipmentUpdateSubject(input), body: shipmentUpdateHtml(input) });
     } finally {

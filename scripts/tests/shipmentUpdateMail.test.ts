@@ -77,6 +77,9 @@ const bare = shipmentUpdateHtml({ ...base, partyName: null, carrier: null });
 is("no name, a proper greeting", bare.includes("Dear Sir or Madam,"), true);
 is("no carrier line when there is no carrier", !bare.includes("Airline"), true);
 is("markup in a name cannot break the mail", shipmentUpdateHtml({ ...base, partyName: "<b>x</b>" }).includes("&lt;b&gt;x&lt;/b&gt;"), true);
+is("no tracking link unless one was issued", html.includes("follow the shipment"), false);
+const linked = shipmentUpdateHtml({ ...base, trackUrl: "https://logisticsdemosif.netlify.app/t/abc" });
+is("with one, the update points to it", linked.includes(`<a href="https://logisticsdemosif.netlify.app/t/abc">`), true);
 
 console.log("\npickup and delivery requests");
 const order = {

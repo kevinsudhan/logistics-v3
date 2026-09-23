@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Collapsible from "../../components/Collapsible";
 import LiveTracking from "../../components/LiveTracking";
+import SendTrackingLink from "../../components/SendTrackingLink";
 import { useShipment } from "../ShipmentDetail";
 import { failureText } from "../../lib/errorText";
 import { DUE_TONE, dueState, dueText, todayIST } from "../../lib/progress";
@@ -56,6 +57,7 @@ export default function ShipmentTracking() {
   const [reports, setReports] = useState<TrackingEvent[]>([]);
   const [line, setLine] = useState<Entry[]>([]);
   const [link, setLink] = useState<TrackLink | null>(null);
+  const [lastSent, setLastSent] = useState<{ at: string; summary: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +81,8 @@ export default function ShipmentTracking() {
       setReports(tr);
       setLine(buildTimeline({ steps: cp, moves: mv, receipts: rc, legs: lg, events: ev, tracking: tr }));
       setLink(ln);
+      const sent = ev.filter((e) => e.kind === "tracking_link_sent").sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+      setLastSent(sent ? { at: sent.at, summary: sent.summary } : null);
     } catch (e) {
       setError(failureText(e, "Could not load the tracking.").message);
     }
@@ -200,8 +204,11 @@ export default function ShipmentTracking() {
             </div>
             <p className="mt-1.5 text-[11px] text-text-muted">
               {link!.opened_at
-                ? `First opened ${new Date(link!.opened_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
+                ? `Opened by the customer: first ${stamp(link!.opened_at)}${
+                    link!.last_opened_at && link!.last_opened_at !== link!.opened_at ? `, last ${stamp(link!.last_opened_at)}` : ""
+                  }.`
                 : "Not opened yet."}
+              {lastSent ? ` ${lastSent.summary}, ${stamp(lastSent.at)}.` : ""}
             </p>
             {!isReachable(url) && (
               <p className="mt-2 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2 text-[12px] text-text-warning">
@@ -222,6 +229,7 @@ export default function ShipmentTracking() {
             Create a tracking link
           </button>
         )}
+        <SendTrackingLink shipment={s} customer={s.customer} onSent={() => void load()} />
       </Collapsible>
 
       {/* ---- what comes next ---- */}
@@ -318,3 +326,6 @@ function isMidnight(at: string): boolean {
   const d = new Date(at);
   return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
 }
+
+const stamp = (iso: string) =>
+  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
