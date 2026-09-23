@@ -219,7 +219,7 @@ export default function LiveTracking({
               className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-60"
             >
               {busy === "refresh" ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              {busy === "refresh" ? (mode.startsWith("sea") ? "Listening…" : "Checking…") : "Refresh"}
+              {busy === "refresh" ? (mode.startsWith("sea") ? "Listening, up to 40 s…" : "Checking…") : "Refresh"}
             </button>
           </div>
         )}

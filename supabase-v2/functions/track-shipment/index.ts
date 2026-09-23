@@ -5,7 +5,8 @@
  * THE SOURCES, AND WHAT EACH COSTS
  *
  *   aerodatabox  A flight's status on the booked day: taken off, landed, and
- *                when. Free key (AERODATABOX_KEY), a few hundred lookups a
+ *                when. Key in AERODATABOX_KEY (free via RapidAPI or API.market;
+ *                AERODATABOX_VIA says which gateway), a few hundred lookups a
  *                month — so it is asked only around the flight's own day.
  *   adsb         Where an aircraft is right now, from adsb.lol's open ADS-B
  *                network. No key. Only sees flights in the air, by callsign
@@ -57,7 +58,11 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const CRON_SECRET = Deno.env.get("TRACK_CRON_SECRET");
 
 const ADB_KEY = Deno.env.get("AERODATABOX_KEY");
-/** "rapidapi" (default) or "apimarket": AeroDataBox is sold through both, with different hosts and headers. */
+/**
+ * Where the key was bought: "rapidapi" (default) or "apimarket", the two with a
+ * free plan, or "direct" (api.aerodatabox.com, paid plans or contributed-data
+ * credits only). Each has its own host and header.
+ */
 const ADB_VIA = Deno.env.get("AERODATABOX_VIA") ?? "rapidapi";
 const HL_ID = Deno.env.get("HLAG_CLIENT_ID");
 const HL_SECRET = Deno.env.get("HLAG_CLIENT_SECRET");
@@ -113,16 +118,23 @@ async function askAeroDataBox(ship: ShipmentRow): Promise<Reading> {
   const number = `${f.airline}${f.number}`;
   const path = `/flights/number/${encodeURIComponent(number)}/${ship.etd}?withLocation=true&withAircraftImage=false&dateLocalRole=Departure`;
   const r =
-    ADB_VIA === "apimarket"
-      ? await fetch(`https://prod.api.market/api/v1/aedbx/aerodatabox${path}`, {
-          headers: { "x-magicapi-key": ADB_KEY!, accept: "application/json" },
-        })
-      : await fetch(`https://aerodatabox.p.rapidapi.com${path}`, {
-          headers: { "x-rapidapi-key": ADB_KEY!, "x-rapidapi-host": "aerodatabox.p.rapidapi.com" },
-        });
+    ADB_VIA === "direct"
+      ? await fetch(`https://api.aerodatabox.com${path}`, { headers: { "X-Api-Key": ADB_KEY! } })
+      : ADB_VIA === "apimarket"
+        ? await fetch(`https://prod.api.market/api/v1/aedbx/aerodatabox${path}`, {
+            headers: { "x-magicapi-key": ADB_KEY!, accept: "application/json" },
+          })
+        : await fetch(`https://aerodatabox.p.rapidapi.com${path}`, {
+            headers: { "x-rapidapi-key": ADB_KEY!, "x-rapidapi-host": "aerodatabox.p.rapidapi.com" },
+          });
   // 204: no such flight that day.
   if (r.status === 204 || r.status === 404) return readAeroDataBox([], ship);
-  if (r.status === 401 || r.status === 403) return fail(`AeroDataBox refused the key (${r.status}).`);
+  if (r.status === 401 || r.status === 403) {
+    // Their own words say which fix it needs: "inactive" (direct keys have no
+    // free plan) is not the same problem as "not subscribed" on a marketplace.
+    const said = await r.json().then((b) => b?.message).catch(() => null);
+    return fail(`AeroDataBox refused the key${said ? `: "${said}"` : ` (${r.status})`}.`);
+  }
   if (r.status === 429) return fail("AeroDataBox's monthly allowance is used up, or it was asked too fast.");
   if (!r.ok) return fail(`AeroDataBox answered ${r.status}.`);
   return readAeroDataBox(await r.json(), ship);
@@ -292,6 +304,10 @@ function planFor(
         ask: async () => {
           const heard = await ais.get(ship.vessel_mmsi!)!;
           if (heard.error) return fail(`aisstream: ${heard.error}`);
+          // Silence means something only if the feed was listening.
+          if (!heard.messages.some((m) => (m as { MessageType?: string }).MessageType === "SubscriptionConfirmation")) {
+            return fail("aisstream did not confirm the subscription; try again shortly.");
+          }
           return readAis(heard.messages, ship.vessel_mmsi!, ship, new Date(), aisSeconds);
         },
       },
@@ -410,7 +426,12 @@ async function track(ships: ShipmentRow[], sweep: boolean): Promise<Record<strin
     }
   }
 
-  const aisSeconds = sweep ? 45 : 20;
+  // Measured on 23 Sep 2026: the free feed carried one report in 45 s across
+  // five ships under way off Singapore, so a short window mostly hears nothing.
+  // Each ship turns up about once a minute (2,854 reports from 2,780 ships in
+  // 30 s, worldwide). It stops early once every ship has been heard; the edge
+  // limit is 150 s, and the other sources are asked while it listens.
+  const aisSeconds = sweep ? 100 : 40;
   const wanted = [...new Set(jobs.filter((j) => j.plan.source === "aisstream" && !j.plan.skip && !j.cached).map((j) => j.ship.vessel_mmsi!))];
   const listening = wanted.length ? listenAis(wanted, aisSeconds) : null;
   const ais = new Map(wanted.map((m) => [m, listening!]));
@@ -433,6 +454,13 @@ async function track(ships: ShipmentRow[], sweep: boolean): Promise<Record<strin
       reading = await real.ask!();
     } catch (e) {
       reading = fail(`Could not ask ${plan.source}: ${String(e).slice(0, 120)}`);
+    }
+    // A ship not heard this time is still where it was last heard: the free
+    // feed carries each ship about once a minute, so one silent window is not
+    // news, and wiping the last position would lose the map for nothing.
+    const prev = last.get(`${ship.id}:aisstream`);
+    if (plan.source === "aisstream" && reading.state === "not_found" && prev?.state === "ok" && typeof prev.summary?.lat === "number") {
+      reading = { state: "ok", message: `Not heard in the last ${aisSeconds} s; showing where it was last heard.`, summary: prev.summary, events: [] };
     }
     const cs = plan.source === "aerodatabox" ? reading.summary?.callsign : null;
     if (typeof cs === "string" && cs) realCallsign.set(ship.id, cs.replace(/\s/g, "").toUpperCase());
