@@ -225,6 +225,16 @@ export interface Quote {
   terms: Array<{ scope: string; text: string }>;
 }
 
+/** One line of the sign-off checklist, as `shipment_signoff_checklist` returns it. */
+export interface SignOffItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  /** Must pass — only an admin, with a reason, can sign past it. */
+  blocking: boolean;
+  detail: string | null;
+}
+
 export type ShipmentStage =
   | "booked"
   | "cargo_received"
@@ -431,6 +441,12 @@ export interface Shipment {
   shipper_email: string | null;
   consignee_email: string | null;
   notify_email: string | null;
+
+  /* Closed by operations (070). Set and cleared only by the sign-off functions. */
+  signed_off_at: string | null;
+  signed_off_by: string | null;
+  sign_off_note: string | null;
+  sign_off_snapshot: SignOffItem[] | null;
 
   created_at: string;
   updated_at: string;

@@ -122,6 +122,7 @@ function tabsFor(mode: Enquiry["transport_mode"] | null | undefined) {
     { to: "pickup-delivery", label: "Pickup & delivery", end: false },
     { to: "warehouse", label: "Warehouse", end: false },
     { to: "tracking", label: "Tracking", end: false },
+    { to: "sign-off", label: "Sign-off", end: false },
     { to: "documents", label: "Documents", end: false },
     // The correspondence — a booking is the second half of one job, and having
     // to go back to the enquiry to read the thread it came from is how a desk
@@ -287,7 +288,10 @@ export default function ShipmentDetail() {
         <StatusPill tone={delivered ? "success" : "accent"}>
           {stageLabel(s.stage, mode)}
         </StatusPill>
-        {next && s.stage !== "cancelled" && (
+        {s.signed_off_at && <StatusPill tone="success">Signed off</StatusPill>}
+        {/* A signed-off job's progress is locked (070); the button would only
+            meet the refusal. */}
+        {next && s.stage !== "cancelled" && !s.signed_off_at && (
           <button
             type="button"
             onClick={() => void advance()}

@@ -137,6 +137,12 @@ export default function ShipmentsCompleted() {
                 </div>
                 <div className="text-right shrink-0">
                   <StatusPill tone="success">Delivered</StatusPill>
+                  {/* Delivered is not closed: the sign-off (070) is operations
+                      handing the job to accounts, and a job still waiting for
+                      it is one somebody has to finish. */}
+                  <p className={`mt-1 text-[11px] ${s.signed_off_at ? "text-text-success" : "text-text-warning"}`}>
+                    {s.signed_off_at ? "Signed off" : "Awaiting sign-off"}
+                  </p>
                   {s.agreed_inr !== null && (
                     <p className="mt-1 text-[12px] text-text-primary tabular-nums">
                       ₹{s.agreed_inr.toLocaleString("en-IN")}
