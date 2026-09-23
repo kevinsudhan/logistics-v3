@@ -100,6 +100,14 @@ export async function positionsFor(shipmentId: string): Promise<Array<{ lat: num
   return (data ?? []) as Array<{ lat: number; lon: number; at: string; source: string }>;
 }
 
+/** The updates waiting for a person on a set of jobs, for the worklist's badges. */
+export async function waitingUpdatesFor(shipmentIds: string[]): Promise<Array<{ shipment_id: string; kind: EventKind }>> {
+  if (!shipmentIds.length) return [];
+  const { data, error } = await supabase.from("tracking_events").select("shipment_id, kind").eq("status", "new").in("shipment_id", shipmentIds);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ shipment_id: string; kind: EventKind }>;
+}
+
 export async function trackingEventsFor(shipmentId: string): Promise<TrackingEvent[]> {
   const { data, error } = await supabase
     .from("tracking_events")
