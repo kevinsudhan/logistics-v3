@@ -38,6 +38,7 @@ const ShipmentBill = lazy(() => import("./pages/shipment/ShipmentBill"));
 const ShipmentDocuments = lazy(() => import("./pages/shipment/ShipmentDocuments"));
 const ShipmentPickupDelivery = lazy(() => import("./pages/shipment/ShipmentPickupDelivery"));
 const ShipmentWarehouse = lazy(() => import("./pages/shipment/ShipmentWarehouse"));
+const ShipmentTracking = lazy(() => import("./pages/shipment/ShipmentTracking"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
 const SpaceContainers = lazy(() => import("./pages/SpaceContainers"));
 const Containers = lazy(() => import("./pages/Containers"));
@@ -66,6 +67,7 @@ const AcRcptDetail = accountsPage(() => import("./pages/accounts/ReceiptDetails"
 const AcPayDetail  = accountsPage(() => import("./pages/accounts/PaymentDetails"));
 const AcAgentSOA   = accountsPage(() => import("./pages/accounts/AgentSOA"));
 const QuoteAccept = lazy(() => import("./pages/QuoteAccept"));
+const TrackShipment = lazy(() => import("./pages/TrackShipment"));
 const RateMaster = lazy(() => import("./pages/RateMaster"));
 const QuoteApprovals = lazy(() => import("./pages/QuoteApprovals"));
 const Customers = lazy(() => import("./pages/Customers"));
@@ -97,6 +99,7 @@ export default function App() {
           could widen later.
         */}
         <Route path="/q/:token" element={<QuoteAccept />} />
+        <Route path="/t/:token" element={<TrackShipment />} />
 
         {/* Admin area. */}
         <Route element={<RequireAuth role="admin" />}>
@@ -123,6 +126,7 @@ export default function App() {
               <Route path="documents" element={<ShipmentDocuments />} />
               <Route path="pickup-delivery" element={<ShipmentPickupDelivery />} />
               <Route path="warehouse" element={<ShipmentWarehouse />} />
+              <Route path="tracking" element={<ShipmentTracking />} />
               <Route path="containers" element={<ShipmentContainers />} />
               {/*
                 React Router skips non-elements among <Routes> children and
