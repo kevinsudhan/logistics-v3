@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AlertCircle, Info, Layers, Ship } from "lucide-react";
 import Select from "../../components/Select";
 import { useShipment } from "../ShipmentDetail";
+import HawbForm from "../../components/HawbForm";
 import { updateShipment } from "../../services/enquiries";
 import {
   attachToConsole,
@@ -24,6 +25,10 @@ import {
  * Moved out of the party tab unchanged in what it does: it was the one part of
  * that page that was not about a party, and the reference system gives it a
  * tab of its own for the same reason.
+ *
+ * On an air job the tab is the HAWB itself (075): the form laid out like the
+ * air waybill, numbered on its first save, printed from here. The console and
+ * who issues the bill stay above it.
  * ---------------------------------------------------------------------------
  */
 export default function ShipmentBill() {
@@ -128,6 +133,8 @@ export default function ShipmentBill() {
               <span className="block py-1 font-mono text-[13px] text-text-primary">
                 {shipment.bl_number}
               </span>
+            ) : air ? (
+              <span className="block py-1 text-[12px] text-text-muted">Numbered when the HAWB below is first saved</span>
             ) : (
               <button
                 onClick={() =>
@@ -143,11 +150,13 @@ export default function ShipmentBill() {
                 Issue a {house}
               </button>
             )}
-            <span className="mt-0.5 block text-[11px] text-text-muted">
-              {shipment.bl_number
-                ? "Issued — changing it is a correction, not an edit"
-                : "Ours, on our own series. Needs a consignee first."}
-            </span>
+            {!air && (
+              <span className="mt-0.5 block text-[11px] text-text-muted">
+                {shipment.bl_number
+                  ? "Issued — changing it is a correction, not an edit"
+                  : "Ours, on our own series. Needs a consignee first."}
+              </span>
+            )}
           </div>
         </div>
 
@@ -192,10 +201,16 @@ export default function ShipmentBill() {
         </div>
       </section>
 
-      <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-text-muted">
-        The parties printed on the {house} are on the Party tab; the marks, HS code and packing on
-        Cargo details. The draft itself is generated from the Documents tab.
-      </p>
+      {air && blType === "house" && !shipment.direct ? (
+        <div className="mt-3">
+          <HawbForm shipment={shipment} enquiry={enquiry} onChanged={() => void reload()} prevTab="cargo" nextTab="pickup-delivery" />
+        </div>
+      ) : (
+        <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-text-muted">
+          The parties printed on the {house} are on the Party tab; the marks, HS code and packing on
+          Cargo details. The draft itself is generated from the Documents tab.
+        </p>
+      )}
     </div>
   );
 }
