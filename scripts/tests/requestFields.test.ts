@@ -9,6 +9,7 @@
  */
 import {
   REQUEST_FIELDS,
+  saneValue,
   FIELD_KEYS,
   coerceField,
   normaliseDetails,
@@ -56,6 +57,21 @@ check("enum matches case-insensitively", coerceField("container_type", "40hc"), 
 check("enum outside the option list is dropped", coerceField("container_type", "45HC"), null);
 check("unknown key is dropped", coerceField("not_a_field", "x"), null);
 check("empty string is not a value", coerceField("company", ""), null);
+
+console.log("\nsafe to write (automatic fill)");
+check("a real date passes", saneValue("expected_delivery_date", "2026-10-12"), "2026-10-12");
+check("a date with a time keeps the day", saneValue("ready_date", "2026-10-02T00:00:00Z"), "2026-10-02");
+check("a date in words is dropped, not sent", saneValue("ready_date", "2nd October"), null);
+check("an impossible date is dropped", saneValue("ready_date", "2026-13-45"), null);
+check("transit in range passes", saneValue("transit_days", 5), 5);
+check("a 400-day transit is dropped", saneValue("transit_days", 400), null);
+check("a negative count is dropped", saneValue("piece_count", -3), null);
+check("trade outside the options is dropped", saneValue("trade_direction", "domestic"), null);
+check("trade matches case-insensitively", saneValue("trade_direction", "Export"), "export");
+check("false is an answer", saneValue("delivery_required", false), false);
+check("the new fields are in the catalogue",
+  ["cargo", "ready_date", "pickup_location", "customer_reference", "hazardous"].every((k) => saneValue(k, k === "hazardous" ? true : k === "ready_date" ? "2026-10-02" : "x") !== null),
+  true);
 
 console.log("\nnormalise");
 check(

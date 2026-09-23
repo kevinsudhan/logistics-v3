@@ -1,6 +1,6 @@
 import { readText } from "./classify";
 import { updateEnquiry, type Enquiry, type FiledMessage } from "./enquiries";
-import { byKey, type FieldDef } from "../data/requestFields";
+import { byKey, saneValue, type FieldDef } from "../data/requestFields";
 import { threadText } from "../lib/mailText";
 
 /**
@@ -91,6 +91,15 @@ export const CARGO_KEYS = [
   "stackable",
   "consignee_name",
   "consignee_country",
+  // What the job includes (061) and the cargo questions (063).
+  "trade_direction",
+  "pickup_required",
+  "delivery_required",
+  "delivery_location",
+  "customer_reference",
+  "expected_delivery_date",
+  "transit_days",
+  "hazardous",
 ];
 
 /** What was filled, for the line the panel shows afterwards. */
@@ -163,7 +172,7 @@ export async function fillFromNewMail(
   >;
 
   const fields = blanks
-    .map((key) => ({ key, def: byKey(key), value: reading[key] }))
+    .map((key) => ({ key, def: byKey(key), value: saneValue(key, reading[key]) }))
     .filter(
       (f): f is { key: string; def: FieldDef; value: unknown } =>
         !!f.def && f.value !== null && f.value !== undefined && f.value !== ""

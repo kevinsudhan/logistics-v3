@@ -458,6 +458,92 @@ export const REQUEST_FIELDS: FieldDef[] = [
     kind: "boolean",
     hint: "True if any wooden pallets, crates or dunnage are used — it triggers the ISPM-15 fumigation requirement.",
   },
+
+  // ------------------------------------------------ the enquiry's own columns
+  //
+  // Read out of the mail by classify-enquiry and written by the automatic
+  // fill, which drops any value whose key has no entry here. `cargo`,
+  // `ready_date` and `pickup_location` were read correctly for months and
+  // never written for exactly that reason.
+  {
+    key: "cargo",
+    label: "Commodity",
+    group: "booking",
+    kind: "text",
+    hint: "What is being shipped, as the sender describes it.",
+  },
+  {
+    key: "ready_date",
+    label: "Cargo ready date",
+    group: "booking",
+    kind: "date",
+    hint: "When the cargo is ready for collection or delivery into the CFS. Not the sailing date.",
+  },
+  {
+    key: "pickup_location",
+    label: "Pickup address",
+    group: "booking",
+    kind: "text",
+    hint: "Where the cargo is collected from, if a pickup is asked for.",
+  },
+  {
+    key: "trade_direction",
+    label: "Trade",
+    group: "booking",
+    kind: "enum",
+    options: ["export", "import", "cross_trade"],
+    hint: "Seen from India: export leaves India, import arrives, cross trade touches neither end.",
+  },
+  {
+    key: "pickup_required",
+    label: "Pickup",
+    group: "booking",
+    kind: "boolean",
+    hint: "Whether we collect from the shipper. Only where asked; never inferred from the Incoterm.",
+  },
+  {
+    key: "delivery_required",
+    label: "Delivery",
+    group: "booking",
+    kind: "boolean",
+    hint: "Whether we deliver to a door at destination. A consignee address alone is not a request.",
+  },
+  {
+    key: "delivery_location",
+    label: "Delivery address",
+    group: "booking",
+    kind: "text",
+    hint: "Where to deliver at destination, when a door delivery is asked for.",
+  },
+  {
+    key: "customer_reference",
+    label: "Customer ref",
+    group: "booking",
+    kind: "text",
+    hint: "The customer's own PO or order number for this shipment, copied exactly.",
+  },
+  {
+    key: "expected_delivery_date",
+    label: "Expected delivery date",
+    group: "booking",
+    kind: "date",
+    hint: "When the cargo must reach destination. Not the ready date, not a quote deadline.",
+  },
+  {
+    key: "transit_days",
+    label: "Transit days",
+    group: "booking",
+    kind: "number",
+    unit: "days",
+    hint: "The transit time asked for, in whole days.",
+  },
+  {
+    key: "hazardous",
+    label: "Hazardous",
+    group: "booking",
+    kind: "boolean",
+    hint: "Dangerous goods. True when stated or when a UN number or IMO class is given.",
+  },
 ];
 
 export const FIELD_KEYS = REQUEST_FIELDS.map((f) => f.key);
@@ -514,6 +600,33 @@ export function coerceField(key: string, value: unknown): string | number | bool
 
   const s = String(value).trim();
   return s ? s : null;
+}
+
+/**
+ * The value a reading proposes for a field, made safe to write — or null.
+ *
+ * One bad value in a patch fails the whole update: a date the database cannot
+ * parse or a 400-day transit that breaks its check constraint, and none of the
+ * other twelve good values land either. So each value is shaped to its field
+ * here, and one that cannot be is dropped rather than sent. The model is
+ * schema-constrained, which makes this rare; rare is not never.
+ */
+export function saneValue(key: string, value: unknown): unknown {
+  const def = BY_KEY.get(key);
+  if (!def) return null;
+  const v = coerceField(key, value);
+  if (v === null) return null;
+  if (def.kind === "date") {
+    const s = String(v).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) ? s : null;
+  }
+  if (key === "transit_days") {
+    const n = Math.round(Number(v));
+    return n >= 0 && n <= 365 ? n : null;
+  }
+  // Counts and measurements the database requires to be positive.
+  if (def.kind === "number" && typeof v === "number" && v < 0) return null;
+  return v;
 }
 
 /** Drops unknown keys and coerces the rest. Returns only fields that actually have a value. */

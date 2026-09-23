@@ -5,7 +5,7 @@ import { readText, type Reading } from "../services/classify";
 import { threadText } from "../lib/mailText";
 import { useAuth } from "../lib/auth";
 import { updateEnquiry, type Enquiry, type FiledMessage } from "../services/enquiries";
-import { byKey } from "../data/requestFields";
+import { byKey, saneValue } from "../data/requestFields";
 import type { AutoFilled } from "../services/autoFill";
 
 /**
@@ -69,7 +69,9 @@ export default function MailFillBar({
     if (!found) return [];
     const r = found as unknown as Record<string, unknown>;
     return keys
-      .map((key) => ({ key, def: byKey(key), value: r[key] }))
+      // The same shaping the automatic fill applies, so "apply" cannot fail
+      // on a value the automatic pass would have dropped.
+      .map((key) => ({ key, def: byKey(key), value: saneValue(key, r[key]) }))
       .filter(
         (p) =>
           p.def &&
@@ -147,7 +149,13 @@ export default function MailFillBar({
             {proposals.map((p) => (
               <li key={p.key} className="flex items-baseline justify-between gap-4 py-1.5">
                 <span className="text-[12px] text-text-secondary">{p.def!.label}</span>
-                <span className="text-right text-[13px] text-text-primary">{String(p.value)}</span>
+                <span className="text-right text-[13px] text-text-primary">
+                  {typeof p.value === "boolean"
+                    ? p.value
+                      ? "Yes"
+                      : "No"
+                    : String(p.value).replace(/_/g, " ")}
+                </span>
               </li>
             ))}
           </ul>

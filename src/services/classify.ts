@@ -82,6 +82,16 @@ export interface Reading {
   imo_class?: string | null;
   packing_group?: "I" | "II" | "III" | null;
   flash_point_c?: number | null;
+
+  /** What the job includes (061) and the cargo questions (063). */
+  trade_direction?: "export" | "import" | "cross_trade" | null;
+  pickup_required?: boolean | null;
+  delivery_required?: boolean | null;
+  delivery_location?: string | null;
+  customer_reference?: string | null;
+  expected_delivery_date?: string | null;
+  transit_days?: number | null;
+  hazardous?: boolean | null;
   cargo: string | null;
 
   model: string;

@@ -225,6 +225,59 @@ const SCHEMA = {
       description:
         "Only where the sender says so: 'LCL', 'full container', 'we need an air quote', 'by road'. A port of loading is NOT a mode. Null unless stated.",
     },
+    // ---------------------------------------------------------------------
+    // What the job includes — the Service details panel (061) and the cargo
+    // questions (063). Without these in the schema the desk typed them by hand
+    // from a mail that stated them plainly.
+    // ---------------------------------------------------------------------
+    trade_direction: {
+      type: "string",
+      nullable: true,
+      enum: ["export", "import", "cross_trade"],
+      description:
+        "Seen from India, where this desk is. 'export' when the cargo leaves India, 'import' when it arrives in India, 'cross_trade' when neither end is in India. Only when the sender says so or both ends of the route are named; null otherwise.",
+    },
+    pickup_required: {
+      type: "boolean",
+      nullable: true,
+      description:
+        "True when the sender asks us to collect the cargo from them ('arrange pickup', 'door pickup', 'collect from our factory'). False when they say they will deliver it to the port, airport or CFS themselves. Null when unmentioned — never inferred from the Incoterm.",
+    },
+    delivery_required: {
+      type: "boolean",
+      nullable: true,
+      description:
+        "True when the sender asks for delivery to a door at destination ('door delivery', 'deliver to the consignee's warehouse'). False when they ask for port-to-port or airport-to-airport. Null when unmentioned — a consignee address alone is NOT a delivery request, and never inferred from the Incoterm.",
+    },
+    delivery_location: {
+      type: "string",
+      nullable: true,
+      description: "Where to deliver at destination, only when a door delivery is asked for.",
+    },
+    customer_reference: {
+      type: "string",
+      nullable: true,
+      description:
+        "The sender's OWN reference for this shipment — their PO number, order number or 'our ref' — copied exactly. Not an enquiry number this desk issued, and not an invoice number of ours.",
+    },
+    expected_delivery_date: {
+      type: "string",
+      nullable: true,
+      description:
+        "YYYY-MM-DD. When the cargo must reach, or is expected at, destination ('needs to reach Frankfurt by 12 Oct'). NOT the ready date and NOT a quote deadline such as 'send the quote by tomorrow'.",
+    },
+    transit_days: {
+      type: "integer",
+      nullable: true,
+      description:
+        "The transit time the sender asks for, in whole days ('within 5 days', 'two weeks' = 14). Null unless a transit time is actually stated.",
+    },
+    hazardous: {
+      type: "boolean",
+      nullable: true,
+      description:
+        "True ONLY when the sender writes that the cargo is dangerous goods / hazardous / DG, or gives a UN number or IMO class. False only when they write non-hazardous, non-DG or general cargo. Otherwise null — including for goods that are often dangerous, such as batteries, paint, perfume or chemicals. The desk confirms that with the shipper; a guess here puts DG paperwork on a job, or leaves it off one.",
+    },
     // The party block and the packing list. These have been on `shipments`
     // since 028 and on the CRM's field catalogue for as long, but were never
     // in this schema — so the details panel offered them, the operator saw
@@ -552,6 +605,12 @@ Deno.serve(async (req) => {
         : writingRfq
           ? "Write a rate request from these shipment details."
           : "",
+    // Today's date, for a classification: "ready on the 2nd", "must reach by
+    // 12 Oct" and "next Monday" carry no year, and without a date to anchor
+    // them the model can only guess one or leave a date it plainly read blank.
+    !drafting && !quoting && !writingRfq
+      ? `Today is ${new Date().toISOString().slice(0, 10)}. Resolve dates without a year to the next such date on or after today.`
+      : "",
     `Subject: ${input.subject ?? "(none)"}`,
     `From: ${input.from ?? "(unknown)"}`,
     "",
@@ -650,7 +709,23 @@ Deno.serve(async (req) => {
       return json({ draft: text, model: MODEL, usage });
     }
 
-    return json({ ...JSON.parse(part), model: MODEL, usage });
+    const answer = JSON.parse(part);
+
+    /*
+      "Hazardous" only on the sender's word.
+
+      Told in the schema not to, the model still marks lithium batteries, paint
+      and perfume hazardous because it knows they usually are. Usually is the
+      problem: a guess puts DG paperwork on a job, and the desk confirms this
+      with the shipper, not with a model. So a yes stands only with a UN number
+      or IMO class beside it, or where the message itself says so.
+    */
+    if (!quoting && answer.hazardous === true && !answer.un_number && !answer.imo_class) {
+      const said = /\b(dangerous goods|hazardous|hazmat|haz\b|non-?haz|DGR?\b|IMDG|IMO class|UN\s?\d{4})/i;
+      if (!said.test(`${input.subject ?? ""}\n${excerpt}`)) answer.hazardous = null;
+    }
+
+    return json({ ...answer, model: MODEL, usage });
   } catch (e) {
     return json({ error: "Could not read Gemini's answer.", detail: String(e) }, 502);
   }
