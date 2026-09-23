@@ -35,6 +35,10 @@ export interface PublicTracking {
   volume_cbm?: number | null;
   steps?: Array<{ label: string; done_at: string | null; due_on: string | null; milestone: boolean }>;
   delivered_to?: string | null;
+  /** What the airline or carrier reported (072). Never a line read from mail. */
+  updates?: Array<{ at: string; what: string; where: string | null }>;
+  /** The latest position a flight or ship gave, while it is moving and under three days old. */
+  position?: { lat: number; lon: number; at: string; what: string | null } | null;
 }
 
 export interface TrackLink {

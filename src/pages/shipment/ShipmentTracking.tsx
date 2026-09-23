@@ -12,6 +12,7 @@ import {
   Radar,
 } from "lucide-react";
 import Collapsible from "../../components/Collapsible";
+import LiveTracking from "../../components/LiveTracking";
 import { useShipment } from "../ShipmentDetail";
 import { failureText } from "../../lib/errorText";
 import { DUE_TONE, dueState, dueText, todayIST } from "../../lib/progress";
@@ -22,6 +23,7 @@ import { eventsFor, stageLabel } from "../../services/enquiries";
 import { movementsFor } from "../../services/movements";
 import { isReachable } from "../../services/publicQuote";
 import { routingsFor } from "../../services/shipmentExtras";
+import { snapshotsFor, trackingEventsFor, type Snapshot, type TrackingEvent } from "../../services/liveTracking";
 import { currentTrackLink, issueTrackLink, revokeTrackLink, trackUrl, type TrackLink } from "../../services/tracking";
 import { receiptsFor } from "../../services/warehouse";
 
@@ -39,11 +41,19 @@ import { receiptsFor } from "../../services/warehouse";
  * The same answer, without the internals, on a page the customer can open
  * without an account (069). Copied from here and pasted into a mail or a chat;
  * withdrawn from here when it should stop working.
+ *
+ * LIVE TRACKING (072)
+ *
+ * What the airline, the carrier and the ship say, and what the job's mail
+ * says, sit between the two: their news ticks steps (a carrier's container
+ * events on their own, the rest on a click) and so arrives on the line.
  * ---------------------------------------------------------------------------
  */
 export default function ShipmentTracking() {
-  const { shipment: s, enquiry } = useShipment();
+  const { shipment: s, enquiry, reload } = useShipment();
   const [steps, setSteps] = useState<Checkpoint[]>([]);
+  const [snaps, setSnaps] = useState<Snapshot[]>([]);
+  const [reports, setReports] = useState<TrackingEvent[]>([]);
   const [line, setLine] = useState<Entry[]>([]);
   const [link, setLink] = useState<TrackLink | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,16 +64,20 @@ export default function ShipmentTracking() {
 
   const load = useCallback(async () => {
     try {
-      const [cp, mv, rc, lg, ev, ln] = await Promise.all([
+      const [cp, mv, rc, lg, ev, ln, sn, tr] = await Promise.all([
         checkpointsFor(s.id),
         movementsFor(s.id).catch(() => []),
         receiptsFor(s.id).catch(() => []),
         routingsFor(s.id).catch(() => []),
         eventsFor(s.enquiry_ref).catch(() => []),
         currentTrackLink(s.id).catch(() => null),
+        snapshotsFor(s.id).catch(() => []),
+        trackingEventsFor(s.id).catch(() => []),
       ]);
       setSteps(cp);
-      setLine(buildTimeline({ steps: cp, moves: mv, receipts: rc, legs: lg, events: ev }));
+      setSnaps(sn);
+      setReports(tr);
+      setLine(buildTimeline({ steps: cp, moves: mv, receipts: rc, legs: lg, events: ev, tracking: tr }));
       setLink(ln);
     } catch (e) {
       setError(failureText(e, "Could not load the tracking.").message);
@@ -125,6 +139,17 @@ export default function ShipmentTracking() {
           <Fact label="Container" value={s.container_number} mono />
         </div>
       </section>
+
+      <LiveTracking
+        shipment={s}
+        steps={steps}
+        snapshots={snaps}
+        events={reports}
+        onChanged={async () => {
+          // A tick moves the stage and a date move the ETA: the header reads both.
+          await Promise.all([load(), reload()]);
+        }}
+      />
 
       {/* ---- the customer's link ---- */}
       <Collapsible
@@ -247,7 +272,8 @@ export default function ShipmentTracking() {
                   {new Date(e.at).toLocaleString("en-GB", {
                     day: "numeric",
                     month: "short",
-                    ...(e.at.endsWith("T00:00:00") ? {} : { hour: "2-digit", minute: "2-digit" }),
+                    // A day with no time — a leg's date, a mail that gave none — shows as the day.
+                    ...(isMidnight(e.at) ? {} : { hour: "2-digit", minute: "2-digit" }),
                   })}
                   {e.detail ? ` · ${e.detail}` : ""}
                 </p>
@@ -285,4 +311,10 @@ function Fact({
       </p>
     </div>
   );
+}
+
+/** Local midnight: a day with no time given. */
+function isMidnight(at: string): boolean {
+  const d = new Date(at);
+  return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
 }

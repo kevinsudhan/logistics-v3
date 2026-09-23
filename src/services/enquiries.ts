@@ -445,6 +445,10 @@ export interface Shipment {
   /** The departure this booking was built from (071), if one was picked. */
   schedule_id: string | null;
 
+  /** The ship's AIS identity, for following it (072). */
+  vessel_mmsi: string | null;
+  vessel_imo: string | null;
+
   /* Closed by operations (070). Set and cleared only by the sign-off functions. */
   signed_off_at: string | null;
   signed_off_by: string | null;

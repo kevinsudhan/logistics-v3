@@ -2,19 +2,24 @@
  * Everything that has happened to a shipment, in the order it happened.
  *
  * ---------------------------------------------------------------------------
- * Five records say something happened — steps ticked, the pickup and the
- * delivery, warehouse receipts, the legs of the journey — and the job's
- * events say what the desk did about it (who was told, what was asked for).
+ * Six records say something happened — steps ticked, the pickup and the
+ * delivery, warehouse receipts, the legs of the journey, and what the
+ * airline, carrier or ship reported (072) — and the job's events say what the
+ * desk did about it (who was told, what was asked for).
  * This merges them into one line so "what has happened on this job" is one
  * read, not five tabs.
  *
  * Stage changes are left out: every one of them is a milestone step being
  * ticked, which is already on the line, and saying it twice makes the
- * timeline twice as long without saying more.
+ * timeline twice as long without saying more. For the same reason a
+ * tracking report that ticked a step is left out — the step carries it in
+ * its note — and only the reports that tick nothing (loaded, transhipped,
+ * delayed, gated out) are lines of their own. Offers still waiting for a
+ * person, and estimates, are not history.
  * ---------------------------------------------------------------------------
  */
 
-export type EntryKind = "step" | "pickup" | "delivery" | "receipt" | "leg" | "event";
+export type EntryKind = "step" | "pickup" | "delivery" | "receipt" | "leg" | "event" | "tracking";
 
 export interface Entry {
   at: string;
@@ -58,6 +63,23 @@ interface Leg {
   voyage_flight: string | null;
   status: string;
 }
+interface TrackIn {
+  source: string;
+  kind: string;
+  occurred_at: string | null;
+  estimated: boolean;
+  detail: string;
+  status: string;
+}
+const TRACK_SOURCE: Record<string, string> = {
+  aerodatabox: "AeroDataBox",
+  adsb: "adsb.lol",
+  hapag_lloyd: "Hapag-Lloyd",
+  aisstream: "AIS",
+  mail: "from mail",
+};
+const TRACK_WARNING = new Set(["delayed", "rolled_over", "cancelled"]);
+
 interface EventIn {
   at: string;
   kind: string;
@@ -82,6 +104,7 @@ export function buildTimeline(input: {
   receipts: ReceiptIn[];
   legs: Leg[];
   events: EventIn[];
+  tracking?: TrackIn[];
 }): Entry[] {
   const out: Entry[] = [];
 
@@ -151,6 +174,17 @@ export function buildTimeline(input: {
   for (const e of input.events) {
     if (!(e.kind in EVENTS)) continue;
     out.push({ at: e.at, kind: "event", title: e.summary, tone: EVENTS[e.kind] });
+  }
+
+  for (const t of input.tracking ?? []) {
+    if (t.status !== "info" || t.estimated || !t.occurred_at) continue;
+    out.push({
+      at: t.occurred_at,
+      kind: "tracking",
+      title: t.detail,
+      detail: TRACK_SOURCE[t.source] ?? t.source,
+      tone: TRACK_WARNING.has(t.kind) ? "warning" : undefined,
+    });
   }
 
   // Newest first: the question is "what happened last".

@@ -12,6 +12,11 @@ import { trackingByToken, type PublicTracking } from "../services/tracking";
  * and the dates. Money, notes and the office's own people are not in the
  * answer, so they cannot be on the page.
  *
+ * Where the carrier or the aircraft has said where it is (072), a map and the
+ * carrier's own lines — "Sailed from Chennai on MSC AURORA" — come too; a
+ * line read from the office's mail does not, unless a person ticked a step
+ * from it.
+ *
  * The same plain shell as the quotation page: somebody opening it on a phone
  * from a mail should see their shipment, not an application.
  * ---------------------------------------------------------------------------
@@ -93,6 +98,47 @@ export default function TrackShipment() {
                   }
                 />
               </dl>
+
+              {t.position && (
+                <div className="mt-5 overflow-hidden rounded-lg border border-[#e5e7eb]">
+                  <iframe
+                    title="Where the shipment is"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${[
+                      t.position.lon - 3,
+                      t.position.lat - 2,
+                      t.position.lon + 3,
+                      t.position.lat + 2,
+                    ]
+                      .map((n) => n.toFixed(4))
+                      .join(",")}&layer=mapnik&marker=${t.position.lat},${t.position.lon}`}
+                    className="block h-52 w-full border-0"
+                    loading="lazy"
+                  />
+                  <p className="bg-[#f9fafb] px-3 py-1.5 text-[11px] text-[#6b7280]">
+                    {t.position.what ?? (air ? "The flight" : "The vessel")} was here{" "}
+                    {new Date(t.position.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    . Map © OpenStreetMap contributors.
+                  </p>
+                </div>
+              )}
+
+              {(t.updates ?? []).length > 0 && (
+                <>
+                  <h2 className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-[#6b7280]">
+                    From the {air ? "airline" : "carrier"}
+                  </h2>
+                  <ul className="mt-2 space-y-1.5">
+                    {t.updates!.map((u, i) => (
+                      <li key={i} className="flex items-baseline justify-between gap-3 text-[13px]">
+                        <span>{u.what}</span>
+                        <span className="shrink-0 text-[11.5px] text-[#9ca3af]">
+                          {new Date(u.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
 
               <h2 className="mt-6 text-[12px] font-semibold uppercase tracking-wide text-[#6b7280]">Progress</h2>
               <ol className="mt-3">

@@ -228,7 +228,7 @@ export async function availableModels(): Promise<{ configured: string; available
  * tags come out, entities are decoded, and blank lines are collapsed. Anything
  * subtler would be accuracy nobody can see.
  */
-function stripTags(html: string): string {
+export function stripTags(html: string): string {
   return html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")

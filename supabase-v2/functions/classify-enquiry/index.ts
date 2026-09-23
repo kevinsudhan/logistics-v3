@@ -46,6 +46,11 @@ const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
  * 2.5 Flash-Lite retires on 16 October 2026; do not pin to it.
  */
 const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash-lite";
+/** Tried in order when MODEL is busy or out of free quota. Comma-separated to override. */
+const FALLBACK_MODELS = (Deno.env.get("GEMINI_FALLBACK_MODELS") ?? "gemini-3.5-flash-lite,gemini-2.5-flash")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
@@ -537,6 +542,78 @@ const RFQ_SYSTEM = [
   "subject line, no markdown, no code fences. End with a sign-off naming the sender given.",
 ].join("\n");
 
+/**
+ * Reading a mail for news about a shipment already moving (072).
+ *
+ * Agents, airlines and carriers write "flight departed", "vessel sailed on the
+ * 2nd", "cargo delivered, POD attached", "rolled over to next week's vessel".
+ * This pulls those out so the desk can tick the step with one click.
+ *
+ * The failure to avoid is a plan read as a fact: a pre-alert that says "ETD
+ * 2 Oct" is not a departure, and a departure ticked from it puts a milestone
+ * on a job whose cargo is still in the warehouse. So only what the mail says
+ * HAS happened is an event; a changed plan is a schedule change, and a plan
+ * that has not changed is nothing at all.
+ */
+const TRACK_SYSTEM = [
+  "You read mail about freight shipments that are already booked, for a forwarder in Chennai.",
+  "You are given the shipment's own details and one message. List what the message says has",
+  "happened to THIS shipment.",
+  "",
+  "Rules, in order of importance:",
+  "- Only what HAS happened, stated as done: departed, sailed, airborne, landed, arrived,",
+  "  discharged, customs cleared, out for delivery, delivered, received at the warehouse or CFS,",
+  "  stuffed, gated in. A plan, a schedule, an ETD or ETA, 'will depart', 'expected to arrive'",
+  "  and a pre-alert that only gives dates are NOT events.",
+  "- EXCEPT a change of plan: a delay, a rollover to another vessel or flight, or a new ETD or",
+  "  ETA replacing an earlier one. Report those as delayed, rolled_over or schedule_changed, and",
+  "  put the new dates in new_etd and new_eta.",
+  "- Only this shipment. Match it by the reference, house or master bill, container, flight,",
+  "  vessel or route given. If the message is about a different shipment, or you cannot tell,",
+  "  return no events.",
+  "- Read only the newest message. Quoted history below it (lines after 'From:', 'On ... wrote:',",
+  "  '-----Original Message-----') was already read when it arrived.",
+  "- date is YYYY-MM-DD, resolved against the date the message was sent. time is HH:MM, only if",
+  "  the message gives one. Null when not stated. Never invent a date.",
+  "- detail is one short sentence in plain words a colleague reads: what happened, where, on",
+  "  which flight or vessel. No prices, no phone numbers, no names of people.",
+  "- evidence is the words from the message that say it, copied exactly, under 20 words.",
+  "",
+  "Return an empty list freely. A missed update costs a click; a wrong one ticks a milestone",
+  "that did not happen.",
+].join("\n");
+
+const TRACK_SCHEMA = {
+  type: "object",
+  properties: {
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: [
+              "cargo_received", "stuffed", "gate_in", "loaded", "departed", "in_transit", "arrived",
+              "discharged", "customs_cleared", "gate_out", "out_for_delivery", "delivered", "delayed",
+              "rolled_over", "schedule_changed", "cancelled", "other",
+            ],
+          },
+          date: { type: "string", nullable: true, description: "YYYY-MM-DD when it happened." },
+          time: { type: "string", nullable: true, description: "HH:MM local, only if stated." },
+          location: { type: "string", nullable: true },
+          detail: { type: "string" },
+          evidence: { type: "string" },
+          new_etd: { type: "string", nullable: true, description: "YYYY-MM-DD, for a changed plan only." },
+          new_eta: { type: "string", nullable: true, description: "YYYY-MM-DD, for a changed plan only." },
+        },
+        required: ["kind", "detail", "evidence"],
+      },
+    },
+  },
+  required: ["events"],
+};
+
 const SYSTEM = [
   "You read email for a freight forwarder in Chennai that handles LCL and FCL ocean freight,",
   "air freight and customs clearance. Lanes are mostly India to and from Colombo, Jebel Ali,",
@@ -602,9 +679,12 @@ Deno.serve(async (req) => {
      * "classify" reads a message, "draft" answers one, "quote" reads a rate out
      * of a reply, "rfq" writes a rate request from shipment details.
      */
-    mode?: "classify" | "draft" | "quote" | "rfq";
+    mode?: "classify" | "draft" | "quote" | "rfq" | "tracking";
     /** Draft only: what the operator wants said, in their own words. */
     instruction?: string;
+    /** Tracking only: the shipment's own details, and when the message was sent. */
+    context?: string;
+    sent_at?: string;
   };
   try {
     input = await req.json();
@@ -615,6 +695,7 @@ Deno.serve(async (req) => {
   const drafting = input.mode === "draft";
   const quoting = input.mode === "quote";
   const writingRfq = input.mode === "rfq";
+  const tracking = input.mode === "tracking";
   const text = (input.body ?? "").trim();
   if (!text && !input.subject) return json({ error: "Nothing to read." }, 400);
 
@@ -634,11 +715,13 @@ Deno.serve(async (req) => {
         ? "Read the rate out of this reply."
         : writingRfq
           ? "Write a rate request from these shipment details."
-          : "",
+          : tracking
+            ? `The shipment:\n${(input.context ?? "").slice(0, 2000)}\n\nThe message was sent ${input.sent_at ?? "(date unknown)"}.`
+            : "",
     // Today's date, for a classification: "ready on the 2nd", "must reach by
     // 12 Oct" and "next Monday" carry no year, and without a date to anchor
     // them the model can only guess one or leave a date it plainly read blank.
-    !drafting && !quoting && !writingRfq
+    !drafting && !quoting && !writingRfq && !tracking
       ? `Today is ${new Date().toISOString().slice(0, 10)}. Resolve dates without a year to the next such date on or after today.`
       : "",
     `Subject: ${input.subject ?? "(none)"}`,
@@ -664,7 +747,9 @@ Deno.serve(async (req) => {
               ? QUOTE_SYSTEM
               : writingRfq
                 ? RFQ_SYSTEM
-                : SYSTEM,
+                : tracking
+                  ? TRACK_SYSTEM
+                  : SYSTEM,
         },
       ],
     },
@@ -675,7 +760,7 @@ Deno.serve(async (req) => {
       ? { temperature: 0.4 }
       : {
           responseMimeType: "application/json",
-          responseSchema: quoting ? QUOTE_SCHEMA : SCHEMA,
+          responseSchema: quoting ? QUOTE_SCHEMA : tracking ? TRACK_SCHEMA : SCHEMA,
           temperature: 0,
         },
   });
@@ -694,21 +779,29 @@ Deno.serve(async (req) => {
    */
   let r: Response | null = null;
   let raw = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await new Promise((ok) => setTimeout(ok, 400 * 2 ** (attempt - 1)));
-    try {
-      r = await fetch(`${BASE}/models/${MODEL}:generateContent?key=${GEMINI_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-    } catch (e) {
-      // A dropped connection is worth another go for the same reason a 503 is.
-      if (attempt === 2) return json({ error: "Could not reach Gemini.", detail: String(e) }, 502);
-      continue;
+  let used = MODEL;
+  // Then the next model, when this one stays busy: measured on 23 Sep 2026, the
+  // configured model answered 503 "high demand" to twelve requests in a row
+  // across three minutes. Free-tier limits are per model, so a 429 on one is
+  // not a 429 on the next.
+  const models = [MODEL, ...FALLBACK_MODELS.filter((m) => m !== MODEL)];
+  tries: for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await new Promise((ok) => setTimeout(ok, 600));
+      try {
+        r = await fetch(`${BASE}/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+      } catch {
+        // A dropped connection is worth another go for the same reason a 503 is.
+        continue;
+      }
+      raw = await r.text();
+      used = model;
+      if (r.ok || (r.status !== 429 && r.status < 500)) break tries;
     }
-    raw = await r.text();
-    if (r.ok || (r.status !== 429 && r.status < 500)) break;
   }
   if (!r) return json({ error: "Could not reach Gemini." }, 502);
   if (!r.ok) {
@@ -736,7 +829,7 @@ Deno.serve(async (req) => {
     // "mostly" would put ```html into somebody's outgoing mail.
     if (drafting || writingRfq) {
       const text = part.trim().replace(/^```[a-z]*\s*/i, "").replace(/```\s*$/, "").trim();
-      return json({ draft: text, model: MODEL, usage });
+      return json({ draft: text, model: used, usage });
     }
 
     const answer = JSON.parse(part);
@@ -750,12 +843,12 @@ Deno.serve(async (req) => {
       with the shipper, not with a model. So a yes stands only with a UN number
       or IMO class beside it, or where the message itself says so.
     */
-    if (!quoting && answer.hazardous === true && !answer.un_number && !answer.imo_class) {
+    if (!quoting && !tracking && answer.hazardous === true && !answer.un_number && !answer.imo_class) {
       const said = /\b(dangerous goods|hazardous|hazmat|haz\b|non-?haz|DGR?\b|IMDG|IMO class|UN\s?\d{4})/i;
       if (!said.test(`${input.subject ?? ""}\n${excerpt}`)) answer.hazardous = null;
     }
 
-    return json({ ...answer, model: MODEL, usage });
+    return json({ ...answer, model: used, usage });
   } catch (e) {
     return json({ error: "Could not read Gemini's answer.", detail: String(e) }, 502);
   }

@@ -53,6 +53,25 @@ is("the pickup names the truck", t.find((e) => e.kind === "pickup")?.detail, "14
 is("a milestone step is marked", t.find((e) => e.title === "Order confirm")?.tone, "milestone");
 is("a step's note comes with it", t.find((e) => e.title === "Pickup follow-up")?.detail, "Truck at 10");
 
+console.log("\nwhat the carrier reported");
+const tr = buildTimeline({
+  steps: [],
+  moves: [],
+  receipts: [],
+  legs: [],
+  events: [],
+  tracking: [
+    { source: "hapag_lloyd", kind: "loaded", occurred_at: "2026-10-01T16:30:00Z", estimated: false, detail: "Loaded on MSC AURORA at Chennai", status: "info" },
+    { source: "hapag_lloyd", kind: "departed", occurred_at: "2026-10-02T00:30:00Z", estimated: false, detail: "Sailed from Chennai", status: "applied" },
+    { source: "aerodatabox", kind: "delayed", occurred_at: null, estimated: true, detail: "EK 543 is delayed", status: "info" },
+    { source: "mail", kind: "rolled_over", occurred_at: "2026-10-02T00:00:00+05:30", estimated: false, detail: "Rolled to MSC ANNA", status: "info" },
+    { source: "mail", kind: "arrived", occurred_at: "2026-10-03T00:00:00+05:30", estimated: false, detail: "Arrived", status: "new" },
+  ],
+});
+is("only reports that tick nothing, newest first", tr.map((e) => e.title), ["Rolled to MSC ANNA", "Loaded on MSC AURORA at Chennai"]);
+is("says who reported it", tr.map((e) => e.detail), ["from mail", "Hapag-Lloyd"]);
+is("a rollover is a warning", tr[0].tone, "warning");
+
 console.log("\nwhat comes next");
 is(
   "open dated steps, soonest first",
