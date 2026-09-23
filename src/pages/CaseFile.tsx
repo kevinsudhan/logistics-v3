@@ -35,6 +35,7 @@ import AcceptancePanel from "../components/AcceptancePanel";
 import ShipmentDetailsPanel, { CONSOL_KEYS } from "../components/ShipmentDetailsPanel";
 import Collapsible from "../components/Collapsible";
 import CustomerDetailsPanel from "../components/CustomerDetailsPanel";
+import ServiceDetailsPanel from "../components/ServiceDetailsPanel";
 import EnquiryWorkflow from "../components/EnquiryWorkflow";
 import { CARGO_KEYS, fillFromNewMail, type AutoFilled } from "../services/autoFill";
 import ThreadReader from "../components/ThreadReader";
@@ -362,6 +363,9 @@ export default function CaseFile() {
             "who" is the first thing that is wrong.
           */}
           <CustomerDetailsPanel enquiry={enquiry} customer={customer} onSaved={load} />
+
+          {/* What the job is — mode, trade, lane, terms — before what it carries. */}
+          <ServiceDetailsPanel enquiry={enquiry} onSaved={load} />
 
           {/* ---- what we know, and what is still missing ---- */}
           <CargoPanel enquiry={enquiry} onSaved={load} />

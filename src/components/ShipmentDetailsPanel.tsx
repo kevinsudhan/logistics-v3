@@ -44,7 +44,7 @@ const SECTIONS: Array<{ title: string; hint: string; keys: string[] }> = [
   {
     title: "Consolidation",
     hint: "Where it joins the console, and by when.",
-    keys: ["transport_mode", "cfs_location", "cargo_cutoff", "si_cutoff", "freight_terms"],
+    keys: ["cfs_location", "cargo_cutoff", "si_cutoff", "freight_terms"],
   },
   {
     title: "Parties on the bill of lading",
@@ -76,6 +76,7 @@ const MODE_LABEL: Record<string, string> = {
   sea_fcl: "sea FCL",
   air: "air",
   road: "road",
+  other: "other",
 };
 
 export const CONSOL_KEYS = SECTIONS.flatMap((s) => s.keys);
@@ -172,7 +173,7 @@ export default function ShipmentDetailsPanel({
   const charge = useMemo(() => {
     // FCL is bought by the box. There is no chargeable weight to compute and
     // showing one would invite somebody to quote against it.
-    if (mode === "sea_fcl") return null;
+    if (mode === "sea_fcl" || mode === "other") return null;
     const measured = enquiry.volume_cbm;
     const derived = volumeFromPieces(
       enquiry.piece_length_cm,
@@ -273,7 +274,9 @@ export default function ShipmentDetailsPanel({
         <p className="text-[12px] text-text-secondary">
           {mode === "sea_fcl"
             ? "FCL is charged per container, not on chargeable weight"
-            : describeChargeable(charge)}
+            : mode === "other"
+              ? "No standard ratio for this mode — quote it on the actual weight and volume"
+              : describeChargeable(charge)}
         </p>
         <p className="mt-2 max-w-prose text-[11px] text-text-muted">
           Whichever of weight and volume is greater, in the unit the mode bills in, rounded up
@@ -284,7 +287,7 @@ export default function ShipmentDetailsPanel({
           ) : (
             <>
               No mode recorded, so it is priced as sea LCL. Air converts at six times the rate
-              &mdash; set the mode below if this is an air enquiry.
+              &mdash; set the service under Service details if this is an air enquiry.
             </>
           )}
         </p>

@@ -71,6 +71,9 @@ import { threadText } from "../lib/mailText";
  * ---------------------------------------------------------------------------
  */
 export const CARGO_KEYS = [
+  // Shown under Service details rather than in the consol panel, and still
+  // worth reading out of the mail: "we need an air quote" answers it.
+  "transport_mode",
   "origin",
   "destination",
   "cargo",

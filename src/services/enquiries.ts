@@ -91,7 +91,17 @@ export interface Enquiry {
    * are not interchangeable, and an enquiry has no sailing to read it off at
    * the point somebody wants the figure.
    */
-  transport_mode: "sea_lcl" | "sea_fcl" | "air" | "road" | null;
+  transport_mode: "sea_lcl" | "sea_fcl" | "air" | "road" | "other" | null;
+
+  /* What the job includes (061). */
+  /** We collect from the shipper, rather than them delivering to us. */
+  pickup_required: boolean | null;
+  /** We deliver at destination, rather than handing over at the port. */
+  delivery_required: boolean | null;
+  delivery_location: string | null;
+  transit_days: number | null;
+  /** The customer's own number for this — their PO or booking reference. */
+  customer_reference: string | null;
 
   /**
    * Which way the cargo is going (031).

@@ -48,12 +48,8 @@ export default function CargoPanel({
       await updateEnquiry(
         enquiry.ref,
         {
-          origin: form.origin ?? null,
-          destination: form.destination ?? null,
           cargo: form.cargo ?? null,
-          incoterm: form.incoterm ?? null,
           ready_date: form.ready_date ?? null,
-          pickup_location: form.pickup_location ?? null,
           consignee_name: form.consignee_name ?? null,
           consignee_country: form.consignee_country ?? null,
           piece_count: form.piece_count ?? null,
@@ -92,7 +88,7 @@ export default function CargoPanel({
   return (
     <Collapsible
       id="case:cargo"
-      title="Shipment details"
+      title="Cargo details"
       icon={<Package size={12} className="shrink-0 text-text-muted" />}
       /*
         Open by default and, unlike the rest, open even when empty: this is
@@ -131,10 +127,7 @@ export default function CargoPanel({
 
       {!editing ? (
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 text-[12px]">
-          <Fact label="Origin" value={enquiry.origin} />
-          <Fact label="Destination" value={enquiry.destination} />
           <Fact label="Cargo" value={enquiry.cargo} />
-          <Fact label="Incoterm" value={enquiry.incoterm} />
           <Fact label="Packages" value={enquiry.piece_count} />
           <Fact
             label="Piece size"
@@ -159,17 +152,13 @@ export default function CargoPanel({
             derived
           />
           <Fact label="Ready date" value={enquiry.ready_date} />
-          <Fact label="Pickup" value={enquiry.pickup_location} />
           <Fact label="Consignee" value={enquiry.consignee_name} />
           <Fact label="Handling" value={enquiry.special_handling} />
         </dl>
       ) : (
         <div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <In label="Origin" v={form.origin} on={(x) => set("origin", x)} />
-            <In label="Destination" v={form.destination} on={(x) => set("destination", x)} />
             <In label="Cargo" v={form.cargo} on={(x) => set("cargo", x)} />
-            <In label="Incoterm" v={form.incoterm} on={(x) => set("incoterm", x)} placeholder="FOB" />
 
             <In label="Packages" v={form.piece_count} on={(x) => set("piece_count", x)} type="number" />
             <In label="Length (cm)" v={form.piece_length_cm} on={(x) => set("piece_length_cm", x)} type="number" />
@@ -196,7 +185,6 @@ export default function CargoPanel({
               placeholder={derivedKg ? `${derivedKg} from the pieces` : undefined}
             />
             <In label="Ready date" v={form.ready_date} on={(x) => set("ready_date", x)} type="date" />
-            <In label="Pickup" v={form.pickup_location} on={(x) => set("pickup_location", x)} />
             <In label="Consignee" v={form.consignee_name} on={(x) => set("consignee_name", x)} />
             <In
               label="Special handling"
