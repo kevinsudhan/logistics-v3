@@ -302,3 +302,42 @@ export function daysSinceActivity(c: CustomerSummary): number | null {
 
 /** The dormancy line. Ninety days is roughly a quarter, which is how shipping seasons move. */
 export const DORMANT_AFTER_DAYS = 90;
+
+/**
+ * Point an enquiry at a customer already in the directory.
+ *
+ * Where the record it leaves has no other work — the ordinary case, a stranger
+ * created from an unfamiliar address — its addresses move to the chosen
+ * customer and it is archived, so the next mail from that address files itself
+ * under the right company. Where it has other work, only this enquiry moves.
+ * Refused once the job has been invoiced. All of it decided in
+ * `reassign_enquiry_customer` (060), not here.
+ */
+export async function reassignEnquiryCustomer(
+  ref: string,
+  customerId: string
+): Promise<{ changed: boolean; merged?: boolean; from?: string }> {
+  const { data, error } = await supabase.rpc("reassign_enquiry_customer", {
+    p_ref: ref,
+    p_customer_id: customerId,
+  });
+  if (error) throw new Error(error.message);
+  return data as { changed: boolean; merged?: boolean; from?: string };
+}
+
+/**
+ * Whether a record looks like one the intake made from a bare address.
+ *
+ * Mail from somebody new creates a customer named after whatever the sender's
+ * header said — "info", "sales", or the address itself. Those are worth
+ * pointing out, because they are usually a regular customer writing from an
+ * address nobody had seen, and the fix is one choice from the directory.
+ */
+export function looksAutoCreated(c: { name: string; company?: string | null }): boolean {
+  const name = (c.name ?? "").trim().toLowerCase();
+  const company = (c.company ?? "").trim();
+  if (company) return false;
+  if (!name || name.includes("@")) return true;
+  return ["info", "sales", "ops", "operations", "admin", "contact", "enquiry", "enquiries",
+          "noreply", "no-reply", "support", "accounts", "export", "import", "office"].includes(name);
+}

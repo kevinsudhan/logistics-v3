@@ -34,6 +34,7 @@ import type { Attachable } from "../components/MailAttachments";
 import AcceptancePanel from "../components/AcceptancePanel";
 import ShipmentDetailsPanel, { CONSOL_KEYS } from "../components/ShipmentDetailsPanel";
 import Collapsible from "../components/Collapsible";
+import CustomerDetailsPanel from "../components/CustomerDetailsPanel";
 import EnquiryWorkflow from "../components/EnquiryWorkflow";
 import { CARGO_KEYS, fillFromNewMail, type AutoFilled } from "../services/autoFill";
 import ThreadReader from "../components/ThreadReader";
@@ -355,6 +356,13 @@ export default function CaseFile() {
 
       {section === "shipment" && (
         <>
+          {/*
+            Who the job is for, first. Every figure below is quoted to somebody,
+            and on an enquiry the intake created from an unfamiliar address,
+            "who" is the first thing that is wrong.
+          */}
+          <CustomerDetailsPanel enquiry={enquiry} customer={customer} onSaved={load} />
+
           {/* ---- what we know, and what is still missing ---- */}
           <CargoPanel enquiry={enquiry} onSaved={load} />
 
