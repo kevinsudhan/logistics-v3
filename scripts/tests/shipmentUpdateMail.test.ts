@@ -1,4 +1,10 @@
-import { shipmentUpdateHtml, shipmentUpdateSubject, when } from "../../src/lib/shipmentUpdateMail";
+import {
+  movementOrderHtml,
+  movementOrderSubject,
+  shipmentUpdateHtml,
+  shipmentUpdateSubject,
+  when,
+} from "../../src/lib/shipmentUpdateMail";
 
 /**
  * The update a party is sent from the shipment's Party tab.
@@ -71,6 +77,20 @@ const bare = shipmentUpdateHtml({ ...base, partyName: null, carrier: null });
 is("no name, a proper greeting", bare.includes("Dear Sir or Madam,"), true);
 is("no carrier line when there is no carrier", !bare.includes("Airline"), true);
 is("markup in a name cannot break the mail", shipmentUpdateHtml({ ...base, partyName: "<b>x</b>" }).includes("&lt;b&gt;x&lt;/b&gt;"), true);
+
+console.log("\npickup and delivery requests");
+const order = {
+  kind: "pickup" as const, ref: "ALG09004-26", shipmentId: "ARX-SHP-0004", partyName: "Sai Transports",
+  address: "Plot 14, SIPCOT, Sriperumbudur", date: "2026-10-01", time: "10:00:00", contactName: "Meera", contactPhone: "+91 90000 11111",
+  cargo: "Battery packs", pieces: 14, grossKg: 496, volumeCbm: 3.168, hazardous: true, unNumber: "UN3481", notes: null,
+};
+is("subject names the request and the day", movementOrderSubject(order), "[ALG09004-26] Pickup request — 1 Oct 2026");
+const oh = movementOrderHtml(order);
+is("collect from the address", oh.includes("Collect from") && oh.includes("Sriperumbudur"), true);
+is("dangerous goods said plainly", oh.includes("Yes — UN 3481"), true);
+is("no instructions line when there are none", !oh.includes("Instructions"), true);
+const dh = movementOrderHtml({ ...order, kind: "delivery", hazardous: false, address: "Hanauer Landstrasse 291" });
+is("a delivery says deliver to", dh.includes("Deliver to") && !dh.includes("Dangerous goods"), true);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

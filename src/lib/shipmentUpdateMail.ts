@@ -108,3 +108,79 @@ export function shipmentUpdateHtml(i: UpdateInput): string {
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The instruction to a transporter: collect from here, or deliver to there.
+ *
+ * Built from what the job holds, like the update above — a line with nothing
+ * to say is left out rather than printed as "TBA". Hazardous cargo is said
+ * first and plainly: a driver who does not know is a driver without the
+ * placards and the paperwork.
+ */
+export interface MovementOrderInput {
+  kind: "pickup" | "delivery";
+  ref: string;
+  shipmentId: string;
+  partyName: string | null;
+  address: string | null;
+  date: string | null;
+  time: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  cargo: string | null;
+  pieces: number | null;
+  grossKg: number | null;
+  volumeCbm: number | null;
+  hazardous: boolean;
+  unNumber: string | null;
+  notes: string | null;
+}
+
+export function movementOrderSubject(i: Pick<MovementOrderInput, "kind" | "ref" | "date">): string {
+  const what = i.kind === "pickup" ? "Pickup request" : "Delivery request";
+  return `[${i.ref}] ${what}${i.date ? ` — ${when(i.date)}` : ""}`;
+}
+
+export function movementOrderHtml(i: MovementOrderInput): string {
+  const rows: Array<[string, string]> = [];
+  const add = (label: string, value: string | number | null | undefined) => {
+    if (value !== null && value !== undefined && String(value).trim() !== "")
+      rows.push([label, String(value)]);
+  };
+  const pickup = i.kind === "pickup";
+
+  add("Our reference", `${i.ref} · ${i.shipmentId}`);
+  add(pickup ? "Collect from" : "Deliver to", i.address);
+  add("Date", when(i.date, i.time));
+  add("Contact", [i.contactName, i.contactPhone].filter(Boolean).join(", "));
+  add("Cargo", i.cargo);
+  add(
+    "Quantity",
+    [
+      i.pieces ? `${i.pieces} pcs` : null,
+      i.grossKg ? `${Number(i.grossKg).toLocaleString("en-IN")} kg` : null,
+      i.volumeCbm ? `${i.volumeCbm} CBM` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+  );
+  if (i.hazardous) add("Dangerous goods", i.unNumber ? `Yes — UN ${i.unNumber.replace(/^UN\s*/i, "")}` : "Yes");
+  add("Instructions", i.notes);
+
+  const greeting = i.partyName ? `Dear ${esc(i.partyName)},` : "Dear Sir or Madam,";
+  const list = rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:3px 16px 3px 0;color:#555;white-space:nowrap;vertical-align:top">${esc(
+          k
+        )}</td><td style="padding:3px 0;color:#111">${esc(v)}</td></tr>`
+    )
+    .join("");
+
+  return (
+    `<p>${greeting}</p>` +
+    `<p>Please arrange the ${pickup ? "collection" : "delivery"} below and confirm the vehicle and driver.</p>` +
+    `<table style="border-collapse:collapse;font-size:14px">${list}</table>` +
+    `<p>Please keep <strong>${esc(i.ref)}</strong> in the subject line when you reply.</p>`
+  );
+}
