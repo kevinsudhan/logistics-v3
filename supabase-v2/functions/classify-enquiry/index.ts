@@ -172,7 +172,7 @@ const SCHEMA = {
       type: "number",
       nullable: true,
       description:
-        "Length of ONE piece in centimetres. Convert from inches (x2.54) or metres (x100) and never from a total.",
+        "Length of ONE piece in centimetres. Convert from inches (x2.54) or metres (x100) and never from a total. Only when all the cargo is ONE size; with several sizes leave this and the other single-piece fields null and use dimension_lines.",
     },
     piece_width_cm: {
       type: "number",
@@ -201,6 +201,36 @@ const SCHEMA = {
       nullable: true,
       description:
         "Total volume in cubic metres, only where the sender states it. Do NOT calculate it from the dimensions — the application does that.",
+    },
+    // Every size, not just one. The single-piece fields above can only hold
+    // one, so "12 cartons of 60x40x50 and 2 crates of 120x80x90" either lost a
+    // size or — worse — averaged them. One entry per distinct size here, and
+    // the application sums them (063).
+    dimension_lines: {
+      type: "array",
+      nullable: true,
+      description:
+        "One entry per DISTINCT piece size in the whole message or thread, e.g. '12 cartons 60x40x50 cm, 18 kg each' and '2 crates 120x80x90 cm, 140 kg each' are two entries. The same size mentioned twice is one entry; if a later message corrects a size, give only the corrected one. Convert to centimetres and kilograms. Null or empty when no dimensions are given.",
+      items: {
+        type: "object",
+        properties: {
+          pieces: { type: "integer", nullable: true, description: "How many pieces of THIS size." },
+          length_cm: { type: "number", nullable: true },
+          width_cm: { type: "number", nullable: true },
+          height_cm: { type: "number", nullable: true },
+          weight_per_piece_kg: {
+            type: "number",
+            nullable: true,
+            description: "Weight of ONE piece of this size, only where stated per piece.",
+          },
+          gross_weight_kg: {
+            type: "number",
+            nullable: true,
+            description:
+              "Total weight of all pieces of THIS size, only where stated for this size. Never the consignment total when there is more than one size.",
+          },
+        },
+      },
     },
     consignee_name: {
       type: "string",

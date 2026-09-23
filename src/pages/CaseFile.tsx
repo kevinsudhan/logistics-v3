@@ -194,7 +194,7 @@ export default function CaseFile() {
       */
       if (!MAIL_ONLY_CASE_FILE && m.length && !readOnce.current.has(ref)) {
         readOnce.current.add(ref);
-        void fillFromNewMail(e, m, fillKeysFor(d), mailbox)
+        void fillFromNewMail(e, m, fillKeysFor(d), mailbox, d)
           .then((filled) => {
             if (!filled) return;
             setAutoFilled(filled);
@@ -389,6 +389,7 @@ export default function CaseFile() {
             mail={mail}
             autoFilled={autoFilled}
             keys={fillKeysFor(dims)}
+            lines={dims}
             onSaved={load}
           />
           <CustomerDetailsPanel enquiry={enquiry} customer={customer} onSaved={load} />

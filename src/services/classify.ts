@@ -92,6 +92,15 @@ export interface Reading {
   expected_delivery_date?: string | null;
   transit_days?: number | null;
   hazardous?: boolean | null;
+  /** Every distinct piece size, in centimetres and kilograms. */
+  dimension_lines?: Array<{
+    pieces: number | null;
+    length_cm: number | null;
+    width_cm: number | null;
+    height_cm: number | null;
+    weight_per_piece_kg: number | null;
+    gross_weight_kg: number | null;
+  }> | null;
   cargo: string | null;
 
   model: string;

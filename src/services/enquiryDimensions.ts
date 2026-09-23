@@ -58,3 +58,19 @@ export async function removeDimension(id: string): Promise<void> {
   const { error } = await supabase.from("enquiry_dimensions").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Several lines at once, after whatever is already there — what the mail
+ * reader adds. One insert, so the table never shows half of a set of sizes.
+ */
+export async function addDimensions(
+  ref: string,
+  afterPosition: number,
+  lines: DimensionPatch[]
+): Promise<void> {
+  if (!lines.length) return;
+  const { error } = await supabase
+    .from("enquiry_dimensions")
+    .insert(lines.map((l, i) => ({ ...l, enquiry_ref: ref, position: afterPosition + i + 1 })));
+  if (error) throw new Error(error.message);
+}

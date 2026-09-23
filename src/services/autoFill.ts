@@ -2,6 +2,16 @@ import { readText } from "./classify";
 import { updateEnquiry, type Enquiry, type FiledMessage } from "./enquiries";
 import { byKey, saneValue, type FieldDef } from "../data/requestFields";
 import { threadText } from "../lib/mailText";
+import { addDimensions } from "./enquiryDimensions";
+import {
+  isEmptyLine,
+  ownedByLines,
+  readSizes,
+  sizeToLine,
+  sizesNotInTable,
+  type DimensionLine,
+  type ReadSize,
+} from "../lib/dimensions";
 
 /**
  * Filling the blanks from the mail, without being asked.
@@ -106,6 +116,13 @@ export const CARGO_KEYS = [
 export interface AutoFilled {
   /** The fields written, in catalogue order. */
   fields: Array<{ key: string; def: FieldDef; value: unknown }>;
+  /** Dimension lines written — only ever onto an empty table. */
+  sizesAdded: number;
+  /**
+   * Sizes the mail gives that the table does not have, when the table already
+   * has lines. Proposed, never written: see "SIZES" below.
+   */
+  newSizes: ReadSize[];
   /** The subject of the newest message read, so the source is nameable. */
   from: string;
 }
@@ -113,18 +130,35 @@ export interface AutoFilled {
 /**
  * Read what is new and fill what is blank.
  *
+ * ---------------------------------------------------------------------------
+ * SIZES
+ *
+ * The reader returns every distinct piece size. Rule 1 applies to the table
+ * as a whole: an EMPTY table is a blank, and the sizes are written into it. A
+ * table that already has lines is an answer somebody has, and a later mail
+ * saying "the cartons are 55 cm, not 50" read as a new size would sit beside
+ * the old one and double the volume. So sizes the table does not have are
+ * returned as `newSizes` for a person to add with one click — or, when one is
+ * a correction, to fix the row it corrects.
+ *
+ * Because new sizes can arrive when every field is already answered, a thread
+ * with new mail is always read now; rule 2 (once per new message) still holds.
+ * ---------------------------------------------------------------------------
+ *
  * @param enquiry the enquiry as loaded, including `details_read_at`
  * @param mail    its correspondence, newest or oldest first — order is not assumed
  * @param keys    the fields this is allowed to fill; the panel's own list, so
  *                the two cannot drift apart
- * @returns what was filled, or null when there was nothing new or nothing found
+ * @param lines   the dimension table as it stands
+ * @returns what was filled or proposed, or null when there was nothing new
  */
 export async function fillFromNewMail(
   enquiry: Enquiry,
   mail: FiledMessage[],
   keys: string[],
   /** Whose mailbox to fetch the full bodies from. */
-  mailbox: string
+  mailbox: string,
+  lines: DimensionLine[] = []
 ): Promise<AutoFilled | null> {
   if (mail.length === 0) return null;
 
@@ -139,13 +173,8 @@ export async function fillFromNewMail(
   const mark = record.details_read_at as string | null | undefined;
   if (mark && newest <= mark) return null;
 
-  // Rule 1: only the blanks are in play. When there are none, there is nothing
-  // a reading could do, so the mark moves without one being made.
+  // Rule 1: only the blanks are in play.
   const blanks = keys.filter((k) => isBlank(record[k]));
-  if (blanks.length === 0) {
-    await stamp(enquiry.ref, newest);
-    return null;
-  }
 
   /*
     The whole thread, bodies and all.
@@ -171,7 +200,19 @@ export async function fillFromNewMail(
     unknown
   >;
 
+  // ---- sizes: written into an empty table, proposed against a full one ----
+  const unit = enquiry.dimension_unit ?? "cm_kg";
+  const read = readSizes(reading.dimension_lines);
+  const tableEmpty = !lines.some((l) => !isEmptyLine(l));
+  const toWrite = tableEmpty ? read.map((sz) => sizeToLine(sz, unit)) : [];
+  const newSizes = tableEmpty ? [] : sizesNotInTable(read, lines, unit);
+  // What the written lines now decide, so the single-size columns are not
+  // also written — the database would ignore them, and the screen would say
+  // it filled them.
+  const owned = new Set(ownedByLines(toWrite));
+
   const fields = blanks
+    .filter((key) => !owned.has(key))
     .map((key) => ({ key, def: byKey(key), value: saneValue(key, reading[key]) }))
     .filter(
       (f): f is { key: string; def: FieldDef; value: unknown } =>
@@ -179,24 +220,33 @@ export async function fillFromNewMail(
     );
 
   // Rule 3: read is read, whether or not it yielded anything.
-  if (fields.length === 0) {
+  if (fields.length === 0 && toWrite.length === 0) {
     await stamp(enquiry.ref, newest);
-    return null;
+    const subject = mail.find((f) => f.message.receivedDateTime === newest)?.message.subject ?? "";
+    return newSizes.length ? { fields: [], sizesAdded: 0, newSizes, from: subject } : null;
   }
+
+  // Lines first: the enquiry's totals are summed from them, and a stated total
+  // written after them is kept only where no line gives that figure (063).
+  if (toWrite.length) await addDimensions(enquiry.ref, 0, toWrite);
 
   const patch: Record<string, unknown> = { details_read_at: newest };
   for (const f of fields) patch[f.key] = f.value;
 
   // Rule 4: the summary is what the timeline will show, so it names the fields
   // rather than counting them — "filled 3 fields" is not an audit trail.
+  const named = [
+    ...fields.map((f) => f.def.label),
+    ...(toWrite.length ? [`${toWrite.length} package ${toWrite.length === 1 ? "size" : "sizes"}`] : []),
+  ];
   await updateEnquiry(
     enquiry.ref,
     patch as Partial<Enquiry>,
-    `Filled from the correspondence: ${fields.map((f) => f.def.label).join(", ")}`
+    `Filled from the correspondence: ${named.join(", ")}`
   );
 
   const subject = mail.find((f) => f.message.receivedDateTime === newest)?.message.subject ?? "";
-  return { fields, from: subject };
+  return { fields, sizesAdded: toWrite.length, newSizes, from: subject };
 }
 
 /** Move the mark without writing anything else. */

@@ -6,6 +6,11 @@ import {
   lineVolumeCbm,
   lineVolumeWeight,
   ownedByLines,
+  readSizes,
+  sameSize,
+  sizeToLine,
+  sizesNotInTable,
+  describeSize,
 } from "../../src/lib/dimensions";
 
 /**
@@ -85,6 +90,33 @@ is(
   ownedByLines([{ ...blank, pieces: 6 }]).includes("volume_cbm"),
   false
 );
+
+console.log("\nsizes read out of the mail");
+const cartons = { pieces: 12, length_cm: 60, width_cm: 40, height_cm: 50, weight_per_piece_kg: 18, gross_weight_kg: null };
+const crates = { pieces: 2, length_cm: 120, width_cm: 80, height_cm: 90, weight_per_piece_kg: 140, gross_weight_kg: null };
+is("two sizes read as two", readSizes([cartons, crates]).length, 2);
+is("not an array is nothing", readSizes(null), []);
+is("zero and negative figures are dropped", readSizes([{ ...cartons, pieces: 0, weight_per_piece_kg: -5 }])[0], { ...cartons, pieces: null, weight_per_piece_kg: null });
+is("a weight with no count or size is not a size", readSizes([{ pieces: null, length_cm: null, width_cm: null, height_cm: null, weight_per_piece_kg: 20, gross_weight_kg: null }]), []);
+is("pieces are whole", readSizes([{ ...cartons, pieces: 12.4 }])[0].pieces, 12);
+
+console.log("\nwhich sizes are new");
+const row = (o: object) => ({ id: "x", position: 1, pieces: 12, length: 60, width: 40, height: 50, weight_per_piece: 18, gross_weight: null, ...o });
+is("the size already in the table is not new", sizesNotInTable([cartons, crates], [row({})], "cm_kg"), [crates]);
+is("the same carton written 40 x 60 x 50 is the same size", sameSize(cartons, row({ length: 40, width: 60 }), "cm_kg"), true);
+is("a corrected height is a different size", sameSize({ ...cartons, height_cm: 55 }, row({}), "cm_kg"), false);
+is("a different count is a different size", sameSize({ ...cartons, pieces: 10 }, row({}), "cm_kg"), false);
+is("a table kept in inches is compared in centimetres", sameSize(cartons, row({ length: 60 / 2.54, width: 40 / 2.54, height: 50 / 2.54 }), "in_lb"), true);
+is("an empty table means every size is new", sizesNotInTable([cartons], [], "cm_kg").length, 1);
+
+console.log("\nwritten in the table's unit");
+is("centimetres stay centimetres", sizeToLine(cartons, "cm_kg"), { pieces: 12, length: 60, width: 40, height: 50, weight_per_piece: 18, gross_weight: null });
+is("an inch table gets inches and pounds", sizeToLine({ ...cartons, length_cm: 121.92, weight_per_piece_kg: 45.359 }, "in_lb").length, 48);
+is("and pounds", sizeToLine({ ...cartons, weight_per_piece_kg: 45.359237 }, "in_lb").weight_per_piece, 100);
+
+console.log("\non screen");
+is("a proposed size reads plainly", describeSize(cartons), "12 × 60 × 40 × 50 cm · 18 kg each");
+is("a count with no size says so", describeSize({ ...cartons, length_cm: null, weight_per_piece_kg: null }), "12 pieces, size not given");
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

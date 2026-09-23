@@ -136,3 +136,109 @@ export function ownedByLines(
     owned.push("gross_weight_kg");
   return owned;
 }
+
+/**
+ * A size as the mail reader returns it: always centimetres and kilograms,
+ * whatever unit the mail was written in (classify-enquiry converts).
+ */
+export interface ReadSize {
+  pieces: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  weight_per_piece_kg: number | null;
+  gross_weight_kg: number | null;
+}
+
+/**
+ * The reader's `dimension_lines`, made safe: positive finite numbers only,
+ * whole pieces, and only sizes with a count or a measurement. A line of nothing
+ * but a weight is not a size.
+ */
+export function readSizes(raw: unknown): ReadSize[] {
+  if (!Array.isArray(raw)) return [];
+  const pos = (v: unknown, dp: number): number | null => {
+    const n = typeof v === "number" ? v : Number(v);
+    return v !== null && v !== undefined && v !== "" && Number.isFinite(n) && n > 0
+      ? Math.round(n * 10 ** dp) / 10 ** dp
+      : null;
+  };
+  return raw
+    .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
+    .map((r) => {
+      const pieces = pos(r.pieces, 0);
+      return {
+        pieces: pieces && pieces >= 1 ? pieces : null,
+        length_cm: pos(r.length_cm, 2),
+        width_cm: pos(r.width_cm, 2),
+        height_cm: pos(r.height_cm, 2),
+        weight_per_piece_kg: pos(r.weight_per_piece_kg, 3),
+        gross_weight_kg: pos(r.gross_weight_kg, 2),
+      };
+    })
+    .filter((s) => s.pieces !== null || s.length_cm !== null || s.width_cm !== null || s.height_cm !== null);
+}
+
+/** A read size as a line in the table's unit. */
+export function sizeToLine(
+  s: ReadSize,
+  unit: DimensionUnit
+): Omit<DimensionLine, "id" | "position"> {
+  const len = (v: number | null) => (v === null ? null : Math.round((v / CM_PER[unit]) * 100) / 100);
+  const wt = (v: number | null, dp: number) =>
+    v === null ? null : Math.round((v / KG_PER[unit]) * 10 ** dp) / 10 ** dp;
+  return {
+    pieces: s.pieces,
+    length: len(s.length_cm),
+    width: len(s.width_cm),
+    height: len(s.height_cm),
+    weight_per_piece: wt(s.weight_per_piece_kg, 3),
+    gross_weight: wt(s.gross_weight_kg, 2),
+  };
+}
+
+/**
+ * Whether a size is already a line in the table.
+ *
+ * Same count and the same three measurements to within half a centimetre, in
+ * any order — "60 x 40 x 50" and "40 x 60 x 50" are the same carton written by
+ * two people. Weight is not compared: a size is a size.
+ */
+export function sameSize(s: ReadSize, line: DimensionLine, unit: DimensionUnit): boolean {
+  if (s.pieces !== line.pieces) return false;
+  const cm = (v: number | null) => (v === null ? null : v * CM_PER[unit]);
+  const a = [s.length_cm, s.width_cm, s.height_cm];
+  const b = [cm(line.length), cm(line.width), cm(line.height)];
+  if (a.some((v) => v === null) || b.some((v) => v === null)) {
+    return a.every((v, i) => (v === null) === (b[i] === null) && (v === null || Math.abs(v - b[i]!) <= 0.5));
+  }
+  const sa = (a as number[]).slice().sort((x, y) => x - y);
+  const sb = (b as number[]).slice().sort((x, y) => x - y);
+  return sa.every((v, i) => Math.abs(v - sb[i]) <= 0.5);
+}
+
+/** The read sizes that are not already lines in the table. */
+export function sizesNotInTable(
+  read: ReadSize[],
+  lines: DimensionLine[],
+  unit: DimensionUnit
+): ReadSize[] {
+  const real = lines.filter((l) => !isEmptyLine(l));
+  return read.filter((s) => !real.some((l) => sameSize(s, l, unit)));
+}
+
+/** "12 × 60 × 40 × 50 cm · 18 kg each" — how a proposed size reads on screen. */
+export function describeSize(s: ReadSize): string {
+  const dims = [s.length_cm, s.width_cm, s.height_cm];
+  const size = dims.every((v) => v !== null) ? `${dims.map((v) => fmt(v)).join(" × ")} cm` : null;
+  const count = s.pieces !== null ? `${s.pieces}` : "?";
+  const weight =
+    s.weight_per_piece_kg !== null
+      ? `${fmt(s.weight_per_piece_kg)} kg each`
+      : s.gross_weight_kg !== null
+        ? `${fmt(s.gross_weight_kg)} kg in all`
+        : null;
+  return [size ? `${count} × ${size}` : `${count} pieces, size not given`, weight]
+    .filter(Boolean)
+    .join(" · ");
+}
