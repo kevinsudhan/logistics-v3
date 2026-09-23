@@ -1,22 +1,24 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { AlertCircle, ArrowDownToLine, Check, Layers, Ship } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, ArrowDownToLine, Check, Users } from "lucide-react";
 import Select from "../../components/Select";
+import Collapsible from "../../components/Collapsible";
+import NotifyParty from "../../components/NotifyParty";
 import { useShipment } from "../ShipmentDetail";
-import { updateShipment } from "../../services/enquiries";
+import { updateShipment, type Shipment } from "../../services/enquiries";
 import { STATES } from "../../services/charges";
+import { listPartners, type Partner, type PartnerRole } from "../../services/partners";
+import { getCustomer, listCustomers, type CustomerSummary } from "../../services/customers";
 import {
-  attachToConsole,
-  detachFromConsole,
-  issueHouseBl,
-  openConsoles,
-  type Console,
-} from "../../services/consoles";
+  clearExtraParty,
+  extraPartiesFor,
+  saveExtraParty,
+  type ExtraParty,
+  type ExtraPartyRole,
+} from "../../services/shipmentExtras";
 import {
   BL_LINE_LIMIT,
   COUNTRIES,
   ROLE_HINT,
-  ROLE_LABEL,
   countryCodeFor,
   fromGstin,
   overlongLines,
@@ -45,6 +47,20 @@ import {
  * says what number is too big. A B/L party box takes about 35 characters to a
  * line before the carrier truncates it, so the count here is shown against that
  * limit and the lines that run over are named.
+ *
+ * THE OTHER SIX
+ *
+ * Shipper, consignee and the first notify party are printed on the B/L and
+ * stay columns on the shipment. The agents at each end, who is billed, a
+ * second notify party, another forwarder and the customs house agent are the
+ * rest of the people a job involves; they are picked from the partner book or
+ * the customer directory and their details copied onto this job (065).
+ *
+ * NOTIFY
+ *
+ * Every party with an email can be sent an update on the shipment from here —
+ * status, the last step done, carrier and dates, as a draft in the compose
+ * window, logged on the timeline once it has gone.
  *
  * NOTHING HERE IS REQUIRED
  *
@@ -108,12 +124,17 @@ function Field({
 function PartyCard({
   role,
   party,
+  email,
   onSet,
+  onEmail,
   extra,
 }: {
   role: PartyRole;
   party: Party;
+  /** Never printed on the B/L — it is where the party is sent updates. */
+  email: string;
   onSet: (field: keyof Party, value: string, also?: Partial<Party>) => void;
+  onEmail: (v: string) => void;
   extra?: React.ReactNode;
 }) {
   const [addr, setAddr] = useState(party.address);
@@ -123,17 +144,24 @@ function PartyCard({
   const over = overlongLines(addr);
 
   return (
-    <section className="card p-4">
-      <h2 className="text-[13px] font-medium text-text-primary">{ROLE_LABEL[role]}</h2>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-text-muted">{ROLE_HINT[role]}</p>
+    <div>
+      <p className="text-[11px] leading-relaxed text-text-muted">{ROLE_HINT[role]}</p>
 
-      <div className="mt-3 space-y-3">
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="space-y-3">
         <Field
           label="Name"
           value={party.name}
           count
           onCommit={(v) => onSet("name", v)}
           placeholder="Registered name"
+        />
+
+        <Field
+          label="Email"
+          value={email}
+          placeholder="Where updates go — not printed"
+          onCommit={(v) => onEmail(v.trim())}
         />
 
         <label className="block">
@@ -161,7 +189,9 @@ function PartyCard({
             </span>
           )}
         </label>
+        </div>
 
+        <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <Field label="City" value={party.city} onCommit={(v) => onSet("city", v)} />
           <Field label="Postcode" value={party.pincode} onCommit={(v) => onSet("pincode", v)} />
@@ -243,38 +273,229 @@ function PartyCard({
         )}
 
         {extra}
+        </div>
       </div>
-    </section>
+    </div>
+  );
+}
+
+
+/** The six non-B/L parties, in the reference order, with where to pick each from. */
+const EXTRA: Record<
+  ExtraPartyRole,
+  { label: string; hint: string; from: "partners" | "customers" | null; roles?: PartnerRole[] }
+> = {
+  destination_agent: {
+    label: "Destination agent",
+    hint: "Our agent at destination: receives the pre-alert, clears and delivers.",
+    from: "partners",
+    roles: ["overseas_agent", "consol_partner"],
+  },
+  origin_agent: {
+    label: "Origin agent",
+    hint: "An agent handling the cargo at origin, when it is not us.",
+    from: "partners",
+    roles: ["overseas_agent", "consol_partner", "cfs_transport"],
+  },
+  billing_customer: {
+    label: "Billing customer",
+    hint: "Who the invoice is raised on, when it is not the customer on the job.",
+    from: "customers",
+  },
+  notify_2: {
+    label: "Notify customer 2",
+    hint: "A second party told on arrival — often the buyer's customs broker.",
+    from: null,
+  },
+  forwarder: {
+    label: "Forwarder",
+    hint: "Another forwarder on this job — whose bill it moves under, or who handed it to us.",
+    from: "partners",
+    roles: ["consol_partner", "overseas_agent", "other"],
+  },
+  customs_house_agent: {
+    label: "Customs house agent",
+    hint: "The CHA filing the shipping bill or the bill of entry.",
+    from: "partners",
+    roles: ["cha_customs"],
+  },
+};
+
+/**
+ * One of the six, backed by `shipment_parties`.
+ *
+ * Picking from the partner book or the customer directory LINKS the record and
+ * COPIES its details, which stay editable: the link says who it is, the copy
+ * is what this job was told.
+ */
+function ExtraPartyCard({
+  role,
+  party,
+  partners,
+  customers,
+  onSave,
+  onClear,
+}: {
+  role: ExtraPartyRole;
+  party: ExtraParty | undefined;
+  partners: Partner[];
+  customers: CustomerSummary[];
+  onSave: (patch: Partial<ExtraParty>) => Promise<void>;
+  onClear: () => Promise<void>;
+}) {
+  const spec = EXTRA[role];
+  const v = (k: keyof ExtraParty) => (party?.[k] as string | null) ?? "";
+  const set = (k: keyof ExtraParty) => (value: string) => void onSave({ [k]: value || null });
+  const choices = spec.from === "partners" ? partners.filter((p) => spec.roles?.includes(p.role)) : [];
+
+  async function pickPartner(id: string) {
+    const p = partners.find((x) => x.id === id);
+    if (!p) return onSave({ partner_id: null });
+    await onSave({
+      partner_id: p.id,
+      name: p.organisation || p.name,
+      contact_person: p.organisation ? p.name : null,
+      email: p.emails[0] ?? null,
+      phone: p.phones[0] ?? null,
+    });
+  }
+
+  async function pickCustomer(id: string) {
+    if (!id) return onSave({ customer_id: null });
+    const c = await getCustomer(id);
+    if (!c) return;
+    const r = c as unknown as Record<string, string | null | string[]>;
+    await onSave({
+      customer_id: c.id,
+      name: (r.billing_name as string) || c.company || c.name,
+      contact_person: (r.billing_attention as string) || c.name,
+      email: (r.billing_email as string) || c.emails?.[0] || null,
+      phone: c.phones?.[0] ?? null,
+      address: (r.billing_address as string) || null,
+      city: (r.billing_city as string) || null,
+      country: (r.billing_country as string) || null,
+      gstin: (r.gstin as string) || null,
+    });
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] leading-relaxed text-text-muted">{spec.hint}</p>
+
+      {spec.from && (
+        <div className="mt-3 max-w-md">
+          <span className="mb-0.5 block text-[11px] text-text-secondary">
+            {spec.from === "partners" ? "From the partner book" : "From the customer directory"}
+          </span>
+          {spec.from === "partners" ? (
+            <select
+              value={party?.partner_id ?? ""}
+              onChange={(e) => void pickPartner(e.target.value)}
+              className="h-8 w-full"
+            >
+              <option value="">{choices.length ? "Choose, or type below" : "None in the partner book yet"}</option>
+              {choices.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.organisation || p.name}
+                  {p.organisation && p.name ? ` — ${p.name}` : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={party?.customer_id ?? ""}
+              onChange={(e) => void pickCustomer(e.target.value)}
+              className="h-8 w-full"
+            >
+              <option value="">Choose, or type below</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company || c.name} ({c.id})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="space-y-3">
+          <Field label="Name" value={v("name")} count onCommit={set("name")} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contact person" value={v("contact_person")} onCommit={set("contact_person")} />
+            <Field label="Phone" value={v("phone")} onCommit={set("phone")} />
+          </div>
+          <Field label="Email" value={v("email")} onCommit={(x) => set("email")(x.trim())} />
+        </div>
+        <div className="space-y-3">
+          <Field label="Address" value={v("address")} onCommit={set("address")} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="City" value={v("city")} onCommit={set("city")} />
+            <Field label="Country" value={v("country")} onCommit={set("country")} />
+          </div>
+          {role === "billing_customer" && (
+            <Field label="GSTIN" value={v("gstin")} mono onCommit={(x) => set("gstin")(x.toUpperCase())} />
+          )}
+          <Field label="Notes" value={v("notes")} onCommit={set("notes")} />
+        </div>
+      </div>
+
+      {party && (
+        <button
+          type="button"
+          onClick={() => void onClear()}
+          className="mt-3 text-[11.5px] text-text-muted hover:text-text-danger"
+        >
+          Remove this party from the job
+        </button>
+      )}
+    </div>
   );
 }
 
 export default function ShipmentParties() {
-  const { shipment, reload } = useShipment();
+  const { shipment, enquiry, reload } = useShipment();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [consoles, setConsoles] = useState<Console[]>([]);
+  const [extras, setExtras] = useState<ExtraParty[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
 
-  // Only the ones still taking cargo. A console that has sailed refuses an
-  // attach in the database anyway, and offering it here would be a button that
-  // exists to produce an error.
+  const loadExtras = useCallback(async () => {
+    try {
+      setExtras(await extraPartiesFor(shipment.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load the parties.");
+    }
+  }, [shipment.id]);
+
   useEffect(() => {
-    void openConsoles()
-      .then(setConsoles)
-      .catch(() => setConsoles([]));
-  }, []);
+    void loadExtras();
+    void listPartners()
+      .then(setPartners)
+      .catch(() => setPartners([]));
+    void listCustomers()
+      .then(setCustomers)
+      .catch(() => setCustomers([]));
+  }, [loadExtras]);
 
+  const mode: Shipment["transport_mode"] = shipment.transport_mode ?? enquiry?.transport_mode ?? null;
   const row = shipment as unknown as Record<string, unknown>;
   const shipper = readParty(row, "shipper");
   const consignee = readParty(row, "consignee");
   const notify = readParty(row, "notify");
+
+  function flash() {
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1600);
+  }
 
   async function write(patch: Record<string, unknown>) {
     setError(null);
     try {
       await updateShipment(shipment.id, patch);
       await reload();
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 1600);
+      flash();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That did not save.");
     }
@@ -289,6 +510,17 @@ export default function ShipmentParties() {
       void write(patch);
     };
 
+  const saveExtra = (role: ExtraPartyRole) => async (patch: Partial<ExtraParty>) => {
+    setError(null);
+    try {
+      await saveExtraParty(shipment.id, role, patch);
+      await loadExtras();
+      flash();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That did not save.");
+    }
+  };
+
   /**
    * The customer's own billing record, onto the shipper box.
    *
@@ -299,9 +531,78 @@ export default function ShipmentParties() {
   const copyFromCustomer = () =>
     void write({
       shipper_name: shipment.customer?.company || shipment.customer?.name || null,
+      shipper_email: shipment.customer?.emails?.[0] || null,
     });
 
-  const blType = shipment.bl_type ?? "house";
+  const byRole = (r: ExtraPartyRole) => extras.find((x) => x.role === r);
+
+  /** A B/L party's section: the form, and a Notify button in its header. */
+  const blSection = (role: PartyRole, title: string, party: Party, extra?: React.ReactNode) => {
+    const email = (row[`${role}_email`] as string | null) ?? "";
+    return (
+      <Collapsible
+        key={role}
+        id={`shipment:party:${role}`}
+        title={title}
+        icon={<Users size={12} className="shrink-0 text-text-muted" />}
+        badge={party.name || undefined}
+        defaultOpen={role !== "notify" || Boolean(party.name)}
+        action={
+          <NotifyParty
+            shipment={shipment}
+            mode={mode}
+            to={email || null}
+            partyName={party.name || null}
+            roleLabel={title}
+          />
+        }
+      >
+        <PartyCard
+          role={role}
+          party={party}
+          email={email}
+          onSet={setter(role)}
+          onEmail={(v) => void write({ [`${role}_email`]: v || null })}
+          extra={extra}
+        />
+      </Collapsible>
+    );
+  };
+
+  const extraSection = (role: ExtraPartyRole) => {
+    const party = byRole(role);
+    return (
+      <Collapsible
+        key={role}
+        id={`shipment:party:${role}`}
+        title={EXTRA[role].label}
+        icon={<Users size={12} className="shrink-0 text-text-muted" />}
+        badge={party?.name || undefined}
+        defaultOpen={Boolean(party?.name)}
+        action={
+          <NotifyParty
+            shipment={shipment}
+            mode={mode}
+            to={party?.email || null}
+            partyName={party?.contact_person || party?.name || null}
+            roleLabel={EXTRA[role].label}
+          />
+        }
+      >
+        <ExtraPartyCard
+          role={role}
+          party={party}
+          partners={partners}
+          customers={customers}
+          onSave={saveExtra(role)}
+          onClear={async () => {
+            await clearExtraParty(shipment.id, role);
+            await loadExtras();
+          }}
+        />
+      </Collapsible>
+    );
+  };
 
   return (
     <div>
@@ -312,10 +613,10 @@ export default function ShipmentParties() {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-prose text-[12px] leading-relaxed text-text-secondary">
-          These are the boxes printed on the bill of lading. Nothing here is required — a draft
-          naming what it is missing is what the desk sends to chase it.
+          Everyone on this job. Shipper, consignee and notify customer 1 are printed on the house
+          bill; the rest are who the desk works with. Nothing here is required.
         </p>
         {saved && (
           <span className="inline-flex items-center gap-1 text-[11px] text-text-success">
@@ -324,178 +625,46 @@ export default function ShipmentParties() {
         )}
       </div>
 
-      {/* ---- whose bill ---- */}
-      <section className="card mb-4 p-4">
-        <h2 className="text-[13px] font-medium text-text-primary">Bills of lading</h2>
-        <p className="mt-0.5 max-w-prose text-[11px] leading-relaxed text-text-muted">
-          On a consolidation the carrier issues one master bill covering the whole box, and we
-          issue this shipper their own house bill under it. The house bill is the document the
-          customer holds and the one every document here prints.
-        </p>
-
-        {/* the console, and the master that comes with it */}
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="min-w-0">
-            <span className="mb-0.5 block text-[11px] text-text-secondary">Console</span>
-            <Select
-              label="Console"
-              value={shipment.console_id ?? ""}
-              options={[
-                { value: "", label: "Not on a console" },
-                ...consoles.map((c) => ({
-                  value: c.id,
-                  label: c.console_no ?? "(unnumbered)",
-                  hint: [c.pol, c.pod].filter(Boolean).join(" → ") || c.mode,
-                })),
-              ]}
-              onChange={(v) =>
-                void (v
-                  ? attachToConsole(shipment.id, v)
-                  : detachFromConsole(shipment.id)
-                )
-                  .then(() => reload())
-                  .catch((e: unknown) =>
-                    setError(e instanceof Error ? e.message : "Could not change the console.")
-                  )
-              }
-            />
-            {shipment.console_id && (
-              <Link
-                to="/consoles"
-                className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-accent hover:underline"
-              >
-                <Layers size={11} /> Open the console
-              </Link>
-            )}
-          </div>
-
-          <div className="min-w-0">
-            <span className="block text-[11px] text-text-secondary">Master B/L</span>
-            <span className="block py-1 font-mono text-[13px] text-text-muted">
-              {consoles.find((c) => c.id === shipment.console_id)?.mbl_number || "—"}
-            </span>
-            <span className="block text-[11px] text-text-muted">
-              The carrier&rsquo;s, recorded once on the console
-            </span>
-          </div>
-
-          <div className="min-w-0">
-            <span className="block text-[11px] text-text-secondary">House B/L</span>
-            {shipment.bl_number ? (
-              <span className="block py-1 font-mono text-[13px] text-text-primary">
-                {shipment.bl_number}
-              </span>
-            ) : (
-              <button
-                onClick={() =>
-                  void issueHouseBl(shipment.id)
-                    .then(() => reload())
-                    .catch((e: unknown) =>
-                      setError(e instanceof Error ? e.message : "Could not issue it.")
-                    )
-                }
-                className="mt-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-1 px-3 text-[12px] font-medium text-text-primary transition-colors hover:bg-surface-2"
-              >
-                <Ship size={13} />
-                Issue a house B/L
-              </button>
-            )}
-            <span className="mt-0.5 block text-[11px] text-text-muted">
-              {shipment.bl_number
-                ? "Issued — changing it is a correction, not an edit"
-                : "Ours, on our own series. Needs a consignee first."}
-            </span>
-          </div>
-        </div>
-
-        {/* who issued the bill this cargo travels under */}
-        <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-3">
-          <div className="flex gap-1.5">
-            {(
-              [
-                { v: "house", label: "Our house B/L" },
-                { v: "forwarder", label: "Another forwarder's B/L" },
-              ] as const
-            ).map((o) => (
-              <button
-                key={o.v}
-                onClick={() =>
-                  void write({
-                    bl_type: o.v,
-                    // Clearing the number with the choice, so a bill switched
-                    // back to ours does not keep somebody else's reference on it.
-                    ...(o.v === "house" ? { forwarders_bl_no: null } : {}),
-                  })
-                }
-                aria-pressed={blType === o.v}
-                className={`h-8 rounded-lg border px-3 text-[12px] transition-colors ${
-                  blType === o.v
-                    ? "border-brand bg-brand font-medium text-white"
-                    : "border-border bg-surface-1 text-text-secondary hover:border-border-strong hover:text-text-primary"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-
-          {blType === "forwarder" && (
-            <div className="min-w-[14rem]">
-              <Field
-                label="Their B/L number"
-                value={shipment.forwarders_bl_no ?? ""}
-                mono
-                onCommit={(v) => void write({ forwarders_bl_no: v || null })}
-              />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ---- the three parties ---- */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <PartyCard
-          role="shipper"
-          party={shipper}
-          onSet={setter("shipper")}
-          extra={
-            !shipper.name && shipment.customer && (
-              <button
-                onClick={copyFromCustomer}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-              >
-                <ArrowDownToLine size={13} />
-                Use {shipment.customer.company || shipment.customer.name}
-              </button>
-            )
-          }
-        />
-
-        <PartyCard
-          role="consignee"
-          party={consignee}
-          onSet={setter("consignee")}
-          extra={
-            consignee.country === "India" && (
-              <Field
-                label="DPD code"
-                value={consignee.dpd_code ?? ""}
-                mono
-                hint="Direct Port Delivery — a consignee cleared to take the box off the terminal rather than through a CFS"
-                onCommit={(v) => void write({ consignee_dpd_code: v.toUpperCase() || null })}
-              />
-            )
-          }
-        />
-
-        <PartyCard role="notify" party={notify} onSet={setter("notify")} />
-      </div>
+      {blSection(
+        "shipper",
+        "Shipper",
+        shipper,
+        !shipper.name && shipment.customer && (
+          <button
+            onClick={copyFromCustomer}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+          >
+            <ArrowDownToLine size={13} />
+            Use {shipment.customer.company || shipment.customer.name}
+          </button>
+        )
+      )}
+      {blSection(
+        "consignee",
+        "Consignee",
+        consignee,
+        consignee.country === "India" && (
+          <Field
+            label="DPD code"
+            value={consignee.dpd_code ?? ""}
+            mono
+            hint="Direct Port Delivery — a consignee cleared to take the box off the terminal rather than through a CFS"
+            onCommit={(v) => void write({ consignee_dpd_code: v.toUpperCase() || null })}
+          />
+        )
+      )}
+      {extraSection("destination_agent")}
+      {extraSection("origin_agent")}
+      {extraSection("billing_customer")}
+      {blSection("notify", "Notify customer 1", notify)}
+      {extraSection("notify_2")}
+      {extraSection("forwarder")}
+      {extraSection("customs_house_agent")}
 
       <p className="mt-4 max-w-prose text-[11px] leading-relaxed text-text-muted">
-        The shipper box is filled from the customer's billing record when there is one, and the
-        state, PAN and country codes are read off the GSTIN and the country rather than asked for
-        twice. Everything remains editable: what goes on a bill of lading is what the desk says
-        goes on it.
+        The shipper box can be filled from the customer's record, and the state, PAN and country
+        codes are read off the GSTIN and the country rather than asked for twice. Everything remains
+        editable: what goes on a bill is what the desk says goes on it.
       </p>
     </div>
   );

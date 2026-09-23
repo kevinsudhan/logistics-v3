@@ -33,6 +33,9 @@ const ShipmentInvoices = accountsPage(() => import("./pages/shipment/ShipmentInv
 const ShipmentContainers = lazy(() => import("./pages/shipment/ShipmentContainers"));
 const ShipmentMail = lazy(() => import("./pages/shipment/ShipmentMail"));
 const ShipmentParties = lazy(() => import("./pages/shipment/ShipmentParties"));
+const ShipmentCargo = lazy(() => import("./pages/shipment/ShipmentCargo"));
+const ShipmentBill = lazy(() => import("./pages/shipment/ShipmentBill"));
+const ShipmentDocuments = lazy(() => import("./pages/shipment/ShipmentDocuments"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
 const SpaceContainers = lazy(() => import("./pages/SpaceContainers"));
 const Containers = lazy(() => import("./pages/Containers"));
@@ -113,6 +116,9 @@ export default function App() {
               <Route index element={<ShipmentOverview />} />
               <Route path="mail" element={<ShipmentMail />} />
               <Route path="parties" element={<ShipmentParties />} />
+              <Route path="cargo" element={<ShipmentCargo />} />
+              <Route path="bill" element={<ShipmentBill />} />
+              <Route path="documents" element={<ShipmentDocuments />} />
               <Route path="containers" element={<ShipmentContainers />} />
               {/*
                 React Router skips non-elements among <Routes> children and

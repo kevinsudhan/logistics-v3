@@ -3,12 +3,9 @@ import { Link } from "react-router-dom";
 import { AlertCircle, ArrowRight, Check, Loader2, PackageCheck, Truck } from "lucide-react";
 import {
   promoteToShipment,
-  setShipmentStage,
-  SHIPMENT_STAGES,
-  SHIPMENT_STAGE_LABEL,
+  stageLabel,
   type Enquiry,
   type Shipment,
-  type ShipmentStage,
 } from "../services/enquiries";
 import { failureText, type FailureText } from "../lib/errorText";
 
@@ -47,25 +44,15 @@ export default function PromotePanel({
     }
   }
 
-  async function advance(stage: ShipmentStage) {
-    if (!shipment) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await setShipmentStage(shipment.id, stage);
-      onChanged();
-    } catch (e) {
-      setError(failureText(e, "Could not move the stage."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   // ---- already a shipment ----
-  if (shipment) {
-    const at = SHIPMENT_STAGES.indexOf(shipment.stage);
-    const next = at >= 0 && at < SHIPMENT_STAGES.length - 1 ? SHIPMENT_STAGES[at + 1] : null;
+  /*
+    Where it has got to, and the way in.
 
+    The stage is moved on the shipment itself now — in its header, with the
+    stages of its own mode. A second control here offered sea stages to air
+    jobs ("Mark stuffed") and was one more place to press the same button.
+  */
+  if (shipment) {
     return (
       <section className="mt-4 card p-5">
         <h2 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary mb-3">
@@ -76,8 +63,10 @@ export default function PromotePanel({
           <div>
             <p className="font-mono text-[13px] text-text-accent">{shipment.id}</p>
             <p className="mt-0.5 text-[13px] text-text-primary">
-              {SHIPMENT_STAGE_LABEL[shipment.stage]}
-              {shipment.sailing_date ? ` · sailing ${shipment.sailing_date}` : ""}
+              {stageLabel(shipment.stage, shipment.transport_mode)}
+              {shipment.etd ?? shipment.sailing_date
+                ? ` · ETD ${shipment.etd ?? shipment.sailing_date}`
+                : ""}
               {shipment.agreed_inr
                 ? ` · ₹${Number(shipment.agreed_inr).toLocaleString("en-IN")}`
                 : ""}
@@ -85,16 +74,12 @@ export default function PromotePanel({
           </div>
 
           <div className="flex items-center gap-2">
-            {next && (
-              <button
-                onClick={() => void advance(next)}
-                disabled={busy}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border-strong bg-surface-1 text-[12px] font-medium text-text-primary hover:bg-surface-2 disabled:opacity-60"
-              >
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
-                Mark {SHIPMENT_STAGE_LABEL[next].toLowerCase()}
-              </button>
-            )}
+            <Link
+              to={`/shipments/${shipment.id}`}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand text-[12px] font-medium text-white hover:bg-brand-dark"
+            >
+              Open shipment <ArrowRight size={13} />
+            </Link>
             <Link
               to="/shipments/in-process"
               className="h-8 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary grid place-items-center"
@@ -103,23 +88,6 @@ export default function PromotePanel({
             </Link>
           </div>
         </div>
-
-        {/* Where it has got to, at a glance. */}
-        <ol className="mt-4 flex flex-wrap items-center gap-1.5">
-          {SHIPMENT_STAGES.map((s, i) => {
-            const done = i <= at;
-            return (
-              <li
-                key={s}
-                className={`text-[11px] px-2 py-1 rounded-full ${
-                  done ? "bg-bg-success text-text-success" : "bg-surface-2 text-text-muted"
-                }`}
-              >
-                {SHIPMENT_STAGE_LABEL[s]}
-              </li>
-            );
-          })}
-        </ol>
 
         <ErrorNote error={error} />
       </section>

@@ -37,7 +37,35 @@ export interface EnquiryFile {
   subject: string | null;
   filed_by: string | null;
   filed_at: string;
+  /** What the file is — "Packing list", "HAWB" (065). */
+  document_type: string | null;
+  /** The number printed on it: the invoice number, the B/L number. */
+  reference_number: string | null;
+  /** Only an admin can delete it or take this off. */
+  protected: boolean;
 }
+
+/** The kinds of paper a job collects, in roughly the order it collects them. */
+export const DOCUMENT_TYPES = [
+  "Commercial invoice",
+  "Packing list",
+  "Purchase order",
+  "MSDS",
+  "DG declaration",
+  "Shipping bill",
+  "Customs declaration",
+  "VGM",
+  "Certificate of origin",
+  "Insurance certificate",
+  "Booking confirmation",
+  "HAWB",
+  "MAWB",
+  "House B/L",
+  "Master B/L",
+  "Delivery order",
+  "Proof of delivery",
+  "Other",
+];
 
 /** Everything filed against one enquiry, newest first. */
 export async function listFiles(ref: string): Promise<EnquiryFile[]> {
@@ -102,6 +130,60 @@ export async function fileMailAttachment(input: {
   return data as EnquiryFile;
 }
 
+/**
+ * A file somebody chose from their computer, filed against the job.
+ *
+ * The same bucket and table as mail attachments and generated documents, so
+ * the enquiry and the shipment see one set of files.
+ */
+export async function uploadFile(input: {
+  enquiryRef: string;
+  file: File;
+  documentType: string;
+  referenceNumber?: string | null;
+  protected?: boolean;
+}): Promise<EnquiryFile> {
+  const ref = input.enquiryRef.toUpperCase();
+  const path = `${ref}/${Date.now()}-${safeName(input.file.name)}`;
+  const contentType = input.file.type || "application/octet-stream";
+
+  const { error: up } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, input.file, { contentType, upsert: false });
+  if (up) throw up;
+
+  const { data, error } = await supabase
+    .from("enquiry_files")
+    .insert({
+      enquiry_ref: ref,
+      name: input.file.name,
+      content_type: contentType,
+      size_bytes: input.file.size,
+      path,
+      source: "upload",
+      document_type: input.documentType,
+      reference_number: input.referenceNumber?.trim() || null,
+      protected: input.protected ?? false,
+      filed_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+    })
+    .select()
+    .single();
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    throw error;
+  }
+  return data as EnquiryFile;
+}
+
+/** Correct what a filed file is, or protect it. */
+export async function updateFileMeta(
+  id: string,
+  patch: Partial<Pick<EnquiryFile, "document_type" | "reference_number" | "protected">>
+): Promise<void> {
+  const { error } = await supabase.from("enquiry_files").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
 /** A file this CRM produced, kept alongside the ones that arrived. */
 export async function fileGeneratedDocument(input: {
   enquiryRef: string;
@@ -152,8 +234,21 @@ export async function fileUrl(path: string, seconds = 300): Promise<string> {
 
 /** Take a file back off an enquiry — the row first, then the bytes. */
 export async function removeFile(file: EnquiryFile): Promise<void> {
-  const { error } = await supabase.from("enquiry_files").delete().eq("id", file.id);
+  // `.select()` so a delete the rules refused (a protected file, somebody
+  // else's upload) is reported rather than looking like it worked.
+  const { data, error } = await supabase
+    .from("enquiry_files")
+    .delete()
+    .eq("id", file.id)
+    .select("id");
   if (error) throw error;
+  if (!data?.length) {
+    throw new Error(
+      file.protected
+        ? "This file is protected. Only an admin can delete it."
+        : "Only the person who filed this, or an admin, can delete it."
+    );
+  }
   // Order matters: a failed delete here leaves bytes nothing points at, which
   // is wasteful. The other order leaves a row pointing at nothing, which is a
   // broken link on the screen.

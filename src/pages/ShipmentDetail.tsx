@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
 import ShipmentCheckpoints from "../components/ShipmentCheckpoints";
 import EnquiryLink from "../components/EnquiryLink";
-import { AlertCircle, ChevronLeft, FileText, PackageSearch } from "lucide-react";
+import { AlertCircle, ChevronLeft, FileText, Loader2, PackageSearch } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
@@ -11,11 +11,17 @@ import { money } from "../services/billing";
 import { ACCOUNTS_DESK } from "../lib/features";
 import { marginPct, shipmentMargin, type Margin } from "../services/bills";
 import {
+  getEnquiry,
   getShipment,
-  SHIPMENT_STAGE_LABEL,
+  setShipmentStage,
+  stageLabel,
+  stagesFor,
   type Customer,
+  type Enquiry,
   type Shipment,
 } from "../services/enquiries";
+import { listDimensions } from "../services/enquiryDimensions";
+import type { DimensionLine } from "../lib/dimensions";
 
 /**
  * One booked shipment, and everything the desk does to it.
@@ -52,7 +58,17 @@ import {
 
 export interface ShipmentContext {
   shipment: Shipment & { customer: Customer | null };
-  /** Re-reads the shipment and the billing summary. */
+  /**
+   * The enquiry this booking came from (065).
+   *
+   * The job's facts — customer, service, route, terms, cargo, sizes — are kept
+   * there and edited from either page through the same panels; a trigger keeps
+   * the shipment's copies in step. Null only if the enquiry cannot be read.
+   */
+  enquiry: (Enquiry & { customer: Customer | null }) | null;
+  /** The enquiry's dimension lines, for the cargo tab. */
+  lines: DimensionLine[];
+  /** Re-reads the shipment, its enquiry and the billing summary. */
   reload: () => Promise<void>;
 }
 
@@ -95,27 +111,36 @@ function Money({
   );
 }
 
-const TABS = [
-  { to: ".", label: "Overview", end: true },
-  // The correspondence, the quotation and the agents — the same three things
-  // the enquiry had. A booking is the second half of one job, and having to go
-  // back to the enquiry to read the thread it came from is how a desk ends up
-  // working the mailbox instead of the system.
-  { to: "mail", label: "Mail", end: false },
-  { to: "parties", label: "Parties & B/L", end: false },
-  { to: "containers", label: "Containers", end: false },
-  // Registered as routes only when the accounts desk is on, so the tabs follow.
-  ...(ACCOUNTS_DESK
-    ? [
-        { to: "invoices", label: "Invoices", end: false },
-        { to: "costs", label: "Costs", end: false },
-      ]
-    : []),
-];
+function tabsFor(mode: Enquiry["transport_mode"] | null | undefined) {
+  return [
+    { to: ".", label: "Shipment details", end: true },
+    { to: "parties", label: "Party", end: false },
+    { to: "cargo", label: "Cargo details", end: false },
+    // The house bill is a HAWB on a flight and an HBL at sea — same job, the
+    // name the desk and the customer both use.
+    { to: "bill", label: mode === "air" ? "HAWB" : "House B/L", end: false },
+    { to: "documents", label: "Documents", end: false },
+    // The correspondence — a booking is the second half of one job, and having
+    // to go back to the enquiry to read the thread it came from is how a desk
+    // ends up working the mailbox instead of the system.
+    { to: "mail", label: "Mail", end: false },
+    { to: "containers", label: "Containers", end: false },
+    // Registered as routes only when the accounts desk is on, so the tabs follow.
+    ...(ACCOUNTS_DESK
+      ? [
+          { to: "invoices", label: "Invoices", end: false },
+          { to: "costs", label: "Costs", end: false },
+        ]
+      : []),
+  ];
+}
 
 export default function ShipmentDetail() {
   const { id } = useParams();
   const [shipment, setShipment] = useState<(Shipment & { customer: Customer | null }) | null>(null);
+  const [enquiry, setEnquiry] = useState<(Enquiry & { customer: Customer | null }) | null>(null);
+  const [lines, setLines] = useState<DimensionLine[]>([]);
+  const [moving, setMoving] = useState(false);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [margin, setMargin] = useState<Margin | null>(null);
   const [loading, setLoading] = useState(true);
@@ -140,6 +165,16 @@ export default function ShipmentDetail() {
         ACCOUNTS_DESK ? shipmentMargin(id).catch(() => null) : Promise.resolve(null),
       ]);
       setShipment(s);
+      // The enquiry after the shipment, because its reference comes from it.
+      // Best-effort: a booking whose enquiry cannot be read still opens.
+      if (s) {
+        const [e, d] = await Promise.all([
+          getEnquiry(s.enquiry_ref).catch(() => null),
+          listDimensions(s.enquiry_ref).catch(() => [] as DimensionLine[]),
+        ]);
+        setEnquiry(e);
+        setLines(d);
+      }
       setBilling((billingRow.data as BillingSummary) ?? null);
       setMargin(m);
     } catch (e) {
@@ -175,6 +210,31 @@ export default function ShipmentDetail() {
 
   const s = shipment;
   const delivered = s.stage === "delivered";
+  const mode = s.transport_mode ?? enquiry?.transport_mode ?? null;
+  const TABS = tabsFor(mode);
+
+  /*
+    The next stage, beside the current one.
+
+    It used to be a card of its own on the overview. It is one button, and the
+    question "where is the cargo" is answered in the header on every tab.
+  */
+  const order = stagesFor(mode);
+  const at = order.indexOf(s.stage);
+  const next = at >= 0 ? order[at + 1] : undefined;
+  async function advance() {
+    if (!next) return;
+    setMoving(true);
+    setError(null);
+    try {
+      await setShipmentStage(s.id, next);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not move the stage.");
+    } finally {
+      setMoving(false);
+    }
+  }
   const billed = billing?.billed_inr ?? 0;
   const agreed = s.agreed_inr;
 
@@ -222,8 +282,19 @@ export default function ShipmentDetail() {
         <span className="font-mono text-[12px] text-text-accent">{s.id}</span>
         <span className="font-mono text-[11px] text-text-muted">{s.enquiry_ref}</span>
         <StatusPill tone={delivered ? "success" : "accent"}>
-          {SHIPMENT_STAGE_LABEL[s.stage]}
+          {stageLabel(s.stage, mode)}
         </StatusPill>
+        {next && s.stage !== "cancelled" && (
+          <button
+            type="button"
+            onClick={() => void advance()}
+            disabled={moving}
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 text-[11.5px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
+          >
+            {moving && <Loader2 size={11} className="animate-spin" />}
+            Move to {stageLabel(next, mode).toLowerCase()}
+          </button>
+        )}
         {(billing?.draft_count ?? 0) > 0 && (
           <StatusPill tone="warning">
             {billing?.draft_count} draft{billing?.draft_count === 1 ? "" : "s"}
@@ -315,14 +386,17 @@ export default function ShipmentDetail() {
       )}
 
       {/* ---- sections ---- */}
-      <nav className="mb-4 flex gap-1 border-b border-border" aria-label="Shipment sections">
+      <nav
+        className="mb-4 flex gap-1 overflow-x-auto border-b border-border"
+        aria-label="Shipment sections"
+      >
         {TABS.map((t) => (
           <NavLink
             key={t.label}
             to={t.to}
             end={t.end}
             className={({ isActive }) =>
-              `-mb-px border-b-2 px-3 py-2 text-[13px] transition-colors ${
+              `-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-[13px] transition-colors ${
                 isActive
                   ? "border-brand font-medium text-text-primary"
                   : "border-transparent text-text-secondary hover:text-text-primary"
@@ -348,7 +422,7 @@ export default function ShipmentDetail() {
         <ShipmentCheckpoints shipmentId={s.id} />
       </div>
 
-      <Outlet context={{ shipment: s, reload: load } satisfies ShipmentContext} />
+      <Outlet context={{ shipment: s, enquiry, lines, reload: load } satisfies ShipmentContext} />
     </div>
   );
 }

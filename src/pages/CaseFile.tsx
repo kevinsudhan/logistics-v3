@@ -416,7 +416,28 @@ export default function CaseFile() {
 
           {/* What the paperwork needs — after the price, because it does not
               change it. Folded until somebody needs it. */}
-          <BookingParticularsPanel enquiry={enquiry} onSaved={load} />
+          {shipment ? (
+            /*
+              Once the job is a booking the particulars are the shipment's: the
+              house bill is drafted from them there. Editing a second copy here
+              would change nothing anybody prints (065 only fills the
+              shipment's blanks from it).
+            */
+            <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+              <p className="text-[12px] text-text-secondary">
+                Booking particulars — parties, marks, packing and cut-offs — are kept on the
+                shipment now.
+              </p>
+              <Link
+                to={`/shipments/${shipment.id}/parties`}
+                className="inline-flex h-8 items-center rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary hover:border-border-strong hover:text-text-primary"
+              >
+                Open {shipment.id}
+              </Link>
+            </div>
+          ) : (
+            <BookingParticularsPanel enquiry={enquiry} onSaved={load} />
+          )}
 
           {/* The confirmation letter is for an agreed job only; the quotation
               itself goes out from the quote above. */}

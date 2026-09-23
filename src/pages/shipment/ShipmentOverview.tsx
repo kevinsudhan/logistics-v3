@@ -1,59 +1,78 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, CalendarClock, ClipboardList, Loader2, Plus, Route, Trash2 } from "lucide-react";
 import RevertShipment from "../../components/RevertShipment";
-import { AlertCircle, Loader2 } from "lucide-react";
+import Collapsible from "../../components/Collapsible";
+import CustomerDetailsPanel from "../../components/CustomerDetailsPanel";
+import ServiceDetailsPanel from "../../components/ServiceDetailsPanel";
+import { Field, Segmented, TextSave, YesNo } from "../../components/formControls";
 import { useShipment } from "../ShipmentDetail";
+import { failureText } from "../../lib/errorText";
+import { listPeople, updateShipment, type Person, type Shipment } from "../../services/enquiries";
+import { listPartners, type Partner } from "../../services/partners";
 import {
-  setShipmentStage,
-  SHIPMENT_STAGES,
-  SHIPMENT_STAGE_LABEL,
-  type ShipmentStage,
-} from "../../services/enquiries";
+  addRouting,
+  MOVE_LABEL,
+  removeRouting,
+  ROUTING_STATUS_LABEL,
+  routingsFor,
+  updateRouting,
+  type Routing,
+  type RoutingMove,
+  type RoutingStatus,
+} from "../../services/shipmentExtras";
 
 /**
- * Where the shipment is, what was booked, and what is on it.
+ * The shipment's details, in the order the desk fills them in.
  *
- * Lifted out of the page this now sits inside, unchanged except for reading the
- * shipment from the shell rather than fetching it again. A blank field is drawn
- * as a dash rather than hidden: on a booking, "we have no container number yet"
- * is something the desk needs to see, and a row that disappears when empty makes
- * an incomplete record look complete.
+ * ---------------------------------------------------------------------------
+ * WHY THE FIRST TWO SECTIONS ARE THE ENQUIRY'S PANELS
+ *
+ * Customer and service are the job's facts, and the job is one record from
+ * enquiry to delivery. They are the same panels the inbound page uses, editing
+ * the same row; the database keeps the booking's copies in step (065). A
+ * second set of fields here would be a second answer to "which port", and the
+ * first time the two disagreed the documents would print the wrong one.
+ *
+ * WHAT IS THE SHIPMENT'S OWN
+ *
+ * The booking details, the schedule and the routings exist only once there is
+ * a booking — they are written to the shipment and nowhere else.
+ * ---------------------------------------------------------------------------
  */
-
-function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] text-text-secondary">{label}</p>
-      <p
-        className={`truncate text-[13px] ${mono ? "font-mono " : ""}${
-          value ? "text-text-primary" : "text-text-muted"
-        }`}
-      >
-        {value || "—"}
-      </p>
-    </div>
-  );
-}
-
 export default function ShipmentOverview() {
-  const { shipment: s, reload } = useShipment();
-  const [moving, setMoving] = useState(false);
+  const { shipment: s, enquiry, reload } = useShipment();
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const stageIndex = SHIPMENT_STAGES.indexOf(s.stage);
-  const next = stageIndex >= 0 ? SHIPMENT_STAGES[stageIndex + 1] : undefined;
+  useEffect(() => {
+    void listPartners()
+      .then(setPartners)
+      .catch(() => setPartners([]));
+    void listPeople()
+      .then(setPeople)
+      .catch(() => setPeople([]));
+  }, []);
 
-  async function move(stage: ShipmentStage) {
-    setMoving(true);
+  const mode = s.transport_mode ?? enquiry?.transport_mode ?? null;
+
+  async function save(key: string, patch: Partial<Shipment>) {
+    setBusy(key);
     setError(null);
     try {
-      await setShipmentStage(s.id, stage);
+      await updateShipment(s.id, patch as Record<string, unknown>);
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not change the stage.");
+      setError(failureText(e, "That did not save.").message);
     } finally {
-      setMoving(false);
+      setBusy(null);
     }
   }
+
+  const agents = partners.filter((p) => p.role === "overseas_agent" || p.role === "consol_partner");
+  const carriers = partners.filter((p) => p.role === "carrier" || p.role === "consol_partner");
+  const salesman = people.find((p) => p.id === enquiry?.assigned_to);
 
   return (
     <div>
@@ -64,112 +83,137 @@ export default function ShipmentOverview() {
         </div>
       )}
 
-      {/* ---- where it is ---- */}
-      <section className="card mb-4 p-4">
-        <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          Progress
-        </h2>
-        <ol className="mb-4 flex flex-wrap gap-1.5">
-          {SHIPMENT_STAGES.map((stage, i) => {
-            const done = stageIndex >= 0 && i < stageIndex;
-            const here = stage === s.stage;
-            return (
-              <li
-                key={stage}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                  here
-                    ? "bg-brand text-white"
-                    : done
-                      ? "bg-bg-success text-text-success"
-                      : "bg-surface-2 text-text-muted"
-                }`}
-              >
-                {SHIPMENT_STAGE_LABEL[stage]}
-              </li>
-            );
-          })}
-        </ol>
-
-        {next ? (
-          <button
-            onClick={() => void move(next)}
-            disabled={moving}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
-          >
-            {moving && <Loader2 size={12} className="animate-spin" />}
-            Move to {SHIPMENT_STAGE_LABEL[next].toLowerCase()}
-          </button>
-        ) : (
-          <p className="text-[12px] text-text-secondary">
-            Delivered. Nothing further to move this shipment to.
-          </p>
-        )}
-      </section>
+      {/* ---- the job's facts: the enquiry's own panels ---- */}
+      {enquiry ? (
+        <>
+          <CustomerDetailsPanel enquiry={enquiry} customer={enquiry.customer} onSaved={reload} />
+          <ServiceDetailsPanel enquiry={enquiry} onSaved={reload} />
+        </>
+      ) : (
+        <p className="card p-4 text-[12px] text-text-muted">
+          The enquiry this booking came from could not be read, so its customer and service details
+          are not shown.
+        </p>
+      )}
 
       {/* ---- the booking ---- */}
-      <section className="card mb-4 p-4">
-        <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          Booking
-        </h2>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
-          <Field label="Carrier" value={s.carrier} />
-          <Field label="Booking number" value={s.booking_number} mono />
-          <Field label="Container" value={s.container_number} mono />
-          <Field label="Bill of lading" value={s.bl_number} mono />
-          <Field label="Vessel" value={s.vessel} />
-          <Field label="Sailing date" value={s.sailing_date} />
-          <Field label="ETD" value={s.etd} />
-          <Field label="ETA" value={s.eta} />
-        </div>
-      </section>
+      <Collapsible
+        id="shipment:booking"
+        title="Booking details"
+        icon={<ClipboardList size={12} className="shrink-0 text-text-muted" />}
+      >
+        <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 md:grid-cols-3">
+          <Field label="Shipment date">
+            <TextSave
+              type="date"
+              value={(s.shipment_date ?? "").slice(0, 10)}
+              busy={busy === "shipment_date"}
+              onSave={(v) => void save("shipment_date", { shipment_date: v || null })}
+            />
+          </Field>
 
-      {/* ---- the cargo ---- */}
-      <section className="card p-4">
-        <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          Cargo and value
-        </h2>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
-          <Field label="Cargo" value={s.cargo} />
-          <Field label="Pieces" value={s.piece_count === null ? null : String(s.piece_count)} />
-          <Field label="Volume" value={s.volume_cbm === null ? null : `${s.volume_cbm} CBM`} />
+          <Field label="Freight">
+            <Segmented
+              options={[
+                { value: "prepaid", label: "Prepaid" },
+                { value: "collect", label: "Collect" },
+              ]}
+              value={s.freight_terms}
+              busy={busy === "freight"}
+              onChange={(v) => void save("freight", { freight_terms: v })}
+            />
+          </Field>
+
           <Field
-            label="Gross weight"
-            value={
-              s.gross_weight_kg === null
-                ? null
-                : `${s.gross_weight_kg.toLocaleString("en-IN")} kg`
+            label="Direct"
+            hint={s.direct ? "The carrier's bill goes to the shipper; no house bill." : undefined}
+          >
+            <YesNo
+              value={s.direct}
+              busy={busy === "direct"}
+              onChange={(v) => void save("direct", { direct: v })}
+            />
+          </Field>
+
+          <Field label="Routed">
+            <Segmented
+              options={[
+                { value: "self", label: "Self" },
+                { value: "agent", label: "Agent" },
+              ]}
+              value={s.routed}
+              busy={busy === "routed"}
+              onChange={(v) =>
+                void save("routed", { routed: v, ...(v === "self" ? { routed_agent_id: null } : {}) })
+              }
+            />
+          </Field>
+
+          <Field
+            label="Routed by"
+            hint={
+              s.routed === "self"
+                ? "The salesperson on the enquiry — change it under Customer details."
+                : "The agent who nominated this cargo to us."
             }
-          />
-          <Field
-            label="Agreed amount"
-            value={s.agreed_inr === null ? null : `₹${s.agreed_inr.toLocaleString("en-IN")}`}
-          />
-          <Field label="Customer" value={s.customer?.name ?? null} />
-          <Field label="Company" value={s.customer?.company ?? null} />
-          <Field
-            label="Booked"
-            value={new Date(s.created_at).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          />
+          >
+            {s.routed === "self" ? (
+              <span
+                className={`flex h-9 items-center rounded-lg bg-surface-2 px-3 text-[13px] ${
+                  salesman ? "text-text-primary" : "text-text-muted"
+                }`}
+              >
+                {salesman ? salesman.full_name || salesman.email : "Nobody assigned"}
+              </span>
+            ) : (
+              <select
+                value={s.routed_agent_id ?? ""}
+                disabled={busy !== null}
+                onChange={(e) => void save("routed_agent", { routed_agent_id: e.target.value || null })}
+                className="h-9 w-full"
+              >
+                <option value="">Choose the agent</option>
+                {agents.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.organisation || p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <div className="hidden md:block" />
+
+          <Field label="Origin booking person">
+            <TextSave
+              value={s.origin_booking_person ?? ""}
+              placeholder="Who booked it at origin"
+              busy={busy === "obp"}
+              onSave={(v) => void save("obp", { origin_booking_person: v || null })}
+            />
+          </Field>
+          <Field label="Destination booking person">
+            <TextSave
+              value={s.destination_booking_person ?? ""}
+              placeholder="Who handles it at destination"
+              busy={busy === "dbp"}
+              onSave={(v) => void save("dbp", { destination_booking_person: v || null })}
+            />
+          </Field>
         </div>
-        <p className="mt-3 text-[11px] leading-relaxed text-text-muted">
-          Volume and gross weight are computed from the piece dimensions on the enquiry, not entered
-          by hand. Correct them on the case file and they recompute here.
-        </p>
-      </section>
+      </Collapsible>
+
+      <Schedule shipment={s} mode={mode} carriers={carriers} busy={busy} save={save} />
+
+      <Routings shipmentId={s.id} carriers={carriers} />
 
       {/*
-        At the foot of the overview, not in the toolbar.
+        At the foot of the page, not in the toolbar.
 
         It deletes the booking, so it should take a decision to reach rather
-        than sit beside the things somebody presses all day. Promotion is one
-        press and easy to do early; this is the way back when the ready date
-        moves or the volume changes and there is no shipment to operate yet.
+        than sit beside the things somebody presses all day.
       */}
-      <section className="card p-5">
+      <section className="card mt-4 p-5">
         <h2 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
           Not ready to be a booking?
         </h2>
@@ -180,5 +224,355 @@ export default function ShipmentOverview() {
         <RevertShipment shipmentId={s.id} enquiryRef={s.enquiry_ref} />
       </section>
     </div>
+  );
+}
+
+/**
+ * When and on what it moves — named for the mode.
+ *
+ * The ETD is also written to the sailing date the quote set, so the two dates
+ * a booking carries cannot tell different stories about the same departure.
+ */
+function Schedule({
+  shipment: s,
+  mode,
+  carriers,
+  busy,
+  save,
+}: {
+  shipment: Shipment;
+  mode: Shipment["transport_mode"];
+  carriers: Partner[];
+  busy: string | null;
+  save: (key: string, patch: Partial<Shipment>) => Promise<void>;
+}) {
+  const air = mode === "air";
+  const sea = mode === "sea_lcl" || mode === "sea_fcl";
+  const title = air ? "Flight schedule" : sea ? "Vessel schedule" : "Schedule";
+  const place = air ? "Airport" : sea ? "Port" : "Place";
+
+  return (
+    <Collapsible
+      id="shipment:schedule"
+      title={title}
+      icon={<CalendarClock size={12} className="shrink-0 text-text-muted" />}
+    >
+      <datalist id="carrier-names">
+        {carriers.map((c) => (
+          <option key={c.id} value={c.organisation || c.name} />
+        ))}
+      </datalist>
+
+      <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 md:grid-cols-4">
+        <Field label={air ? "Airline" : sea ? "Shipping line / co-loader" : "Transporter"}>
+          <TextSave
+            value={s.carrier ?? ""}
+            list="carrier-names"
+            placeholder={air ? "Emirates SkyCargo" : sea ? "MSC" : ""}
+            busy={busy === "carrier"}
+            onSave={(v) => void save("carrier", { carrier: v || null })}
+          />
+        </Field>
+
+        {air ? (
+          <Field label="Flight number">
+            <TextSave
+              value={s.flight_number ?? ""}
+              placeholder="EK 543"
+              busy={busy === "flight"}
+              onSave={(v) => void save("flight", { flight_number: v ? v.toUpperCase() : null })}
+            />
+          </Field>
+        ) : sea ? (
+          <>
+            <Field label="Vessel">
+              <TextSave
+                value={s.vessel ?? ""}
+                busy={busy === "vessel"}
+                onSave={(v) => void save("vessel", { vessel: v || null })}
+              />
+            </Field>
+            <Field label="Voyage">
+              <TextSave
+                value={s.voyage ?? ""}
+                busy={busy === "voyage"}
+                onSave={(v) => void save("voyage", { voyage: v || null })}
+              />
+            </Field>
+          </>
+        ) : null}
+
+        <Field label="Carrier booking number">
+          <TextSave
+            value={s.booking_number ?? ""}
+            busy={busy === "booking"}
+            onSave={(v) => void save("booking", { booking_number: v || null })}
+          />
+        </Field>
+
+        <Field label="ETD date">
+          <TextSave
+            type="date"
+            value={(s.etd ?? "").slice(0, 10)}
+            busy={busy === "etd"}
+            onSave={(v) => void save("etd", { etd: v || null, sailing_date: v || null })}
+          />
+        </Field>
+        <Field label="ETD time">
+          <TextSave
+            type="time"
+            value={(s.etd_time ?? "").slice(0, 5)}
+            busy={busy === "etd_time"}
+            onSave={(v) => void save("etd_time", { etd_time: v || null })}
+          />
+        </Field>
+        <Field label="ETA date">
+          <TextSave
+            type="date"
+            value={(s.eta ?? "").slice(0, 10)}
+            busy={busy === "eta"}
+            onSave={(v) => void save("eta", { eta: v || null })}
+          />
+        </Field>
+        <Field label="ETA time">
+          <TextSave
+            type="time"
+            value={(s.eta_time ?? "").slice(0, 5)}
+            busy={busy === "eta_time"}
+            onSave={(v) => void save("eta_time", { eta_time: v || null })}
+          />
+        </Field>
+
+        <Field label={`${place} of loading`}>
+          <TextSave
+            value={s.port_of_loading ?? ""}
+            busy={busy === "pol"}
+            onSave={(v) => void save("pol", { port_of_loading: v || null })}
+          />
+        </Field>
+        <Field label={`${place} of discharge`}>
+          <TextSave
+            value={s.port_of_discharge ?? ""}
+            busy={busy === "pod"}
+            onSave={(v) => void save("pod", { port_of_discharge: v || null })}
+          />
+        </Field>
+
+        {sea && (
+          <>
+            <Field label="CFS location">
+              <TextSave
+                value={s.cfs_location ?? ""}
+                busy={busy === "cfs"}
+                onSave={(v) => void save("cfs", { cfs_location: v || null })}
+              />
+            </Field>
+            <Field label="Cargo cut-off">
+              <TextSave
+                type="date"
+                value={(s.cargo_cutoff ?? "").slice(0, 10)}
+                busy={busy === "cutoff"}
+                onSave={(v) => void save("cutoff", { cargo_cutoff: v || null })}
+              />
+            </Field>
+            <Field label="SI cut-off">
+              <TextSave
+                type="date"
+                value={(s.si_cutoff ?? "").slice(0, 10)}
+                busy={busy === "si"}
+                onSave={(v) => void save("si", { si_cutoff: v || null })}
+              />
+            </Field>
+          </>
+        )}
+      </div>
+    </Collapsible>
+  );
+}
+
+/**
+ * Every leg, with who carries it and whether it has happened.
+ *
+ * A new leg starts where the last one ended — the desk types the next place,
+ * not the same one twice.
+ */
+function Routings({ shipmentId, carriers }: { shipmentId: string; carriers: Partner[] }) {
+  const [rows, setRows] = useState<Routing[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await routingsFor(shipmentId));
+    } catch (e) {
+      setError(failureText(e, "Could not load the routings.").message);
+    }
+  }, [shipmentId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function run(key: string, fn: () => Promise<unknown>) {
+    setBusy(key);
+    setError(null);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      setError(failureText(e, "That did not save.").message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const last = rows[rows.length - 1];
+
+  return (
+    <Collapsible
+      id="shipment:routings"
+      title="Routings"
+      icon={<Route size={12} className="shrink-0 text-text-muted" />}
+      badge={rows.length ? `${rows.length} ${rows.length === 1 ? "leg" : "legs"}` : undefined}
+    >
+      {error && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2.5 text-[12px] text-text-danger">
+          <AlertCircle size={13} className="mt-px shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1040px] border-collapse text-[12.5px]">
+            <thead>
+              <tr className="bg-surface-2 text-left text-[11px] font-medium text-text-secondary">
+                {["Move", "From", "To", "ETD", "ETA", "Carrier / vessel", "Voyage / flight", "Vehicle no.", "Driver", "Status", ""].map(
+                  (h) => (
+                    <th key={h} className="px-2 py-2 font-medium">
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-border">
+                  <td className="px-1 py-1">
+                    <select
+                      value={r.move}
+                      onChange={(e) =>
+                        void run(r.id, () => updateRouting(r.id, { move: e.target.value as RoutingMove }))
+                      }
+                      className="h-8 w-full"
+                    >
+                      {(Object.keys(MOVE_LABEL) as RoutingMove[]).map((m) => (
+                        <option key={m} value={m}>
+                          {MOVE_LABEL[m]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <Cell value={r.from_place} onSave={(v) => run(r.id, () => updateRouting(r.id, { from_place: v }))} />
+                  <Cell value={r.to_place} onSave={(v) => run(r.id, () => updateRouting(r.id, { to_place: v }))} />
+                  <Cell type="date" value={r.etd} onSave={(v) => run(r.id, () => updateRouting(r.id, { etd: v }))} />
+                  <Cell type="date" value={r.eta} onSave={(v) => run(r.id, () => updateRouting(r.id, { eta: v }))} />
+                  <Cell list="carrier-names" value={r.carrier} onSave={(v) => run(r.id, () => updateRouting(r.id, { carrier: v }))} />
+                  <Cell value={r.voyage_flight} onSave={(v) => run(r.id, () => updateRouting(r.id, { voyage_flight: v }))} />
+                  <Cell value={r.vehicle_number} onSave={(v) => run(r.id, () => updateRouting(r.id, { vehicle_number: v ? v.toUpperCase() : null }))} />
+                  <Cell value={r.driver_name} onSave={(v) => run(r.id, () => updateRouting(r.id, { driver_name: v }))} />
+                  <td className="px-1 py-1">
+                    <select
+                      value={r.status}
+                      onChange={(e) =>
+                        void run(r.id, () =>
+                          updateRouting(r.id, { status: e.target.value as RoutingStatus })
+                        )
+                      }
+                      className="h-8 w-full"
+                    >
+                      {(Object.keys(ROUTING_STATUS_LABEL) as RoutingStatus[]).map((st) => (
+                        <option key={st} value={st}>
+                          {ROUTING_STATUS_LABEL[st]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-1 py-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => void run(`rm:${r.id}`, () => removeRouting(r.id))}
+                      disabled={busy !== null}
+                      className="rounded p-1 text-text-muted hover:text-text-danger disabled:opacity-60"
+                      aria-label="Remove this leg"
+                    >
+                      {busy === `rm:${r.id}` ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() =>
+          void run("add", () =>
+            addRouting(shipmentId, (last?.position ?? 0) + 1, {
+              from_place: last?.to_place ?? null,
+              move: last?.move ?? "road",
+            })
+          )
+        }
+        disabled={busy !== null}
+        className={`${rows.length ? "mt-3" : ""} flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-border-strong hover:text-text-primary disabled:opacity-60`}
+      >
+        {busy === "add" ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+        Add routing
+      </button>
+      {!rows.length && (
+        <p className="mt-2 text-[11.5px] text-text-muted">
+          For a job with more than one leg — a truck to the airport, the flight, a truck to the
+          consignee — each with its own carrier, dates and status.
+        </p>
+      )}
+    </Collapsible>
+  );
+}
+
+/** One cell of the routings table: saved when you leave it. */
+function Cell({
+  value,
+  onSave,
+  type = "text",
+  list,
+}: {
+  value: string | null;
+  onSave: (v: string | null) => void;
+  type?: string;
+  list?: string;
+}) {
+  const shown = type === "date" ? (value ?? "").slice(0, 10) : (value ?? "");
+  const [draft, setDraft] = useState(shown);
+  useEffect(() => setDraft(shown), [shown]);
+  const commit = (v: string) => v.trim() !== shown && onSave(v.trim() || null);
+  return (
+    <td className="px-1 py-1">
+      <input
+        type={type}
+        value={draft}
+        list={list}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          if (type === "date") commit(e.target.value);
+        }}
+        onBlur={() => type !== "date" && commit(draft)}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        className="h-8 w-full min-w-[90px]"
+      />
+    </td>
   );
 }

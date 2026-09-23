@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import EnquiryLink from "../components/EnquiryLink";
-import { AlertCircle, RefreshCw, Truck } from "lucide-react";
-import BookingDocumentDetails from "../components/BookingDocumentDetails";
-import DocumentsPanel from "../components/DocumentsPanel";
-import { documentDataFromBooking } from "../lib/documents";
+import { AlertCircle, ChevronRight, RefreshCw, Truck } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../lib/auth";
 import HandledBy, { OWNERSHIP, ownedBy, type Ownership } from "../components/HandledBy";
@@ -15,8 +12,13 @@ import {
   type ShipmentRow,
   SHIPMENT_STAGES,
   SHIPMENT_STAGE_LABEL,
+  stageLabel,
   type ShipmentStage,
 } from "../services/enquiries";
+
+/** "2 Oct" — the list is read at a glance, the year is noise. */
+const day = (d: string | null) =>
+  d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
 
 /** Everything before delivery. Delivered shipments live on the completed page. */
 const IN_PROCESS: ShipmentStage[] = SHIPMENT_STAGES.filter((s) => s !== "delivered");
@@ -60,9 +62,6 @@ export default function ShipmentsInProcess() {
     (r) =>
       (filter === "all" || r.stage === filter) && ownedBy(r.assigned_to, owner, session?.userId)
   );
-
-  /** The booking whose document particulars are being filled in. */
-  const [editing, setEditing] = useState<(typeof rows)[number] | null>(null);
 
   return (
     <div>
@@ -139,12 +138,20 @@ export default function ShipmentsInProcess() {
             <div key={s.id} className="card p-4">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <EnquiryLink
-                      to={`/enquiries/${s.enquiry_ref}`}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* The job opens the shipment; the enquiry is one click
+                        further for anybody who needs the sales history. */}
+                    <Link
+                      to={`/shipments/${s.id}`}
                       className="font-mono text-[12px] text-text-accent hover:underline"
                     >
                       {s.id}
+                    </Link>
+                    <EnquiryLink
+                      to={`/enquiries/${s.enquiry_ref}`}
+                      className="font-mono text-[11px] text-text-muted hover:underline"
+                    >
+                      {s.enquiry_ref}
                     </EnquiryLink>
                     {s.bl_number && (
                       <span className="font-mono text-[11px] text-text-muted">{s.bl_number}</span>
@@ -155,61 +162,49 @@ export default function ShipmentsInProcess() {
                       meId={session?.userId}
                     />
                   </div>
-                  <p className="mt-0.5 text-[14px] font-medium text-text-primary">
-                    {s.customer?.company || s.customer?.name || "—"}
-                  </p>
-                  <p className="text-[12px] text-text-secondary">
-                    {[s.origin, s.destination].filter(Boolean).join(" → ")}
-                    {s.cargo ? ` · ${s.cargo}` : ""}
-                    {s.volume_cbm ? ` · ${s.volume_cbm} CBM` : ""}
-                  </p>
+                  <Link to={`/shipments/${s.id}`} className="group mt-0.5 block">
+                    <p className="text-[14px] font-medium text-text-primary group-hover:underline">
+                      {s.customer?.company || s.customer?.name || "—"}
+                    </p>
+                    <p className="text-[12px] text-text-secondary">
+                      {[s.origin, s.destination].filter(Boolean).join(" → ") || "Route not recorded"}
+                      {s.cargo ? ` · ${s.cargo}` : ""}
+                      {s.volume_cbm ? ` · ${s.volume_cbm} CBM` : ""}
+                    </p>
+                  </Link>
                 </div>
-                <div className="text-right shrink-0">
-                  <span className="rounded-full bg-bg-accent px-2 py-0.5 text-[11px] font-medium text-text-accent">
-                    {SHIPMENT_STAGE_LABEL[s.stage]}
-                  </span>
-                  <p className="mt-1 text-[11px] text-text-muted">
-                    {s.sailing_date ? `Sailing ${s.sailing_date}` : "No sailing date"}
-                  </p>
+                <div className="flex shrink-0 items-start gap-3 text-right">
+                  <div>
+                    <span className="rounded-full bg-bg-accent px-2 py-0.5 text-[11px] font-medium text-text-accent">
+                      {stageLabel(s.stage, s.transport_mode)}
+                    </span>
+                    <p className="mt-1 text-[11px] tabular-nums text-text-muted">
+                      {s.etd || s.eta
+                        ? [s.etd && `ETD ${day(s.etd)}`, s.eta && `ETA ${day(s.eta)}`].filter(Boolean).join(" · ")
+                        : "No ETD yet"}
+                    </p>
+                    {(s.carrier || s.flight_number || s.vessel) && (
+                      <p className="text-[11px] text-text-muted">
+                        {[s.carrier, s.transport_mode === "air" ? s.flight_number : s.vessel]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <Link
+                    to={`/shipments/${s.id}`}
+                    className="mt-0.5 text-text-muted hover:text-text-primary"
+                    aria-label={`Open ${s.id}`}
+                  >
+                    <ChevronRight size={16} />
+                  </Link>
                 </div>
               </div>
-
-              {/*
-                The documents for this booking, where the booking is.
-                ----------------------------------------------------------------
-                They were reachable only from the case file, which meant the
-                documentation desk worked from a list of shipments and opened a
-                sales record to print a bill of lading. The papers belong beside
-                the thing they are papers for.
-
-                Collapsed by default: a page of ten shipments each showing six
-                documents is sixty rows of paperwork and no view of the work.
-              */}
-              <DocumentsPanel
-                data={documentDataFromBooking(s, s.customer)}
-                /*
-                  The way to fix a draft, where the draft says what is wrong.
-                  A document listing "needs: Consignee name" with no route to
-                  supplying it is a dead end, and the columns behind these
-                  fields could otherwise only be filled by SQL.
-                */
-                onFillDetails={() => setEditing(s)}
-              />
             </div>
           ))}
         </div>
       )}
 
-      {editing && (
-        <BookingDocumentDetails
-          shipment={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }

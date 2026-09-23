@@ -246,6 +246,30 @@ export const SHIPMENT_STAGE_LABEL: Record<ShipmentStage, string> = {
   cancelled: "Cancelled",
 };
 
+/**
+ * The stages a shipment of this mode actually passes through.
+ *
+ * An air job is never stuffed into a box or gated into a terminal, and
+ * offering "Move to stuffed" on one is a button nobody can press truthfully.
+ */
+export function stagesFor(mode: Enquiry["transport_mode"] | null | undefined): ShipmentStage[] {
+  if (mode === "air" || mode === "road" || mode === "other")
+    return ["booked", "cargo_received", "sailed", "arrived", "delivered"];
+  return SHIPMENT_STAGES;
+}
+
+/** "Departed" for a flight, "Dispatched" for a truck — "Sailed" only at sea. */
+export function stageLabel(
+  stage: ShipmentStage,
+  mode: Enquiry["transport_mode"] | null | undefined
+): string {
+  if (stage === "sailed") {
+    if (mode === "air") return "Departed";
+    if (mode === "road" || mode === "other") return "Dispatched";
+  }
+  return SHIPMENT_STAGE_LABEL[stage];
+}
+
 /** The order operations actually moves through, for the stage control. */
 export const SHIPMENT_STAGES: ShipmentStage[] = [
   "booked",
@@ -308,7 +332,7 @@ export interface Shipment {
    * The party boxes as a bill of lading prints them (033).
    *
    * Prefixed by role rather than held in a table, because the document pipeline
-   * reads five of these columns directly and `BookingDocumentDetails` writes
+   * reads five of these columns directly and the shipment's Party tab writes
    * them — a table would need a mirror with two writers racing on it.
    */
   shipper_address: string | null;
@@ -362,6 +386,40 @@ export interface Shipment {
   cfs_clearance_date: string | null;
   tsa_no: string | null;
   tsa_date: string | null;
+
+  /* Job facts, copied from the enquiry and kept in step with it (065). */
+  voyage: string | null;
+  transport_mode: Enquiry["transport_mode"];
+  trade_direction: Enquiry["trade_direction"];
+  un_number: string | null;
+  imo_class: string | null;
+  packing_group: "I" | "II" | "III" | null;
+  flash_point_c: number | null;
+  msds_provided: boolean | null;
+
+  /* Booking particulars — the shipment's own once it exists (047, 065). */
+  cfs_location: string | null;
+  cargo_cutoff: string | null;
+  si_cutoff: string | null;
+  marks_and_numbers: string | null;
+  freight_terms: "prepaid" | "collect" | null;
+
+  /* The shipment page's own (065). */
+  shipment_date: string | null;
+  /** The carrier's bill goes straight to the shipper; no house bill. */
+  direct: boolean;
+  routed: "self" | "agent";
+  routed_agent_id: string | null;
+  origin_booking_person: string | null;
+  destination_booking_person: string | null;
+  flight_number: string | null;
+  etd_time: string | null;
+  eta_time: string | null;
+  port_of_loading: string | null;
+  port_of_discharge: string | null;
+  shipper_email: string | null;
+  consignee_email: string | null;
+  notify_email: string | null;
 
   created_at: string;
   updated_at: string;
@@ -704,58 +762,6 @@ export async function getShipment(
     .maybeSingle();
   if (error) throw error;
   return (data as (Shipment & { customer: Customer | null }) | null) ?? null;
-}
-
-/** The fields a shipping document needs that a booking does not collect itself. */
-export interface BookingDocumentDetails {
-  consignee_name: string | null;
-  consignee_address: string | null;
-  consignee_country: string | null;
-  shipper_name: string | null;
-  shipper_gstin_iec: string | null;
-  container_type: string | null;
-  package_count: number | null;
-  package_type: string | null;
-  hs_code: string | null;
-  net_weight_kg: number | null;
-  invoice_value_inr: number | null;
-  incoterm: string | null;
-  payment_terms: string | null;
-  letter_of_credit: boolean | null;
-}
-
-/**
- * Fills in the particulars the documents are waiting on.
- *
- * ---------------------------------------------------------------------------
- * A PLAIN UPDATE, NOT AN RPC
- *
- * Nothing here is derived, nothing cascades, and no other row changes. The
- * database functions in this file exist because promoting an enquiry or setting
- * a stage has consequences that must happen together; typing a consignee has
- * none. An RPC would be ceremony around one UPDATE the RLS policy already
- * guards.
- *
- * BLANK MEANS BLANK
- *
- * An empty field is written as null rather than skipped, because clearing a
- * consignee somebody entered wrongly has to be possible. The document then goes
- * back to printing as a draft naming what it needs, which is the correct and
- * visible consequence of removing it.
- * ---------------------------------------------------------------------------
- */
-export async function setBookingDocumentDetails(
-  id: string,
-  patch: Partial<BookingDocumentDetails>
-): Promise<Shipment> {
-  const { data, error } = await supabase
-    .from("shipments")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data as Shipment;
 }
 
 export async function setShipmentStage(id: string, stage: ShipmentStage): Promise<Shipment> {
