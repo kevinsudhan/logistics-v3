@@ -199,3 +199,9 @@ export function sailsIn(iso: string): { text: string; urgent: boolean; past: boo
   if (days === 1) return { text: "tomorrow", urgent: true, past: false };
   return { text: `in ${days}d`, urgent: days <= 5, past: false };
 }
+
+/** Record which sailing schedule entry a container was built from (071). */
+export async function linkContainerSchedule(containerId: string, scheduleId: string | null): Promise<void> {
+  const { error } = await supabase.from("sailings").update({ schedule_id: scheduleId }).eq("id", containerId);
+  if (error) throw new Error(error.message);
+}

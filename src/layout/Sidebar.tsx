@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { ACCOUNTS_DESK } from "../lib/features";
 import {
   Building2,
+  CalendarRange,
   IndianRupee,
   Handshake,
   LayoutDashboard,
@@ -77,6 +78,9 @@ const groups: NavGroup[] = [
   {
     title: "Operations",
     items: [
+      // First: the departures everything below is built on. A console,
+      // a container and a booking each pick their sailing from here.
+      { to: "/sailing-schedule", label: "Sailing schedule", icon: CalendarRange },
       // Before containers: a console is the commercial object and the
       // container is the space it fills.
       { to: "/consoles", label: "Consoles", icon: Layers },

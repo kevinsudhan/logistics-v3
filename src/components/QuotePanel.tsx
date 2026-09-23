@@ -13,6 +13,7 @@ import {
 import QuoteCharges from "./QuoteCharges";
 import { LINE_CURRENCIES } from "../services/charges";
 import QuoteSend from "./QuoteSend";
+import SchedulePicker from "./SchedulePicker";
 import type { PartnerQuote } from "../services/rfq";
 
 /**
@@ -44,6 +45,8 @@ export default function QuotePanel({
 }) {
   const [basis, setBasis] = useState("");
   const [sailing, setSailing] = useState("");
+  // The schedule entry the sailing date was picked from, if it was.
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
   const [validUntil, setValidUntil] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [fxRate, setFxRate] = useState("1");
@@ -223,7 +226,35 @@ export default function QuotePanel({
                   onChange={setBasis}
                   placeholder="All-in LCL, door to port"
                 />
-                <Field label="Sailing" value={sailing} onChange={setSailing} type="date" />
+                <div>
+                  <Field
+                    label="Sailing"
+                    value={sailing}
+                    onChange={(v) => {
+                      setSailing(v);
+                      setScheduleId(null);
+                    }}
+                    type="date"
+                  />
+                  <div className="mt-1.5">
+                    <SchedulePicker
+                      label={scheduleId ? `From ${scheduleId}` : "From schedule"}
+                      mode={
+                        enquiry.transport_mode === "air"
+                          ? "air"
+                          : enquiry.transport_mode === "sea_lcl" || enquiry.transport_mode === "sea_fcl"
+                            ? "sea"
+                            : null
+                      }
+                      from={enquiry.origin}
+                      to={enquiry.destination}
+                      onPick={(x) => {
+                        setSailing(x.etd);
+                        setScheduleId(x.id);
+                      }}
+                    />
+                  </div>
+                </div>
                 <Field label="Valid until" value={validUntil} onChange={setValidUntil} type="date" />
               </div>
 
@@ -305,6 +336,7 @@ export default function QuotePanel({
                         amountInr: 0,
                         basis: basis.trim(),
                         sailingDate: sailing || undefined,
+                        scheduleId,
                         validUntil: validUntil || undefined,
                         currency,
                         fxRate: Number(fxRate) || 1,
@@ -313,6 +345,7 @@ export default function QuotePanel({
                       });
                       setBasis("");
                       setSailing("");
+                      setScheduleId(null);
                       setValidUntil("");
                       setDrafting(false);
                     })

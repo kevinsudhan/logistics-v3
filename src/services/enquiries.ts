@@ -442,6 +442,9 @@ export interface Shipment {
   consignee_email: string | null;
   notify_email: string | null;
 
+  /** The departure this booking was built from (071), if one was picked. */
+  schedule_id: string | null;
+
   /* Closed by operations (070). Set and cleared only by the sign-off functions. */
   signed_off_at: string | null;
   signed_off_by: string | null;
@@ -953,6 +956,8 @@ export async function addQuote(input: {
   basis: string;
   validUntil?: string;
   sailingDate?: string;
+  /** The sailing schedule entry the date was picked from (071). */
+  scheduleId?: string | null;
   /** What the customer is quoted in, and what it converts at (055). */
   currency?: string;
   fxRate?: number;
@@ -978,6 +983,7 @@ export async function addQuote(input: {
       basis: input.basis,
       valid_until: input.validUntil ?? null,
       sailing_date: input.sailingDate ?? null,
+      schedule_id: input.scheduleId ?? null,
       currency: input.currency ?? "INR",
       // A rupee quotation converts at 1. Anything else needs a rate, and
       // defaulting a foreign quotation to 1 would print the figure unchanged

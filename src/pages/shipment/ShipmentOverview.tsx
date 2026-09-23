@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { AlertCircle, CalendarClock, ClipboardList, Loader2, Plus, Route, Trash2 } from "lucide-react";
 import RevertShipment from "../../components/RevertShipment";
 import Collapsible from "../../components/Collapsible";
 import CustomerDetailsPanel from "../../components/CustomerDetailsPanel";
 import ServiceDetailsPanel from "../../components/ServiceDetailsPanel";
 import { Field, Segmented, TextSave, YesNo } from "../../components/formControls";
+import SchedulePicker from "../../components/SchedulePicker";
 import { useShipment } from "../ShipmentDetail";
 import { failureText } from "../../lib/errorText";
 import { listPeople, updateShipment, type Person, type Shipment } from "../../services/enquiries";
@@ -257,6 +259,41 @@ function Schedule({
       title={title}
       icon={<CalendarClock size={12} className="shrink-0 text-text-muted" />}
     >
+      {/*
+        From the sailing schedule: the departure's carrier, vessel or flight,
+        ports, dates and cut-offs in one go, and the link to it kept. Picked
+        values are copied, so a later change to the schedule is something the
+        desk sees and decides on, not a silent change to this booking.
+      */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <SchedulePicker
+          mode={air ? "air" : sea ? "sea" : null}
+          from={s.port_of_loading ?? s.origin}
+          to={s.port_of_discharge ?? s.destination}
+          onPick={(x) =>
+            save("schedule", {
+              schedule_id: x.id,
+              carrier: x.carrier ?? s.carrier,
+              ...(x.mode === "air"
+                ? { flight_number: x.flight_number ?? s.flight_number }
+                : { vessel: x.vessel ?? s.vessel, voyage: x.voyage ?? s.voyage }),
+              etd: x.etd,
+              sailing_date: x.etd,
+              eta: x.eta ?? s.eta,
+              port_of_loading: x.port_of_loading,
+              port_of_discharge: x.port_of_discharge,
+              cargo_cutoff: x.cfs_cutoff ?? x.port_cutoff ?? s.cargo_cutoff,
+              si_cutoff: x.si_cutoff ?? s.si_cutoff,
+            })
+          }
+        />
+        {s.schedule_id && (
+          <Link to="/sailing-schedule" className="font-mono text-[11.5px] text-text-accent hover:underline">
+            From {s.schedule_id}
+          </Link>
+        )}
+      </div>
+
       <datalist id="carrier-names">
         {carriers.map((c) => (
           <option key={c.id} value={c.organisation || c.name} />

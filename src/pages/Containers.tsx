@@ -16,11 +16,13 @@ import {
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import Select from "../components/Select";
+import SchedulePicker from "../components/SchedulePicker";
 import {
   CONTAINER_TYPES,
   DEFAULT_CONTAINER,
   STATUS_LABEL,
   createContainer,
+  linkContainerSchedule,
   enquiriesOn,
   listContainers,
   routeOf,
@@ -353,6 +355,8 @@ function AddContainer({
   const [cutoff, setCutoff] = useState("");
   const [mode, setMode] = useState<"FCL" | "LCL">("FCL");
   const [notes, setNotes] = useState("");
+  // The sailing schedule entry the route and dates were taken from, if any.
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -370,19 +374,19 @@ function AddContainer({
     setBusy(true);
     setError(null);
     try {
-      onAdded(
-        await createContainer({
-          origin,
-          destination,
-          sailing_date: sailingDate,
-          partner_id: partnerId || null,
-          container_code: code,
-          carrier,
-          cutoff_date: cutoff || null,
-          mode,
-          notes,
-        })
-      );
+      const c = await createContainer({
+        origin,
+        destination,
+        sailing_date: sailingDate,
+        partner_id: partnerId || null,
+        container_code: code,
+        carrier,
+        cutoff_date: cutoff || null,
+        mode,
+        notes,
+      });
+      if (scheduleId) await linkContainerSchedule(c.id, scheduleId);
+      onAdded(c);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add that container.");
       setBusy(false);
@@ -415,6 +419,22 @@ function AddContainer({
         </header>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <SchedulePicker
+              mode="sea"
+              from={origin || null}
+              to={destination || null}
+              onPick={(x) => {
+                setOrigin(x.port_of_loading);
+                setDestination(x.port_of_discharge);
+                setSailingDate(x.etd);
+                setCutoff(x.cfs_cutoff ?? x.port_cutoff ?? "");
+                if (x.carrier) setCarrier(x.carrier);
+                setScheduleId(x.id);
+              }}
+            />
+            {scheduleId && <span className="font-mono text-[11.5px] text-text-muted">From {scheduleId}</span>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="From" required>
               <input

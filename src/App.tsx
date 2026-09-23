@@ -71,6 +71,7 @@ const QuoteAccept = lazy(() => import("./pages/QuoteAccept"));
 const TrackShipment = lazy(() => import("./pages/TrackShipment"));
 const RateMaster = lazy(() => import("./pages/RateMaster"));
 const QuoteApprovals = lazy(() => import("./pages/QuoteApprovals"));
+const SailingSchedules = lazy(() => import("./pages/SailingSchedules"));
 const Customers = lazy(() => import("./pages/Customers"));
 const CustomerFile = lazy(() => import("./pages/CustomerFile"));
 const CustomerEdit = lazy(() => import("./pages/CustomerEdit"));
@@ -232,6 +233,7 @@ export default function App() {
               `decide_quote`, where the browser cannot reach it.
             */}
             <Route path="/approvals" element={<QuoteApprovals />} />
+            <Route path="/sailing-schedule" element={<SailingSchedules />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/new" element={<CustomerEdit />} />
             <Route path="/customers/:id" element={<CustomerFile />} />

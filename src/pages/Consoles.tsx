@@ -5,6 +5,7 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import Select from "../components/Select";
+import SchedulePicker from "../components/SchedulePicker";
 import {
   CAPACITY_CBM,
   STATUS_HINT,
@@ -391,6 +392,35 @@ export default function Consoles() {
                     </Section>
 
                     <Section title="Voyage">
+                      {/* The departure from the sailing schedule: vessel,
+                          voyage, ports, dates and cut-off in one go. */}
+                      <div className="flex min-w-0 flex-col justify-end gap-1 sm:col-span-2 lg:col-span-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <SchedulePicker
+                            mode="sea"
+                            from={c.pol}
+                            to={c.pod}
+                            onPick={(x) =>
+                              run(() =>
+                                updateConsole(c.id, {
+                                  schedule_id: x.id,
+                                  carrier: x.carrier ?? c.carrier,
+                                  vessel: x.vessel ?? c.vessel,
+                                  voyage: x.voyage ?? c.voyage,
+                                  pol: x.port_of_loading,
+                                  pod: x.port_of_discharge,
+                                  etd: x.etd,
+                                  eta: x.eta ?? c.eta,
+                                  cutoff_date: x.cfs_cutoff ?? x.port_cutoff ?? c.cutoff_date,
+                                })
+                              )
+                            }
+                          />
+                          {c.schedule_id && (
+                            <span className="font-mono text-[11.5px] text-text-muted">From {c.schedule_id}</span>
+                          )}
+                        </div>
+                      </div>
                       <Field
                         label="Vessel"
                         value={c.vessel}

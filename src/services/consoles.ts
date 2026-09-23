@@ -61,6 +61,8 @@ export interface Console {
   voyage: string;
   mother_vessel: string;
   sailing_id: string | null;
+  /** The sailing schedule entry it was built from (071). */
+  schedule_id: string | null;
 
   pol: string;
   pol_code: string;
