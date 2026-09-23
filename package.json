@@ -11,7 +11,7 @@
     "test:space": "tsx server/spaceEngine.test.ts",
     "start": "tsx server/index.ts",
     "test:scene": "tsx src/lib/scene3d.test.ts",
-    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads && npm run test:token && npm run test:inline && npm run test:chargeable && npm run test:base64 && npm run test:sections && npm run test:dimensions && npm run test:update",
+    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads && npm run test:token && npm run test:inline && npm run test:chargeable && npm run test:base64 && npm run test:sections && npm run test:dimensions && npm run test:update && npm run test:progress",
     "check:secrets": "node scripts/check-bundle-secrets.mjs",
     "test:fields": "tsx scripts/tests/requestFields.test.ts",
     "test:web": "tsx scripts/tests/webEnquiry.test.ts",
@@ -29,7 +29,8 @@
     "test:base64": "tsx scripts/tests/base64.test.ts",
     "test:sections": "tsx scripts/tests/caseFileSections.test.ts",
     "test:dimensions": "tsx scripts/tests/dimensions.test.ts",
-    "test:update": "tsx scripts/tests/shipmentUpdateMail.test.ts"
+    "test:update": "tsx scripts/tests/shipmentUpdateMail.test.ts",
+    "test:progress": "tsx scripts/tests/progress.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

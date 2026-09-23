@@ -253,9 +253,20 @@ export const SHIPMENT_STAGE_LABEL: Record<ShipmentStage, string> = {
  * offering "Move to stuffed" on one is a button nobody can press truthfully.
  */
 export function stagesFor(mode: Enquiry["transport_mode"] | null | undefined): ShipmentStage[] {
-  if (mode === "air" || mode === "road" || mode === "other")
-    return ["booked", "cargo_received", "sailed", "arrived", "delivered"];
-  return SHIPMENT_STAGES;
+  // Each of these has a step on that mode's workflow that marks it (066): the
+  // stage moves when the step is ticked, so a stage with no step would be a
+  // button that cannot work.
+  switch (mode) {
+    case "air":
+    // An LCL house shipment is received into the CFS; the console, not the
+    // shipment, is stuffed and gated in.
+    case "sea_lcl":
+      return ["booked", "cargo_received", "sailed", "arrived", "delivered"];
+    case "sea_fcl":
+      return ["booked", "stuffed", "gated_in", "sailed", "arrived", "delivered"];
+    default:
+      return ["booked", "cargo_received", "sailed", "delivered"];
+  }
 }
 
 /** "Departed" for a flight, "Dispatched" for a truck — "Sailed" only at sea. */

@@ -419,7 +419,14 @@ export default function ShipmentDetail() {
         reason the enquiry's workflow bar sits above its tab strip.
       */}
       <div className="mb-4">
-        <ShipmentCheckpoints shipmentId={s.id} />
+        {/* Keyed on the stage, so "Move to …" in the header — which ticks a
+            step — redraws the line with it ticked. */}
+        <ShipmentCheckpoints
+          key={s.stage}
+          shipmentId={s.id}
+          mode={mode}
+          onChanged={() => void load()}
+        />
       </div>
 
       <Outlet context={{ shipment: s, enquiry, lines, reload: load } satisfies ShipmentContext} />

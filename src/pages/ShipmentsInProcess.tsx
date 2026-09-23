@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import EnquiryLink from "../components/EnquiryLink";
 import { AlertCircle, ChevronRight, RefreshCw, Truck } from "lucide-react";
 import PageHeader from "../components/PageHeader";
+import { openStepsFor, type Checkpoint } from "../services/checkpoints";
+import { DUE_TONE, daysUntil, dueState, dueText, todayIST } from "../lib/progress";
 import { useAuth } from "../lib/auth";
 import HandledBy, { OWNERSHIP, ownedBy, type Ownership } from "../components/HandledBy";
 import {
@@ -31,6 +33,9 @@ export default function ShipmentsInProcess() {
   const [owner, setOwner] = useState<Ownership>("all");
   const { session } = useAuth();
   const [filter, setFilter] = useState<ShipmentStage | "all">("all");
+  // What needs doing, across every job: the reason this page is opened.
+  const [focus, setFocus] = useState<"all" | "overdue" | "today">("all");
+  const [steps, setSteps] = useState<Checkpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +46,8 @@ export default function ShipmentsInProcess() {
       const [ships, who] = await Promise.all([listShipments(IN_PROCESS), listPeople()]);
       setRows(ships);
       setPeople(who);
+      // Best-effort: the list still shows its jobs if the steps will not load.
+      setSteps(await openStepsFor(ships.map((x) => x.id)).catch(() => []));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load shipments.");
     } finally {
@@ -58,10 +65,49 @@ export default function ShipmentsInProcess() {
     return c;
   }, [rows]);
 
-  const visible = rows.filter(
-    (r) =>
-      (filter === "all" || r.stage === filter) && ownedBy(r.assigned_to, owner, session?.userId)
-  );
+  /*
+    Per job: the next open step, and how many are overdue or due today.
+
+    The next step is the first open one in order, not the most overdue — it is
+    what somebody opening the job will be asked to do. The overdue count is
+    beside it so a job with three late steps does not hide behind a next step
+    that happens to be on time.
+  */
+  const today = todayIST();
+  const work = useMemo(() => {
+    const m = new Map<string, { next: Checkpoint | null; overdue: number; today: number; soonest: string | null }>();
+    for (const c of steps) {
+      const w = m.get(c.shipment_id) ?? { next: null, overdue: 0, today: 0, soonest: null };
+      if (!w.next) w.next = c;
+      const st = dueState(c.due_on, false, today);
+      if (st === "overdue") w.overdue++;
+      if (st === "today") w.today++;
+      if (c.due_on && (!w.soonest || c.due_on < w.soonest)) w.soonest = c.due_on;
+      m.set(c.shipment_id, w);
+    }
+    return m;
+  }, [steps, today]);
+
+  const overdueJobs = rows.filter((r) => (work.get(r.id)?.overdue ?? 0) > 0).length;
+  const todayJobs = rows.filter((r) => (work.get(r.id)?.today ?? 0) > 0).length;
+
+  const visible = rows
+    .filter(
+      (r) =>
+        (filter === "all" || r.stage === filter) &&
+        ownedBy(r.assigned_to, owner, session?.userId) &&
+        (focus === "all" ||
+          (focus === "overdue" && (work.get(r.id)?.overdue ?? 0) > 0) ||
+          (focus === "today" && (work.get(r.id)?.today ?? 0) > 0))
+    )
+    // Most urgent first: the soonest open date, overdue before today before
+    // later; jobs with nothing dated at the bottom.
+    .sort((a, b) => {
+      const x = work.get(a.id)?.soonest;
+      const y = work.get(b.id)?.soonest;
+      if (x && y) return daysUntil(x, today) - daysUntil(y, today);
+      return x ? -1 : y ? 1 : 0;
+    });
 
   return (
     <div>
@@ -70,9 +116,22 @@ export default function ShipmentsInProcess() {
         subtitle="Bookings from acceptance through to delivery. Each one began as an enquiry the customer said yes to."
       />
 
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        <Chip active={focus === "all"} onClick={() => setFocus("all")}>
+          Every job <span className="opacity-60">{rows.length}</span>
+        </Chip>
+        <Chip active={focus === "overdue"} onClick={() => setFocus("overdue")}>
+          <span className={overdueJobs ? "text-text-danger" : ""}>Overdue</span>{" "}
+          <span className="opacity-60">{overdueJobs}</span>
+        </Chip>
+        <Chip active={focus === "today"} onClick={() => setFocus("today")}>
+          Due today <span className="opacity-60">{todayJobs}</span>
+        </Chip>
+      </div>
+
       <div className="flex flex-wrap items-center gap-1.5 mb-4">
         <Chip active={filter === "all"} onClick={() => setFilter("all")}>
-          All <span className="opacity-60">{counts.all}</span>
+          Any stage <span className="opacity-60">{counts.all}</span>
         </Chip>
         {IN_PROCESS.filter((s) => counts[s] > 0).map((s) => (
           <Chip key={s} active={filter === s} onClick={() => setFilter(s)}>
@@ -172,6 +231,25 @@ export default function ShipmentsInProcess() {
                       {s.volume_cbm ? ` · ${s.volume_cbm} CBM` : ""}
                     </p>
                   </Link>
+                  {(() => {
+                    const w = work.get(s.id);
+                    if (!w?.next) return null;
+                    const st = dueState(w.next.due_on, false, today);
+                    return (
+                      <p className="mt-1.5 text-[12px]">
+                        <span className="text-text-muted">Next: </span>
+                        <span className="text-text-primary">{w.next.label}</span>
+                        {w.next.due_on && (
+                          <span className={DUE_TONE[st]}> · {dueText(w.next.due_on, false, today)}</span>
+                        )}
+                        {w.overdue > 0 && (
+                          <span className="ml-2 rounded-full bg-bg-danger px-1.5 py-0.5 text-[10.5px] font-medium text-text-danger">
+                            {w.overdue} overdue
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <div className="flex shrink-0 items-start gap-3 text-right">
                   <div>

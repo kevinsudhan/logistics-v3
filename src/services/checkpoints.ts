@@ -27,6 +27,46 @@ export interface Checkpoint {
   done_at: string | null;
   done_by: string | null;
   note: string;
+  /** The stage ticking this step marks the shipment as — a milestone (066). */
+  stage: string | null;
+  /** When it is due: from the booking's dates by rule, or set by hand. */
+  due_on: string | null;
+  due_manual: boolean;
+  /** Who is chasing it. Null: whoever handles the job. */
+  assigned_to: string | null;
+}
+
+/** A date by hand, or null to hand it back to the rule. */
+export async function setCheckpointDue(id: string, due: string | null): Promise<void> {
+  const { error } = await supabase.rpc("set_checkpoint_due", { p_id: id, p_due: due });
+  if (error) throw new Error(error.message);
+}
+
+export async function setCheckpointOwner(id: string, userId: string | null): Promise<void> {
+  const { error } = await supabase
+    .from("shipment_checkpoints")
+    .update({ assigned_to: userId })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Every open step across a set of jobs, in order — for the worklist.
+ *
+ * One query for the whole board rather than one per job: the list is read
+ * every morning, and ten round trips to draw it is ten reasons for it to be
+ * slow.
+ */
+export async function openStepsFor(shipmentIds: string[]): Promise<Checkpoint[]> {
+  if (!shipmentIds.length) return [];
+  const { data, error } = await supabase
+    .from("shipment_checkpoints")
+    .select("*")
+    .in("shipment_id", shipmentIds)
+    .is("done_at", null)
+    .order("position");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Checkpoint[];
 }
 
 export async function checkpointsFor(shipmentId: string): Promise<Checkpoint[]> {
