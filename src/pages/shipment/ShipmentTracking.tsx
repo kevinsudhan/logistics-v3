@@ -9,10 +9,12 @@ import {
   Flag,
   Link2,
   Loader2,
+  Map as MapIcon,
   Radar,
 } from "lucide-react";
 import Collapsible from "../../components/Collapsible";
 import LiveTracking from "../../components/LiveTracking";
+import ShipmentRouteMap from "../../components/ShipmentRouteMap";
 import SendTrackingLink from "../../components/SendTrackingLink";
 import { useShipment } from "../ShipmentDetail";
 import { failureText } from "../../lib/errorText";
@@ -24,7 +26,7 @@ import { eventsFor, stageLabel } from "../../services/enquiries";
 import { movementsFor } from "../../services/movements";
 import { isReachable } from "../../services/publicQuote";
 import { routingsFor } from "../../services/shipmentExtras";
-import { snapshotsFor, trackingEventsFor, type Snapshot, type TrackingEvent } from "../../services/liveTracking";
+import { positionsFor, snapshotsFor, trackingEventsFor, type Snapshot, type TrackingEvent } from "../../services/liveTracking";
 import { currentTrackLink, issueTrackLink, revokeTrackLink, trackUrl, type TrackLink } from "../../services/tracking";
 import { receiptsFor } from "../../services/warehouse";
 
@@ -55,6 +57,7 @@ export default function ShipmentTracking() {
   const [steps, setSteps] = useState<Checkpoint[]>([]);
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [reports, setReports] = useState<TrackingEvent[]>([]);
+  const [legs, setLegs] = useState<Array<{ move: string; from: string | null; to: string | null; status: string }>>([]);
   const [line, setLine] = useState<Entry[]>([]);
   const [link, setLink] = useState<TrackLink | null>(null);
   const [lastSent, setLastSent] = useState<{ at: string; summary: string } | null>(null);
@@ -79,6 +82,7 @@ export default function ShipmentTracking() {
       setSteps(cp);
       setSnaps(sn);
       setReports(tr);
+      setLegs(lg.map((l) => ({ move: l.move, from: l.from_place, to: l.to_place, status: l.status })));
       setLine(buildTimeline({ steps: cp, moves: mv, receipts: rc, legs: lg, events: ev, tracking: tr }));
       setLink(ln);
       const sent = ev.filter((e) => e.kind === "tracking_link_sent").sort((a, b) => (a.at < b.at ? 1 : -1))[0];
@@ -142,6 +146,29 @@ export default function ShipmentTracking() {
           <Fact label={air ? "HAWB" : "House B/L"} value={s.bl_number} mono />
           <Fact label="Container" value={s.container_number} mono />
         </div>
+      </section>
+
+      {/* ---- the route map ---- */}
+      <section className="card mt-3 p-5">
+        <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+          <MapIcon size={12} /> Tracking events
+        </h2>
+        <ShipmentRouteMap
+          input={{
+            mode,
+            stage: s.stage,
+            pol: s.port_of_loading ?? s.origin,
+            pod: s.port_of_discharge ?? s.destination,
+            finalDestination: s.destination,
+            legs,
+          }}
+          loadPositions={() => positionsFor(s.id)}
+          canLookUp
+          refreshKey={snaps.reduce((a, x) => (x.fetched_at > a ? x.fetched_at : a), "")}
+        />
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          The expected route follows the main shipping lanes (or the great circle for a flight); the actual service may call elsewhere.
+        </p>
       </section>
 
       <LiveTracking

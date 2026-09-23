@@ -88,6 +88,18 @@ export async function snapshotsFor(shipmentId: string): Promise<Snapshot[]> {
   return (data ?? []) as Snapshot[];
 }
 
+/** Every position reported for a shipment, oldest first (076). */
+export async function positionsFor(shipmentId: string): Promise<Array<{ lat: number; lon: number; at: string; source: string }>> {
+  const { data, error } = await supabase
+    .from("tracking_positions")
+    .select("lat, lon, at, source")
+    .eq("shipment_id", shipmentId)
+    .order("at", { ascending: true })
+    .limit(2000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ lat: number; lon: number; at: string; source: string }>;
+}
+
 export async function trackingEventsFor(shipmentId: string): Promise<TrackingEvent[]> {
   const { data, error } = await supabase
     .from("tracking_events")

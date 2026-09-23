@@ -330,6 +330,23 @@ async function file(ship: ShipmentRow, source: Source, reading: Reading | { stat
     { onConflict: "shipment_id,source" }
   );
   const out: Outcome = { source, state: r.state, message: r.message, summary: r.summary };
+
+  // Every position, kept, so the route map can draw where it has been (076).
+  const x = r.summary ?? {};
+  if (r.state === "ok" && typeof x.lat === "number" && typeof x.lon === "number" && typeof x.position_at === "string") {
+    await db.from("tracking_positions").upsert(
+      {
+        shipment_id: ship.id,
+        source,
+        at: x.position_at,
+        lat: x.lat,
+        lon: x.lon,
+        speed: typeof x.speed_kn === "number" ? x.speed_kn : typeof x.speed_kmh === "number" ? x.speed_kmh : null,
+        heading: typeof x.heading === "number" ? x.heading : typeof x.course === "number" ? x.course : null,
+      },
+      { onConflict: "shipment_id,source,at", ignoreDuplicates: true }
+    );
+  }
   if (!r.events?.length) return out;
 
   const rows = r.events.map((e) => ({

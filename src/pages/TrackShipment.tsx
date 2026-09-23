@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, Check, Loader2, Plane, Ship, Truck, TrainFront, Warehouse } from "lucide-react";
 import { milestoneBar } from "../lib/milestoneBar";
 import { stageLabel, stagesFor, type Enquiry, type ShipmentStage } from "../services/enquiries";
-import { trackingByToken, type PublicTracking } from "../services/tracking";
+import ShipmentRouteMap from "../components/ShipmentRouteMap";
+import { trackingByToken, trackPointsByToken, type PublicTracking } from "../services/tracking";
 
 /**
  * The customer's tracking page: /t/:token, no account needed.
@@ -114,7 +115,7 @@ export default function TrackShipment() {
               body="Please contact us for the latest on your shipment and we will send a new link."
             />
           ) : (
-            <Shipment t={t} mode={mode} air={air} />
+            <Shipment t={t} mode={mode} air={air} token={token} />
           )}
         </main>
         <p className="mt-3 text-center text-[11px]" style={{ color: FAINT }}>
@@ -125,12 +126,13 @@ export default function TrackShipment() {
   );
 }
 
-function Shipment({ t, mode, air }: { t: PublicTracking; mode: Enquiry["transport_mode"]; air: boolean }) {
+function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["transport_mode"]; air: boolean; token: string }) {
   const cancelled = t.stage === "cancelled";
   const bar = milestoneBar(stagesFor(mode), (s) => stageLabel(s as ShipmentStage, mode), t.steps ?? [], t.stage ?? "booked");
   const pickup = t.movements?.find((m) => m.kind === "pickup");
   const delivery = t.movements?.find((m) => m.kind === "delivery");
   const legs = (t.legs ?? []).filter((l) => l.status !== "cancelled");
+  const mapLegs = useMemo(() => (t.legs ?? []).map((l) => ({ move: l.move, from: l.from, to: l.to, status: l.status })), [t.legs]);
   const cargo = [
     t.pieces ? `${t.pieces} pcs` : null,
     t.gross_weight_kg ? `${Number(t.gross_weight_kg).toLocaleString("en-IN")} kg` : null,
@@ -179,7 +181,24 @@ function Shipment({ t, mode, air }: { t: PublicTracking; mode: Enquiry["transpor
         </p>
       )}
 
-      {t.position && <PositionMap p={t.position} air={air} />}
+      {!cancelled && (
+        <div className="mt-5">
+          <ShipmentRouteMap
+            input={{
+              mode,
+              stage: t.stage ?? "booked",
+              pol: t.port_of_loading ?? t.origin ?? null,
+              pod: t.port_of_discharge ?? t.destination ?? null,
+              finalDestination: t.destination ?? null,
+              legs: mapLegs,
+            }}
+            loadPositions={() => trackPointsByToken(token)}
+            canLookUp={false}
+            refreshKey={t.updated_at}
+            height={320}
+          />
+        </div>
+      )}
 
       <Section title="Shipment details">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
@@ -366,23 +385,6 @@ function Milestones({ bar }: { bar: ReturnType<typeof milestoneBar> }) {
         </li>
       ))}
     </ol>
-  );
-}
-
-function PositionMap({ p, air }: { p: NonNullable<PublicTracking["position"]>; air: boolean }) {
-  const bbox = [p.lon - 3, p.lat - 2, p.lon + 3, p.lat + 2].map((n) => n.toFixed(4)).join(",");
-  return (
-    <div className="mt-5 overflow-hidden rounded-lg border border-[#e5e7eb]">
-      <iframe
-        title="Where the shipment is"
-        src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${p.lat},${p.lon}`}
-        className="block h-52 w-full border-0"
-        loading="lazy"
-      />
-      <p className="bg-[#f9fafb] px-3 py-1.5 text-[11px]" style={{ color: MUTED }}>
-        {p.what ?? (air ? "The flight" : "The vessel")} was here {moment(p.at)}. Map © OpenStreetMap contributors.
-      </p>
-    </div>
   );
 }
 

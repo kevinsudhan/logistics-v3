@@ -103,6 +103,13 @@ export async function trackingByToken(token: string): Promise<PublicTracking> {
   return data as PublicTracking;
 }
 
+/** Where the flight or ship has reported from, for the customer's route map (076). */
+export async function trackPointsByToken(token: string): Promise<Array<{ lat: number; lon: number; at: string; source: string }>> {
+  const { data, error } = await supabase.rpc("shipment_track_points", { p_token: token });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ lat: number; lon: number; at: string; source: string }>;
+}
+
 /** The page a customer opens — on the public address, like the quote link. */
 export function trackUrl(token: string): string {
   const base = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/+$/, "");

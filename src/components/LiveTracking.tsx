@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   CalendarClock,
   Check,
-  ExternalLink,
   Loader2,
   Mail,
   MapPin,
@@ -189,12 +188,6 @@ export default function LiveTracking({
       return found ? `Found ${found} update${found === 1 ? "" : "s"} in the mail.` : `Nothing new in ${batch.length} message${batch.length === 1 ? "" : "s"}.`;
     });
 
-  // Where it is: the freshest position any source gave in the last day.
-  const position = snapshots
-    .filter((x) => x.state === "ok" && typeof x.summary.lat === "number" && typeof x.summary.lon === "number")
-    .filter((x) => Date.now() - Date.parse(String(x.summary.position_at ?? x.fetched_at)) < 86_400_000)
-    .sort((a, b) => (String(b.summary.position_at ?? b.fetched_at) > String(a.summary.position_at ?? a.fetched_at) ? 1 : -1))[0];
-
   // What the airline or carrier now expects, against the booking's ETA. Not the
   // ship's own AIS ETA: the crew types it for the next port, which is often a
   // transhipment and not ours.
@@ -273,7 +266,6 @@ export default function LiveTracking({
         </div>
       )}
 
-      {position && <PositionMap snap={position} />}
 
       {/* ---- offers ---- */}
       {offers.length > 0 && (
@@ -472,43 +464,6 @@ function SourceCard({ source, snap, air }: { source: TrackSource; snap?: Snapsho
       {!air && source === "aisstream" && snap?.state === "not_found" && (
         <p className="mt-1 text-[11px] text-text-muted">Try again when the ship is near a coast; the last known port call is on the carrier's events.</p>
       )}
-    </div>
-  );
-}
-
-/** OpenStreetMap's own embed: no key, no script, one marker. */
-function PositionMap({ snap }: { snap: Snapshot }) {
-  const lat = snap.summary.lat as number;
-  const lon = snap.summary.lon as number;
-  const d = snap.source === "aisstream" ? 4 : 3;
-  const bbox = [lon - d, lat - d * 0.7, lon + d, lat + d * 0.7].map((n) => n.toFixed(4)).join(",");
-  const what = snap.source === "aisstream" ? (snap.summary.name as string) || "The vessel" : (snap.summary.callsign as string) || "The aircraft";
-  return (
-    <div className="mt-3 overflow-hidden rounded-lg border border-border">
-      <iframe
-        title={`${what} on the map`}
-        src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lon}`}
-        className="block h-56 w-full border-0"
-        loading="lazy"
-      />
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-surface-2 px-3 py-1.5 text-[11px] text-text-muted">
-        <span>
-          {what} at {lat.toFixed(3)}, {lon.toFixed(3)} · heard {clock(String(snap.summary.position_at ?? snap.fetched_at))}
-        </span>
-        <span className="flex items-center gap-2">
-          <span>
-            Map © OpenStreetMap{snap.source === "adsb" ? " · position adsb.lol (ODbL)" : ""}
-          </span>
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=7/${lat}/${lon}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-0.5 text-text-accent hover:underline"
-          >
-            Larger <ExternalLink size={10} />
-          </a>
-        </span>
-      </div>
     </div>
   );
 }
