@@ -120,6 +120,7 @@ function tabsFor(mode: Enquiry["transport_mode"] | null | undefined) {
     // name the desk and the customer both use.
     { to: "bill", label: mode === "air" ? "HAWB" : "House B/L", end: false },
     { to: "pickup-delivery", label: "Pickup & delivery", end: false },
+    { to: "warehouse", label: "Warehouse", end: false },
     { to: "documents", label: "Documents", end: false },
     // The correspondence — a booking is the second half of one job, and having
     // to go back to the enquiry to read the thread it came from is how a desk

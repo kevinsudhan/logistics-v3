@@ -37,6 +37,7 @@ const ShipmentCargo = lazy(() => import("./pages/shipment/ShipmentCargo"));
 const ShipmentBill = lazy(() => import("./pages/shipment/ShipmentBill"));
 const ShipmentDocuments = lazy(() => import("./pages/shipment/ShipmentDocuments"));
 const ShipmentPickupDelivery = lazy(() => import("./pages/shipment/ShipmentPickupDelivery"));
+const ShipmentWarehouse = lazy(() => import("./pages/shipment/ShipmentWarehouse"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
 const SpaceContainers = lazy(() => import("./pages/SpaceContainers"));
 const Containers = lazy(() => import("./pages/Containers"));
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="bill" element={<ShipmentBill />} />
               <Route path="documents" element={<ShipmentDocuments />} />
               <Route path="pickup-delivery" element={<ShipmentPickupDelivery />} />
+              <Route path="warehouse" element={<ShipmentWarehouse />} />
               <Route path="containers" element={<ShipmentContainers />} />
               {/*
                 React Router skips non-elements among <Routes> children and
