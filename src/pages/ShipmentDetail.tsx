@@ -121,6 +121,7 @@ function tabsFor(mode: Enquiry["transport_mode"] | null | undefined) {
     { to: "bill", label: mode === "air" ? "HAWB" : "House B/L", end: false },
     { to: "pickup-delivery", label: "Pickup & delivery", end: false },
     { to: "warehouse", label: "Warehouse", end: false },
+    { to: "customs", label: "Customs", end: false },
     { to: "tracking", label: "Tracking", end: false },
     { to: "sign-off", label: "Sign-off", end: false },
     { to: "documents", label: "Documents", end: false },

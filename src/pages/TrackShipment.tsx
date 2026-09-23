@@ -5,6 +5,7 @@ import { milestoneBar } from "../lib/milestoneBar";
 import { stageLabel, stagesFor, type Enquiry, type ShipmentStage } from "../services/enquiries";
 import ShipmentRouteMap from "../components/ShipmentRouteMap";
 import { trackingByToken, trackPointsByToken, type PublicTracking } from "../services/tracking";
+import { customsByToken, type PublicCustoms } from "../services/customs";
 
 /**
  * The customer's tracking page: /t/:token, no account needed.
@@ -132,6 +133,12 @@ function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["t
   const pickup = t.movements?.find((m) => m.kind === "pickup");
   const delivery = t.movements?.find((m) => m.kind === "delivery");
   const legs = (t.legs ?? []).filter((l) => l.status !== "cancelled");
+  const [customs, setCustoms] = useState<PublicCustoms[]>([]);
+  useEffect(() => {
+    void customsByToken(token)
+      .then(setCustoms)
+      .catch(() => setCustoms([]));
+  }, [token, t.updated_at]);
   const mapLegs = useMemo(() => (t.legs ?? []).map((l) => ({ move: l.move, from: l.from, to: l.to, status: l.status })), [t.legs]);
   const cargo = [
     t.pieces ? `${t.pieces} pcs` : null,
@@ -300,6 +307,35 @@ function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["t
               </Card>
             )}
           </div>
+        </Section>
+      )}
+
+      {customs.length > 0 && (
+        <Section title="Customs">
+          <ul className="space-y-2">
+            {customs.map((c) => {
+              const exp = c.side === "export";
+              const num = exp ? c.sb_number : c.be_number;
+              const on = exp ? c.sb_date : c.be_date;
+              const cleared = exp ? c.leo_date : c.ooc_date;
+              return (
+                <li key={c.side} className="flex items-start justify-between gap-3 rounded-lg border border-[#e5e7eb] px-3 py-2.5 text-[13px]">
+                  <div className="min-w-0">
+                    <p className="font-medium">{exp ? "Export customs" : "Import customs"}</p>
+                    <p className="text-[11.5px]" style={{ color: MUTED }}>
+                      {[num ? `${exp ? "Shipping bill" : "Bill of entry"} ${num}${on ? ` dated ${day(on)}` : ""}` : null, c.port_code].filter(Boolean).join(" · ") || "Being prepared"}
+                    </p>
+                  </div>
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    style={c.status === "cleared" ? { background: "#e8f5ee", color: DONE } : { background: "#f3f4f6", color: MUTED }}
+                  >
+                    {c.status === "cleared" ? `Cleared ${day(cleared)}` : c.status === "filed" ? "Filed" : "In progress"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </Section>
       )}
 

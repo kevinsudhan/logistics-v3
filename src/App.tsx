@@ -38,6 +38,7 @@ const ShipmentBill = lazy(() => import("./pages/shipment/ShipmentBill"));
 const ShipmentDocuments = lazy(() => import("./pages/shipment/ShipmentDocuments"));
 const ShipmentPickupDelivery = lazy(() => import("./pages/shipment/ShipmentPickupDelivery"));
 const ShipmentWarehouse = lazy(() => import("./pages/shipment/ShipmentWarehouse"));
+const ShipmentCustoms = lazy(() => import("./pages/shipment/ShipmentCustoms"));
 const ShipmentTracking = lazy(() => import("./pages/shipment/ShipmentTracking"));
 const ShipmentSignOff = lazy(() => import("./pages/shipment/ShipmentSignOff"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
@@ -128,6 +129,7 @@ export default function App() {
               <Route path="documents" element={<ShipmentDocuments />} />
               <Route path="pickup-delivery" element={<ShipmentPickupDelivery />} />
               <Route path="warehouse" element={<ShipmentWarehouse />} />
+              <Route path="customs" element={<ShipmentCustoms />} />
               <Route path="tracking" element={<ShipmentTracking />} />
               <Route path="sign-off" element={<ShipmentSignOff />} />
               <Route path="containers" element={<ShipmentContainers />} />
