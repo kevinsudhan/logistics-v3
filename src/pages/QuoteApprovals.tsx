@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AlertCircle, Check, Loader2, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import QuoteCharges from "../components/QuoteCharges";
+import AmountBreakdown from "../components/AmountBreakdown";
 import { useAuth } from "../lib/auth";
 import { money } from "../services/charges";
 import {
@@ -38,6 +39,97 @@ import {
  * the step worth having.
  * ---------------------------------------------------------------------------
  */
+/**
+ * Sale, buy and profit, each opening into its charges on hover or tap.
+ *
+ * The buying side is only as complete as the costs entered against the
+ * charges. A charge with no cost is left out of "buy" and said so, rather than
+ * counted as free — a profit that silently assumes a zero cost is the figure
+ * an approver would be approving wrongly.
+ */
+export function Figures({ q }: { q: PendingQuote }) {
+  const n = (v: unknown) => Number(v ?? 0);
+  const name = (l: PendingQuote["lines"][number]) =>
+    l.description?.trim() || l.charge_code || "Charge";
+
+  // "−₹600", not "₹-600": a minus inside the currency reads like a typo.
+  const signed = (v: number) => (v < 0 ? `−${money(-v)}` : money(v));
+
+  const sale = n(q.amount_inr);
+  const costed = q.lines.filter((l) => l.cost_inr !== null && l.cost_inr !== undefined);
+  const uncosted = q.lines.filter(
+    (l) => (l.cost_inr === null || l.cost_inr === undefined) && n(l.amount_inr) > 0
+  );
+  const buy = costed.reduce((sum, l) => sum + n(l.cost_inr), 0);
+  const profit = sale - buy;
+  const margin = sale > 0 ? (profit / sale) * 100 : null;
+  const missing = uncosted.length
+    ? `${uncosted.length} ${uncosted.length === 1 ? "charge has" : "charges have"} no buying cost yet — buy and profit leave ${uncosted.length === 1 ? "it" : "them"} out.`
+    : undefined;
+
+  // The quote's own currency, where it is not rupees, as the customer sees it.
+  const foreign =
+    q.currency && q.currency !== "INR" && n(q.fx_rate) > 0
+      ? `≈ ${money(sale / n(q.fx_rate), q.currency)}`
+      : undefined;
+
+  return (
+    <div className="relative flex shrink-0 flex-wrap gap-x-7 gap-y-2">
+      <AmountBreakdown
+        label="Sale"
+        value={money(sale)}
+        sub={foreign}
+        total={money(sale)}
+        rows={q.lines.map((l) => ({
+          name: name(l),
+          // A foreign charge in its own currency, as the customer reads it,
+          // with the rupees underneath — the figure being approved.
+          amount:
+            l.currency && l.currency !== "INR"
+              ? money(n(l.amount), l.currency)
+              : money(n(l.amount_inr)),
+          amountNote: l.currency && l.currency !== "INR" ? money(n(l.amount_inr)) : undefined,
+          note:
+            n(l.quantity) !== 1 && l.unit
+              ? `${n(l.quantity).toLocaleString("en-IN")} ${l.unit}`
+              : undefined,
+        }))}
+      />
+      <AmountBreakdown
+        label="Buy"
+        value={costed.length ? money(buy) : "—"}
+        tone={missing && costed.length ? "warning" : "default"}
+        total={costed.length ? money(buy) : undefined}
+        footnote={missing}
+        rows={q.lines.map((l) => ({
+          name: name(l),
+          amount: l.cost_inr === null || l.cost_inr === undefined ? "No cost" : money(n(l.cost_inr)),
+          muted: l.cost_inr === null || l.cost_inr === undefined,
+          note: l.vendor || undefined,
+        }))}
+      />
+      <AmountBreakdown
+        label="Profit"
+        value={costed.length ? signed(profit) : "—"}
+        sub={costed.length && margin !== null ? `${margin.toFixed(1)}% margin` : undefined}
+        tone={costed.length && profit < 0 ? "negative" : missing && costed.length ? "warning" : "default"}
+        total={costed.length ? signed(profit) : undefined}
+        footnote={missing}
+        rows={q.lines.map((l) => {
+          const has = l.cost_inr !== null && l.cost_inr !== undefined;
+          const p = n(l.amount_inr) - n(l.cost_inr);
+          return {
+            name: name(l),
+            amount: has ? signed(p) : "—",
+            muted: !has,
+            negative: has && p < 0,
+          };
+        })}
+      />
+    </div>
+  );
+}
+
 export default function QuoteApprovals() {
   const { session } = useAuth();
   const [rows, setRows] = useState<PendingQuote[]>([]);
@@ -157,12 +249,7 @@ export default function QuoteApprovals() {
                     </p>
                   </div>
 
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] uppercase tracking-wide text-text-muted">Quoted</p>
-                    <p className="text-[18px] font-semibold tabular-nums text-text-primary">
-                      {money(q.amount_inr)}
-                    </p>
-                  </div>
+                  <Figures q={q} />
                 </div>
 
                 {/* The breakdown, which is the thing actually being approved. */}

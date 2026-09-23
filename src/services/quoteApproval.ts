@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import type { Customer, Enquiry, Quote } from "./enquiries";
+import type { QuoteLine } from "./quoteLines";
 
 /**
  * Nothing goes to a customer until somebody senior has seen it.
@@ -35,6 +36,8 @@ export interface QuoteTerm {
 export interface PendingQuote extends Quote {
   enquiry: (Enquiry & { customer: Customer | null }) | null;
   submitted_by_name: string | null;
+  /** The charges, in order — for the sale / buy / profit breakdown. */
+  lines: QuoteLine[];
 }
 
 /** Ask for a quotation to be cleared. */
@@ -72,12 +75,17 @@ export async function decide(quoteId: string, approve: boolean, note = ""): Prom
 export async function pendingQuotes(): Promise<PendingQuote[]> {
   const { data, error } = await supabase
     .from("quotes")
-    .select("*, enquiry:enquiries(*, customer:customers(*))")
+    // The charges come with the queue rather than one request per row: the
+    // approver hovers across ten quotations, and each one must answer at once.
+    .select("*, enquiry:enquiries(*, customer:customers(*)), lines:quote_lines(*)")
     .eq("approval_status", "pending")
     .order("submitted_at", { ascending: true });
   if (error) throw new Error(error.message);
 
-  const rows = (data ?? []) as unknown as PendingQuote[];
+  const rows = ((data ?? []) as unknown as PendingQuote[]).map((r) => ({
+    ...r,
+    lines: [...(r.lines ?? [])].sort((a, b) => a.position - b.position),
+  }));
 
   // Who asked, resolved in one query rather than one per row.
   const ids = [...new Set(rows.map((r) => r.submitted_by).filter(Boolean))] as string[];
