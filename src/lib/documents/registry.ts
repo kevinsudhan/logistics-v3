@@ -238,6 +238,7 @@ export const DOCUMENTS: DocSpec[] = [
         title: "Bill of lading",
         rows: [
           { label: "B/L number", value: (d) => d.blNumber },
+          { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
           ...ROUTE_ROWS,
         ],
       },
@@ -286,6 +287,7 @@ export const DOCUMENTS: DocSpec[] = [
         title: "Arrival",
         rows: [
           { label: "B/L number", value: (d) => d.blNumber },
+          { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
           { label: "Port of discharge", value: (d) => d.destination },
           { label: "Vessel ETA", value: (d) => d.etaDate },
           { label: "Container number", value: (d) => d.containerId },
@@ -315,6 +317,7 @@ export const DOCUMENTS: DocSpec[] = [
         title: "Release",
         rows: [
           { label: "B/L number", value: (d) => d.blNumber },
+          { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
           { label: "Release to", value: (d) => d.consigneeName },
           { label: "Container number", value: (d) => d.containerId },
           { label: "Container type", value: (d) => d.containerType },

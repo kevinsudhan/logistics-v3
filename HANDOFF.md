@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (38 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **081**, so the next one is `082-….sql`.
+  migration filename (§6). The last migration is **082**, so the next one is `083-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 81 migrations
+## 4. Data model — 82 migrations
 
-`supabase-v2/001…081`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…082`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -164,6 +164,7 @@ transaction).
 | `079` | pickup and delivery desk: multiple movements per job, with attempts, LR, e-way bill and proof |
 | `080` | `quotes` added to the `supabase_realtime` publication |
 | `081` | `enquiries`, `shipments`, `intake` and `shipment_checkpoints` added to it too |
+| `082` | the console's master B/L copied to its jobs (`mainline_no`); console and numbering functions closed to `anon` |
 
 **Realtime covers those five tables.** Overview, Enquiries overview, Inbound enquiries, My
 enquiries, In-process, Completed, the job file (header and steps) and the case file refresh
@@ -266,6 +267,11 @@ The UI has no automated tests. It is verified by hand in the way described below
 
 ## 8. Traps that cost real time
 
+**A new function is callable by anyone until PUBLIC is revoked.** Postgres grants EXECUTE to
+PUBLIC by default, so `grant … to authenticated` alone leaves the anonymous key in the bundle
+able to call it. Every migration that creates a function needs
+`revoke execute on function … from public, anon;` (075 and 070 do it; 035 did not, see 082).
+
 **Heredocs mangle backslashes.** Writing code through a bash heredoc turns `\n` into a real
 newline. Use the Edit/Write tools, or write a Python script to the scratchpad and run it.
 
@@ -334,7 +340,19 @@ screen.
 ### Product gaps
 
 - There is no free-time or demurrage clock.
-- Master and house B/L numbering for sea consoles is not modelled (air has a HAWB, 075).
+- **Sea bills (082).** The master B/L is entered once on the console and the database copies it
+  to every job on it (`shipments.mainline_no`). A job not on a console has its master typed on
+  the Bill tab. The pre-alert, tracking, the worklist search and the arrival notice, delivery
+  order and B/L particulars read it. The house B/L is issued from the Bill tab or the console
+  (`issue_house_bl`, 035) as `HBL/26-27/0001`, the generic FY series. **Open question for the
+  user:** keep that, or number HBLs like the HAWB (`MAA/JEA/HBL0000001`)? No HBL has been
+  issued on live data yet, so it can still change without renumbering anything. There is no
+  HBL form, lock or history like the HAWB's (075).
+- On air, the HAWB form's MAWB boxes do not write `shipments.mainline_no`, so an air pre-alert
+  has no MAWB unless one is recorded some other way.
+- **Security audit (flagged 24 Sep, a separate task).** 62 `SECURITY DEFINER` functions were
+  executable by `anon` because nothing revoked PUBLIC. 082 closed the five console and
+  numbering ones. The rest need going through (§8).
 - Shipment row ids are still `ARX-SHP-0004`. Nothing printed or mailed shows them any more
   (documents are numbered `BKG-ALG09004-26`, see `documentNo` in `lib/documents/data.ts`),
   but the job file header and the enquiry register's booking-number fallback still do.
@@ -394,6 +412,9 @@ There are 63 commits. Grouped:
 | Loading states | `3aa303a` | Skeletons, a start-up screen with the app icon, inline dots |
 | Mail | `565c878` | The message list stays in view while a long thread scrolls |
 | iPhone app | `24f6104` | Add to Home Screen gives a standalone app with the user's logo as the icon |
+| Realtime desk (081) | `a15f629` | Enquiries, shipments, intake and job steps update live on every list and file page |
+| Printed documents | `763a153` | PDFs numbered `BKG-ALG09004-26` (no `ARX-`), on the navy letterhead with the mail's logo |
+| Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)
 

@@ -206,7 +206,10 @@ export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
     // wall of TBD — the outstanding list below already says what is missing,
     // and repeating it as ten blank rows buries the rows that do carry
     // information.
-    const rendered = section.rows.map((r) => [r.label, r.value(data)] as const);
+    const rendered = section.rows
+      .map((r) => [r.label, r.value(data), r.optional] as const)
+      .filter(([, v, optional]) => !(optional && v === undefined))
+      .map(([label, v]) => [label, v] as const);
     if (rendered.every(([, v]) => v === undefined)) continue;
 
     ensure(14 + rendered.length * 5.4);

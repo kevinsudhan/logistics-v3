@@ -219,6 +219,7 @@ export function documentDataFromBooking(
     booking_number: string | null;
     container_number: string | null;
     bl_number: string | null;
+    mainline_no?: string | null;
     vessel: string | null;
     etd: string | null;
     eta: string | null;
@@ -249,6 +250,9 @@ export function documentDataFromBooking(
     reference: s.enquiry_ref,
     documentNumber: s.bl_number || s.enquiry_ref,
     blNumber: un(s.bl_number),
+    // The same number twice says nothing: on a direct job the carrier's bill is
+    // both, and the second line would only look like a second document.
+    masterBlNumber: s.mainline_no && s.mainline_no !== s.bl_number ? s.mainline_no : undefined,
 
     // The booking's own shipper wins over the customer record: they are usually
     // the same and occasionally not, and the booking is the later statement.
@@ -302,9 +306,15 @@ export function documentDataFromBooking(
 export const documentNo = (spec: { numberPrefix: string }, data: { documentNumber: string }): string =>
   `${spec.numberPrefix}-${data.documentNumber}`;
 
-/** The same number as a file name, with the document's kind spelled out. */
+/**
+ * The same number as a file name, with the document's kind spelled out.
+ *
+ * Our house bills are HBL/26-27/0001, and a slash in a file name is a folder
+ * to the browser and an invalid name to a mail attachment, so the characters
+ * no file system accepts become hyphens.
+ */
 export const documentFilename = (spec: { numberPrefix: string; id: string }, data: { documentNumber: string }): string =>
-  `${documentNo(spec, data)}-${spec.id}.pdf`;
+  `${documentNo(spec, data)}-${spec.id}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
 
 /** Which of a document's required fields are still outstanding. */
 export function readiness(data: DocumentData, requires: DataKey[]) {

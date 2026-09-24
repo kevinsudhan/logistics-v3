@@ -50,6 +50,7 @@ export default function ShipmentBill() {
   const house = air ? "HAWB" : "house B/L";
   const master = air ? "MAWB" : "master B/L";
   const blType = shipment.bl_type ?? "house";
+  const hawbShown = air && blType === "house" && !shipment.direct;
 
   async function write(patch: Record<string, unknown>) {
     setError(null);
@@ -117,14 +118,41 @@ export default function ShipmentBill() {
             )}
           </div>
 
+          {/*
+            The job's master, which the pre-alert, tracking and the arrival
+            documents read. On a console it is the console's, copied across by
+            the database (082) and corrected there; off one it is typed here.
+          */}
           <div className="min-w-0">
-            <span className="block text-[11px] capitalize text-text-secondary">{master}</span>
-            <span className="block py-1 font-mono text-[13px] text-text-muted">
-              {consoles.find((c) => c.id === shipment.console_id)?.mbl_number || "—"}
-            </span>
-            <span className="block text-[11px] text-text-muted">
-              The carrier&rsquo;s, recorded once on the console
-            </span>
+            {air || shipment.console_id ? (
+              <>
+                <span className="block text-[11px] capitalize text-text-secondary">{master}</span>
+                <span className={`block py-1 font-mono text-[13px] ${shipment.mainline_no ? "text-text-primary" : "text-text-muted"}`}>
+                  {shipment.mainline_no || "—"}
+                </span>
+                <span className="block text-[11px] text-text-muted">
+                  {air
+                    ? hawbShown
+                      ? "On the HAWB below"
+                      : "The airline’s"
+                    : shipment.mainline_no
+                      ? "The carrier’s, from the console. Corrected there."
+                      : "Not recorded on the console yet"}
+                </span>
+              </>
+            ) : (
+              <>
+                <NumberField
+                  value={shipment.mainline_no ?? ""}
+                  label="Master B/L"
+                  placeholder="The carrier’s B/L number"
+                  onCommit={(v) => void write({ mainline_no: v || null })}
+                />
+                <span className="mt-0.5 block text-[11px] text-text-muted">
+                  The carrier&rsquo;s. On a console it comes from the console.
+                </span>
+              </>
+            )}
           </div>
 
           <div className="min-w-0">
@@ -192,7 +220,7 @@ export default function ShipmentBill() {
           </div>
 
           {blType === "forwarder" && (
-            <ForwarderNumber
+            <NumberField
               value={shipment.forwarders_bl_no ?? ""}
               label={`Their ${house} number`}
               onCommit={(v) => void write({ forwarders_bl_no: v || null })}
@@ -201,7 +229,7 @@ export default function ShipmentBill() {
         </div>
       </section>
 
-      {air && blType === "house" && !shipment.direct ? (
+      {hawbShown ? (
         <div className="mt-3">
           <HawbForm shipment={shipment} enquiry={enquiry} onChanged={() => void reload()} prevTab="cargo" nextTab="pickup-delivery" />
         </div>
@@ -215,13 +243,15 @@ export default function ShipmentBill() {
   );
 }
 
-function ForwarderNumber({
+function NumberField({
   value,
   label,
+  placeholder,
   onCommit,
 }: {
   value: string;
   label: string;
+  placeholder?: string;
   onCommit: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
@@ -231,8 +261,11 @@ function ForwarderNumber({
       <span className="mb-0.5 block text-[11px] text-text-secondary">{label}</span>
       <input
         value={draft}
+        placeholder={placeholder}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => draft !== value && onCommit(draft.trim())}
+        // B/L numbers are printed and matched in capitals; typed in lower case
+        // they would miss in a search and read wrong on the pre-alert.
+        onBlur={() => draft.trim().toUpperCase() !== value && onCommit(draft.trim().toUpperCase())}
         className="h-8 w-full font-mono"
       />
     </label>

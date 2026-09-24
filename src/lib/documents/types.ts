@@ -21,6 +21,8 @@ export interface DocumentData {
   /** What the document is numbered by: the B/L number once there is one, the reference until then. */
   documentNumber: string;
   blNumber?: string;
+  /** The carrier's master bill the house bill sits under, where there is one (082). */
+  masterBlNumber?: string;
 
   // parties
   shipperName?: string;
@@ -85,6 +87,12 @@ export interface DocRow {
   label: string;
   /** Rendered value, or undefined when not established — the renderer prints TBD. */
   value: (d: DocumentData) => string | undefined;
+  /**
+   * Left out, rather than printed as TBD, when there is no value: for a fact
+   * only some jobs have. A direct job has no master bill apart from its own,
+   * and "Master B/L: TBD" would tell the consignee something is missing.
+   */
+  optional?: boolean;
 }
 
 export interface DocSection {

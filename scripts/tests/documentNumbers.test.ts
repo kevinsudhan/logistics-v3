@@ -79,6 +79,14 @@ is("a B/L number numbers it once there is one", documentNo(BL, withBl), "BL-MSCU
 is("and the reference stays the job's", withBl.reference, "ALG09004-26");
 is("the file", documentFilename(BL, withBl), "BL-MSCU7845120-bl-final.pdf");
 
+console.log("\nthe master bill beside the house bill (082)");
+const consol = documentDataFromBooking({ ...booking, bl_number: "HBL/26-27/0001", mainline_no: "MSKU7654321" });
+is("a house bill under a master carries both", [consol.blNumber, consol.masterBlNumber], ["HBL/26-27/0001", "MSKU7654321"]);
+is("still numbered by the house bill", documentNo(BL, consol), "BL-HBL/26-27/0001");
+is("and filed without the slashes", documentFilename(BL, consol), "BL-HBL-26-27-0001-bl-final.pdf");
+is("a direct job's one bill is not printed twice", documentDataFromBooking({ ...booking, bl_number: "MSKU7654321", mainline_no: "MSKU7654321" }).masterBlNumber, undefined);
+is("no master recorded: none", fromBooking.masterBlNumber, undefined);
+
 console.log("\nnothing printed says ARX-");
 for (const [label, data, spec] of [
   ["enquiry", fromEnquiry, QUO],
