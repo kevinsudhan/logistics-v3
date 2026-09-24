@@ -130,8 +130,10 @@ export default function TrackShipment() {
 function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["transport_mode"]; air: boolean; token: string }) {
   const cancelled = t.stage === "cancelled";
   const bar = milestoneBar(stagesFor(mode), (s) => stageLabel(s as ShipmentStage, mode), t.steps ?? [], t.stage ?? "booked");
-  const pickup = t.movements?.find((m) => m.kind === "pickup");
-  const delivery = t.movements?.find((m) => m.kind === "delivery");
+  // A consolidation can collect from several suppliers, and a delivery can go in parts (079).
+  const pickups = (t.movements ?? []).filter((m) => m.kind === "pickup");
+  const deliveries = (t.movements ?? []).filter((m) => m.kind === "delivery");
+  const nth = (word: string, i: number, n: number) => (n > 1 ? `${word} ${i + 1} of ${n}` : word);
   const legs = (t.legs ?? []).filter((l) => l.status !== "cancelled");
   const [customs, setCustoms] = useState<PublicCustoms[]>([]);
   useEffect(() => {
@@ -270,11 +272,11 @@ function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["t
         </Section>
       )}
 
-      {(pickup || t.received || delivery) && (
+      {(pickups.length > 0 || t.received || deliveries.length > 0) && (
         <Section title="Collection and delivery">
           <div className="grid gap-2.5 sm:grid-cols-3">
-            {pickup && (
-              <Card icon={<Truck size={13} />} title="Collection" done={Boolean(pickup.actual_at)}>
+            {pickups.map((pickup, i) => (
+              <Card key={`p${i}`} icon={<Truck size={13} />} title={nth("Collection", i, pickups.length)} done={Boolean(pickup.actual_at)}>
                 {pickup.actual_at
                   ? `Collected ${moment(pickup.actual_at)}`
                   : pickup.planned_date
@@ -282,7 +284,7 @@ function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["t
                     : "To be arranged"}
                 {pickup.pieces ? <span className="block">{pickup.pieces} pcs</span> : null}
               </Card>
-            )}
+            ))}
             {t.received && (
               <Card icon={<Warehouse size={13} />} title="At the warehouse" done>
                 Received {moment(t.received.first_at)}
@@ -296,16 +298,17 @@ function Shipment({ t, mode, air, token }: { t: PublicTracking; mode: Enquiry["t
                 </span>
               </Card>
             )}
-            {delivery && (
-              <Card icon={<Truck size={13} />} title="Delivery" done={Boolean(delivery.actual_at)}>
+            {deliveries.map((delivery, i) => (
+              <Card key={`d${i}`} icon={<Truck size={13} />} title={nth("Delivery", i, deliveries.length)} done={Boolean(delivery.actual_at)}>
                 {delivery.actual_at
                   ? `Delivered ${moment(delivery.actual_at)}`
                   : delivery.planned_date
                     ? `Planned ${day(delivery.planned_date, delivery.planned_time)}`
                     : "To be arranged"}
+                {delivery.pieces && deliveries.length > 1 ? <span className="block">{delivery.pieces} pcs</span> : null}
                 {delivery.received_by ? <span className="block">Received by {delivery.received_by}</span> : null}
               </Card>
-            )}
+            ))}
           </div>
         </Section>
       )}

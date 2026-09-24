@@ -92,6 +92,12 @@ const oh = movementOrderHtml(order);
 is("collect from the address", oh.includes("Collect from") && oh.includes("Sriperumbudur"), true);
 is("dangerous goods said plainly", oh.includes("Yes — UN 3481"), true);
 is("no instructions line when there are none", !oh.includes("Instructions"), true);
+const full = movementOrderHtml({ ...order, windowEnd: "14:00:00", dropPoint: "Chennai Air Cargo Complex", ewayBill: "123456789012", containerNumber: "HLXU1234567", sealNumber: "SL998" });
+is("a window, not a moment", full.includes("1 Oct 2026, 10:00 – 14:00"), true);
+is("where the pickup goes", full.includes("Deliver to") && full.includes("Chennai Air Cargo Complex"), true);
+is("the e-way bill to carry", full.includes("123456789012 — please carry it with the vehicle"), true);
+is("container and seal", full.includes("HLXU1234567, seal SL998"), true);
+is("none of them when not given", ["E-way bill", "Container / seal"].some((w) => oh.includes(w)), false);
 const dh = movementOrderHtml({ ...order, kind: "delivery", hazardous: false, address: "Hanauer Landstrasse 291" });
 is("a delivery says deliver to", dh.includes("Deliver to") && !dh.includes("Dangerous goods"), true);
 

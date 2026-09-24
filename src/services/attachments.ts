@@ -66,6 +66,8 @@ export const DOCUMENT_TYPES = [
   "House B/L",
   "Master B/L",
   "Delivery order",
+  "Lorry receipt (LR)",
+  "E-way bill",
   "Proof of delivery",
   "Other",
 ];

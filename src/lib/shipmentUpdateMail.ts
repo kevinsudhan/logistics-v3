@@ -139,6 +139,14 @@ export interface MovementOrderInput {
   hazardous: boolean;
   unNumber: string | null;
   notes: string | null;
+  /* The rest of the arranging (079); each optional, a blank is left out. */
+  /** The window closes at this time, when it is a window rather than a moment. */
+  windowEnd?: string | null;
+  /** Where it goes (pickup) or is collected from (delivery). */
+  dropPoint?: string | null;
+  ewayBill?: string | null;
+  containerNumber?: string | null;
+  sealNumber?: string | null;
 }
 
 export function movementOrderSubject(i: Pick<MovementOrderInput, "kind" | "ref" | "date">): string {
@@ -156,7 +164,8 @@ export function movementOrderHtml(i: MovementOrderInput): string {
 
   add("Our reference", `${i.ref} · ${i.shipmentId}`);
   add(pickup ? "Collect from" : "Deliver to", i.address);
-  add("Date", when(i.date, i.time));
+  add(pickup ? "Deliver to" : "Collect from", i.dropPoint);
+  add("Date", when(i.date, i.time) && i.windowEnd ? `${when(i.date, i.time)} – ${i.windowEnd.slice(0, 5)}` : when(i.date, i.time));
   add("Contact", [i.contactName, i.contactPhone].filter(Boolean).join(", "));
   add("Cargo", i.cargo);
   add(
@@ -170,6 +179,8 @@ export function movementOrderHtml(i: MovementOrderInput): string {
       .join(" · ")
   );
   if (i.hazardous) add("Dangerous goods", i.unNumber ? `Yes — UN ${i.unNumber.replace(/^UN\s*/i, "")}` : "Yes");
+  add("Container / seal", [i.containerNumber, i.sealNumber && `seal ${i.sealNumber}`].filter(Boolean).join(", "));
+  add("E-way bill", i.ewayBill ? `${i.ewayBill} — please carry it with the vehicle` : null);
   add("Instructions", i.notes);
 
   const greeting = i.partyName ? `Dear ${esc(i.partyName)},` : "Dear Sir or Madam,";
