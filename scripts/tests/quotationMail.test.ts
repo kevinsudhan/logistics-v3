@@ -1,5 +1,6 @@
 import { brandImages, imageType, withContentIds } from "../../src/lib/inlineBrand";
 import { quotationHtml, quotationSubject } from "../../src/lib/quotationMail";
+import { confirmationHtml, confirmationMessage, confirmationSubject } from "../../src/lib/confirmationMail";
 import type { Customer, Enquiry, Quote } from "../../src/services/enquiries";
 import type { QuoteLine } from "../../src/services/quoteLines";
 
@@ -76,6 +77,42 @@ const bare = quotationHtml({ ...base, lines: [], enquiry: { ...enquiry, package_
 is("no charges: says so", bare.includes("Charges as discussed."), true);
 is("an unknown fact is not a line", bare.includes("Packages &amp; weight") || bare.includes(">Incoterm<"), false);
 is("subject keeps the reference", quotationSubject({ enquiry, quote }), "Quotation ALG09005-26 · Chennai (MAA) – Frankfurt (FRA)");
+
+console.log("\nthe booking confirmation, on the same letterhead");
+const full = {
+  ...enquiry,
+  piece_count: 12,
+  piece_length_cm: 60,
+  piece_width_cm: 40,
+  piece_height_cm: 50,
+  pickup_required: true,
+  pickup_location: "Plot 14, SIPCOT",
+  delivery_required: false,
+  delivery_location: "Should not show",
+  consignee_name: "Hofmann GmbH",
+  consignee_country: "Germany",
+  customer_reference: "PO-7781",
+  special_handling: "Keep upright",
+} as unknown as Enquiry;
+const accepted = { ...quote, basis: "Per kg, all in, ex Chennai", sailing_date: "2026-10-04" } as unknown as Quote;
+const conf = confirmationHtml({ enquiry: full, customer, quote: accepted, fromName: "Aarathy", logoSrc: `${ORIGIN}/brand/aashish-logo-email.jpg`, date: new Date(2026, 8, 24) });
+is("the same logo, carried the same way", brandImages(conf, ORIGIN).length, 1);
+is("titled and dated", conf.includes(">BOOKING CONFIRMATION<") && conf.includes("24 Sep 2026"), true);
+is("a long title steps down a size", conf.includes('font-size:19px;font-weight:800;letter-spacing:.16em;">BOOKING CONFIRMATION'), true);
+is("the customer's own reference in the header, once", conf.split("PO-7781").length - 1, 1);
+is("greeting by name", conf.includes("Dear Kevin Sudhan,"), true);
+is("pieces with their size", conf.includes("12 at 60 × 40 × 50 cm"), true);
+is("collection, because it is required", conf.includes("Plot 14, SIPCOT"), true);
+is("delivery not required, so not a line", conf.includes("Should not show"), false);
+is("consignee, special handling, sailing", ["Hofmann GmbH, Germany", "Keep upright", "04 Oct 2026"].every((t) => conf.includes(t)), true);
+is("the rate agreed, set apart, with its basis", conf.includes("Rate agreed") && conf.includes("₹1,85,000") && conf.includes("Per kg, all in, ex Chennai"), true);
+is("what happens next", conf.includes("What happens next") && conf.includes("please reply to confirm"), true);
+is("the reference to keep in replies", conf.includes("Please keep <strong"), true);
+is("the registered details in the footer", conf.includes("GSTIN 33ABDCA2229C1ZD"), true);
+is("no accepted quote: no rate block", confirmationHtml({ enquiry: full, customer, quote: null }).includes("Rate agreed"), false);
+is("no name: a proper greeting", confirmationMessage({ customer: null }).startsWith("Dear Sir or Madam,"), true);
+is("the subject keeps the reference in brackets", confirmationSubject(full), "[ALG09005-26] Booking confirmation — Chennai (MAA) to Frankfurt (FRA)");
+is("no comments of ours in it either", conf.includes("<!--"), false);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AlertCircle, Loader2, MailCheck } from "lucide-react";
 import ComposeMail from "./ComposeMail";
-import { subjectToken } from "../services/caseFile";
+import { MAIL_LOGO_PATH } from "../lib/company";
+import { confirmationHtml, confirmationSubject } from "../lib/confirmationMail";
 import { mailIsLive } from "../services/backend";
 import {
   linkCustomerEmail,
@@ -22,6 +23,12 @@ import {
  * in front of a customer that skipped the check the first way enforces. The
  * quotation now goes out from one place, the quote's own Send, and the
  * database refuses to mark an uncleared one sent whichever button asks (062).
+ *
+ * WHAT IT LOOKS LIKE
+ *
+ * The quotation's letterhead (lib/confirmationMail.ts on lib/brandedMail.ts):
+ * the logo on navy, the agreed details in the shipment box, the rate set
+ * apart, and what happens next.
  *
  * WHY IT IS A DRAFT AND NOT A SEND
  *
@@ -151,8 +158,15 @@ export default function ConfirmPanel({
           signature={signature}
           initial={{
             to: address.trim(),
-            subject: subjectFor(enquiry),
-            body: draft(enquiry, customer, quote),
+            subject: confirmationSubject(enquiry),
+            body: confirmationHtml({
+              enquiry,
+              customer,
+              quote,
+              fromName,
+              // This app's own copy, which the send carries inside the message.
+              logoSrc: `${window.location.origin}${MAIL_LOGO_PATH}`,
+            }),
           }}
           onClose={() => setComposing(false)}
           onSent={() => void sent()}
@@ -161,84 +175,3 @@ export default function ConfirmPanel({
     </section>
   );
 }
-
-const route = (e: Enquiry) => [e.origin, e.destination].filter(Boolean).join(" to ");
-
-const money = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
-
-/** The reference goes in brackets at the front, where a reply-all cannot lose it. */
-function subjectFor(e: Enquiry): string {
-  return `${subjectToken(e.ref)} Booking confirmation${route(e) ? ` — ${route(e)}` : ""}`;
-}
-
-/**
- * Builds the letter out of what the enquiry actually holds.
- *
- * Every line is conditional. An enquiry with no ready date produces a letter
- * with no ready-date line, rather than one saying "Ready: not specified" — the
- * customer is being asked to check this, and a placeholder invites them to
- * confirm something nobody established.
- */
-function draft(e: Enquiry, customer: Customer | null, quote: Quote | null): string {
-  const rows: Array<[string, string]> = [];
-  const add = (label: string, value: string | number | null | undefined) => {
-    if (value !== null && value !== undefined && String(value).trim() !== "")
-      rows.push([label, String(value)]);
-  };
-
-  add("Our reference", e.ref);
-  add("Route", route(e));
-  add("Cargo", e.cargo);
-  add("Incoterm", e.incoterm);
-  // Totals, not one piece's size: a consignment of several sizes has no
-  // single one to print.
-  add(
-    "Pieces",
-    e.piece_count
-      ? e.piece_length_cm && e.piece_width_cm && e.piece_height_cm
-        ? `${e.piece_count} at ${e.piece_length_cm} × ${e.piece_width_cm} × ${e.piece_height_cm} cm`
-        : String(e.piece_count)
-      : null
-  );
-  add("Gross weight", e.gross_weight_kg ? `${e.gross_weight_kg} kg` : null);
-  add("Volume", e.volume_cbm ? `${e.volume_cbm} CBM` : null);
-  add("Cargo ready", e.ready_date);
-  add("Collection from", e.pickup_required ? e.pickup_location : null);
-  add("Delivery to", e.delivery_required ? e.delivery_location : null);
-  add("Consignee", [e.consignee_name, e.consignee_country].filter(Boolean).join(", "));
-  add("Your reference", e.customer_reference);
-  add("Special handling", e.special_handling);
-  if (quote) {
-    add(
-      "Rate agreed",
-      quote.basis ? `${money(quote.amount_inr)} — ${quote.basis}` : money(quote.amount_inr)
-    );
-    add("Sailing", quote.sailing_date);
-  }
-
-  const greeting = customer?.name ? `Dear ${escapeHtml(customer.name)},` : "Dear Sir or Madam,";
-
-  const list = rows
-    .map(
-      ([k, v]) =>
-        `<tr><td style="padding:3px 16px 3px 0;color:#555;white-space:nowrap;vertical-align:top">${escapeHtml(
-          k
-        )}</td><td style="padding:3px 0;color:#111">${escapeHtml(v)}</td></tr>`
-    )
-    .join("");
-
-  // Plain paragraphs and one borderless block, so it reads the same in Outlook,
-  // Gmail and on a phone. This is a business letter, not a layout.
-  return (
-    `<p>${greeting}</p>` +
-    `<p>Thank you for confirming. Below is what we agreed, so you have it in writing before we book.</p>` +
-    `<table style="border-collapse:collapse;font-size:14px">${list}</table>` +
-    `<p>If everything above is correct, please reply to confirm and we will proceed with the booking. Any corrections, just reply to this message.</p>` +
-    `<p style="color:#555;font-size:13px">Please keep <strong>${escapeHtml(
-      e.ref
-    )}</strong> in the subject line when you reply — it is how we keep every message about this shipment together.</p>`
-  );
-}
-
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
