@@ -11,6 +11,7 @@ import {
 } from "../services/checkpoints";
 import { listPeople, stageLabel, type Person, type Shipment, type ShipmentStage } from "../services/enquiries";
 import { DUE_TONE, dueState, dueText, todayIST } from "../lib/progress";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * The follow-ups on a booking, as a line you read left to right.
@@ -99,7 +100,7 @@ export default function ShipmentCheckpoints({
   const NextIcon = mode === "air" ? Plane : mode === "sea_lcl" || mode === "sea_fcl" ? Ship : Truck;
 
   if (loading && !list.length)
-    return <p className="py-4 text-[13px] text-text-muted">Loading the follow-ups…</p>;
+    return <SectionSkeleton lines={3} label="Loading the follow-ups" />;
 
   if (!list.length) return null;
 

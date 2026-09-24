@@ -32,6 +32,7 @@ import {
   type Intake,
   type IntakeStatus,
 } from "../services/intake";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The queue in front of the pipeline.
@@ -278,7 +279,7 @@ export default function IntakePage() {
       )}
 
       {loading && !rows.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !visible.length ? (
         <EmptyState
           icon={Inbox}

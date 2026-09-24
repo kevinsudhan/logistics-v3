@@ -12,6 +12,7 @@ import {
   waitingFor,
   type PendingQuote,
 } from "../services/quoteApproval";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * Quotations waiting to be cleared.
@@ -208,7 +209,7 @@ export default function QuoteApprovals() {
       )}
 
       {loading && !rows.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton />
       ) : !rows.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <Check size={20} className="mx-auto text-text-success" />

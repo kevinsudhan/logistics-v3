@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth, canAccess, type Role } from "../lib/auth";
+import { BootScreen } from "./Loading";
 
 /**
  * Route guard. Wraps a group of routes and sends anyone without the right
@@ -19,7 +20,7 @@ export default function RequireAuth({ role }: { role: Role }) {
    * the render until we actually know.
    */
   if (loading) {
-    return <div className="min-h-screen grid place-items-center text-sm text-text-muted">Loading…</div>;
+    return <BootScreen />;
   }
 
   if (!session) {

@@ -61,6 +61,7 @@ import {
 } from "../services/enquiries";
 import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * Everything a reading of the mail may write on this page, less whatever the
@@ -247,7 +248,7 @@ export default function CaseFile() {
   }, [mail, events]);
 
   if (loading && !enquiry) {
-    return <p className="text-[13px] text-text-muted py-8">Loading…</p>;
+    return <PageSkeleton />;
   }
 
   if (!enquiry) {

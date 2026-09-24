@@ -6,6 +6,7 @@ import { draftRequest, draftRequestWithAi, sendBurst, type BurstResult } from ".
 import { listPartners, type Partner } from "../services/partners";
 import { mailIsLive } from "../services/backend";
 import type { Enquiry } from "../services/enquiries";
+import { InlineLoading } from "./Loading";
 
 /**
  * Asking several partners for a rate at once.
@@ -180,7 +181,7 @@ export default function AskPartners({
             </p>
 
             {loading ? (
-              <p className="text-[12px] text-text-muted">Loading partners…</p>
+              <InlineLoading label="Loading partners" className="py-1 text-[12px]" />
             ) : reachable.length === 0 ? (
               <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12px] text-text-secondary">
                 No partners with an email address yet. Add them under Partners — a partner with no

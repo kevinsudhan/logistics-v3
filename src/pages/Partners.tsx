@@ -22,6 +22,7 @@ import {
   type Partner,
   type PartnerRole,
 } from "../services/partners";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * Everyone outside this company that a shipment needs.
@@ -169,7 +170,7 @@ export default function Partners() {
       )}
 
       {loading && !partners.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !partners.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <Handshake size={20} className="mx-auto text-text-muted" />

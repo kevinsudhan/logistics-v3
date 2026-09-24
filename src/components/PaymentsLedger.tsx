@@ -24,6 +24,7 @@ import {
   type Direction,
   type Payment,
 } from "../services/receipts";
+import { ListSkeleton } from "./Loading";
 
 /**
  * The ledger for one direction of money.
@@ -135,7 +136,7 @@ export default function PaymentsLedger({ direction }: { direction: Direction }) 
     }
   }
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <ListSkeleton avatar={false} />;
 
   return (
     <div>

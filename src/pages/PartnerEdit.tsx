@@ -6,6 +6,7 @@ import EmptyState from "../components/EmptyState";
 import PartnerForm from "../components/PartnerForm";
 import { failureText, type FailureText } from "../lib/errorText";
 import { allTags, listPartners, type Partner } from "../services/partners";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * Adding a partner, or correcting one, on a page of its own.
@@ -63,7 +64,7 @@ export default function PartnerEdit() {
 
   const done = () => navigate("/partners");
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton rows={4} />;
 
   if (id && !partner) {
     return (

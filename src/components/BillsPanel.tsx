@@ -19,6 +19,7 @@ import {
   type Bill,
   type BillKind,
 } from "../services/bills";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * What this job cost — the bills other people sent us.
@@ -166,7 +167,7 @@ export default function BillsPanel({
     .filter((b) => b.status !== "cancelled")
     .reduce((t, b) => t + (b.kind === "agent_credit_note" ? -1 : 1) * Number(b.total_inr || 0), 0);
 
-  if (loading) return <p className="py-6 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <SectionSkeleton />;
 
   return (
     <div>

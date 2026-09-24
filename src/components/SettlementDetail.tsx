@@ -6,6 +6,7 @@ import EmptyState from "./EmptyState";
 import { downloadWorkbook, stamped } from "../lib/xlsx";
 import { money } from "../services/billing";
 import { settlementDetail, type SettlementLine } from "../services/reports";
+import { ListSkeleton } from "./Loading";
 
 /**
  * Every allocation, one row each.
@@ -61,7 +62,7 @@ export default function SettlementDetail({
     [rows]
   );
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <ListSkeleton avatar={false} />;
 
   return (
     <div>

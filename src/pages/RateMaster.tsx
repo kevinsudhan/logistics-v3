@@ -12,6 +12,7 @@ import {
   RATE_MODES,
   type RateCard,
 } from "../services/rateMaster";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * What this desk charges, so a quotation is assembled rather than remembered.
@@ -150,7 +151,7 @@ export default function RateMaster() {
       )}
 
       {loading && !rates.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton avatar={false} />
       ) : !rates.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <p className="text-[14px] font-medium text-text-primary">No rates yet</p>

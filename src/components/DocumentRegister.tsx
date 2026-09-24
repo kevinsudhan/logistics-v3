@@ -18,6 +18,7 @@ import {
   type InvoiceKind,
 } from "../services/billing";
 import { supabase } from "../lib/supabase";
+import { ListSkeleton } from "./Loading";
 
 /**
  * One register, six pages.
@@ -96,7 +97,7 @@ export default function DocumentRegister({ spec }: { spec: RegisterSpec }) {
 
   const isNote = spec.kind === "credit_note" || spec.kind === "debit_note";
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <ListSkeleton avatar={false} />;
 
   return (
     <div>

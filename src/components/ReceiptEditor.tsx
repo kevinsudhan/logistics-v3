@@ -23,6 +23,7 @@ import {
   type Payment,
   type PaymentMode,
 } from "../services/receipts";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * One receipt, or one payment out.
@@ -173,7 +174,7 @@ export default function ReceiptEditor({
     [load, onChanged]
   );
 
-  if (loading) return <p className="py-6 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <SectionSkeleton lines={4} />;
   if (!pay) return <p className="py-6 text-[13px] text-text-muted">That receipt is not there.</p>;
 
   const isReceipt = pay.direction === "in";

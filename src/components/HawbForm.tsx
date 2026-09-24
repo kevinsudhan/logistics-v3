@@ -44,6 +44,7 @@ import { listPeople, nameOf, quotesFor, type Enquiry, type Person, type Shipment
 import { getHawb, hawbHistory, jobForHawb, logHawbPrint, saveHawb, setOriginalIssued, type HawbHistory, type HawbRow } from "../services/hawb";
 import { linesFor } from "../services/quoteLines";
 import { liveQuoteOf } from "../lib/attachableDocuments";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * The HAWB tab: the house air waybill, laid out like the form it prints.
@@ -160,9 +161,7 @@ export default function HawbForm({
         <AlertCircle size={13} /> {error}
       </p>
     ) : (
-      <p className="flex items-center gap-2 py-8 text-[13px] text-text-muted">
-        <Loader2 size={14} className="animate-spin" /> Loading the HAWB…
-      </p>
+      <SectionSkeleton lines={5} label="Loading the HAWB" className="py-6" />
     );
   }
 

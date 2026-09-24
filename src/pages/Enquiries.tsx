@@ -38,6 +38,7 @@ import {
 } from "../services/enquiries";
 import { mailIsLive, type MailMessage } from "../services/backend";
 import { intakeByMessage, type Intake } from "../services/intake";
+import { ListSkeleton } from "../components/Loading";
 
 type Row = Enquiry & { customer: Customer | null };
 
@@ -284,7 +285,7 @@ export default function Enquiries() {
       )}
 
       {loading && !rows.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !rows.length ? (
         /**
          * An empty desk looks empty. Seeding sample enquiries would make the

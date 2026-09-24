@@ -8,6 +8,7 @@ import { downloadWorkbook, stamped } from "../../lib/xlsx";
 import { money } from "../../services/billing";
 import { marginPct } from "../../services/bills";
 import { finalBills, type FinalBillRow } from "../../services/reports";
+import { PageSkeleton } from "../../components/Loading";
 
 /**
  * Where every job ended up.
@@ -72,7 +73,7 @@ export default function FinalBill() {
     [rows, onlyOpen]
   );
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton />;
 
   return (
     <div>

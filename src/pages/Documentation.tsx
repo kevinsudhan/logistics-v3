@@ -14,6 +14,7 @@ import {
   type Enquiry,
   type Shipment,
 } from "../services/enquiries";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The documentation desk.
@@ -119,7 +120,7 @@ export default function Documentation() {
       </h2>
 
       {loading && !enquiries.length ? (
-        <p className="text-[13px] text-text-muted py-6">Loading…</p>
+        <ListSkeleton />
       ) : !enquiries.length ? (
         <EmptyState
           icon={FileCheck2}

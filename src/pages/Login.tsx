@@ -15,6 +15,7 @@ import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
   `registry` imports nothing but types.
 */
 import { DOCUMENTS } from "../lib/documents/registry";
+import { BootScreen } from "../components/Loading";
 
 
 /**
@@ -87,11 +88,7 @@ export default function Login({ role }: { role: Role }) {
   // Don't flash the form at someone who is already signed in and about to be
   // redirected away from it.
   if (restoring) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-surface-0 text-sm text-text-muted">
-        Loading…
-      </div>
-    );
+    return <BootScreen />;
   }
 
   return (

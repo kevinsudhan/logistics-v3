@@ -9,6 +9,7 @@ import {
   type Enquiry,
 } from "../services/enquiries";
 import type { MailMessage } from "../services/mockMail";
+import { ListSkeleton } from "./Loading";
 
 type Row = Enquiry & { customer: Customer | null };
 
@@ -190,7 +191,7 @@ export default function FileToEnquiry({
 
             <div className="flex-1 overflow-y-auto px-5 py-3">
               {loading && !rows.length ? (
-                <p className="py-6 text-[13px] text-text-muted">Loading…</p>
+                <ListSkeleton bare rows={5} />
               ) : !visible.length ? (
                 <p className="py-6 text-[13px] text-text-muted">
                   {rows.length ? "Nothing matches that." : "There are no enquiries yet."}

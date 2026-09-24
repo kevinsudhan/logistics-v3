@@ -38,6 +38,7 @@ import {
   type TaxTreatment,
 } from "../services/billing";
 import { startPayment } from "../services/receipts";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * One invoice, being built or being read.
@@ -211,7 +212,7 @@ export default function InvoiceEditor({
     [inv]
   );
 
-  if (loading) return <p className="py-6 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <SectionSkeleton lines={5} />;
   if (!inv) return <p className="py-6 text-[13px] text-text-muted">That invoice is not there.</p>;
 
   const zeroRated = inv.tax_treatment === "export_lut" || inv.tax_treatment === "exempt";

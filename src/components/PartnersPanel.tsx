@@ -15,6 +15,7 @@ import {
 } from "../services/partners";
 import type { Enquiry } from "../services/enquiries";
 import PartnerForm from "./PartnerForm";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * Who is working this shipment with us.
@@ -168,7 +169,7 @@ export default function PartnersPanel({
       </div>
 
       {loading ? (
-        <p className="text-[12px] text-text-muted">Loading…</p>
+        <SectionSkeleton lines={2} className="py-1" />
       ) : (
         <>
           {/* ---- already on it ---- */}

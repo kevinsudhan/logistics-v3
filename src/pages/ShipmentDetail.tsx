@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
 import ShipmentCheckpoints from "../components/ShipmentCheckpoints";
 import EnquiryLink from "../components/EnquiryLink";
@@ -23,6 +23,7 @@ import {
 } from "../services/enquiries";
 import { listDimensions } from "../services/enquiryDimensions";
 import type { DimensionLine } from "../lib/dimensions";
+import { PageSkeleton, SectionSkeleton } from "../components/Loading";
 
 /**
  * One booked shipment, and everything the desk does to it.
@@ -194,7 +195,7 @@ export default function ShipmentDetail() {
     void load();
   }, [load]);
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton />;
 
   if (!shipment) {
     return (
@@ -442,7 +443,10 @@ export default function ShipmentDetail() {
         />
       </div>
 
-      <Outlet context={{ shipment: s, enquiry, lines, reload: load } satisfies ShipmentContext} />
+      {/* A tab still downloading waits in the tab, under the shipment's header. */}
+      <Suspense fallback={<SectionSkeleton lines={4} className="py-6" />}>
+        <Outlet context={{ shipment: s, enquiry, lines, reload: load } satisfies ShipmentContext} />
+      </Suspense>
     </div>
   );
 }

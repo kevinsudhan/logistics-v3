@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Clock, Info, RefreshCw } from "lucide-react";
 import { failureText, type FailureText } from "../lib/errorText";
 import { describeDelay, delayTone, listReplies, type ReplyLogRow } from "../services/replyLog";
+import { ListSkeleton } from "./Loading";
 
 /**
  * Who answered a partner, and how long they took.
@@ -92,7 +93,7 @@ export default function ReplyLog() {
       )}
 
       {loading && !rows.length ? (
-        <p className="py-6 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton rows={3} />
       ) : !rows.length ? (
         <p className="py-6 text-[13px] text-text-muted">
           Nothing answered from the CRM yet. Reply to an agent from their mail page and it

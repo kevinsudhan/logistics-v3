@@ -18,6 +18,7 @@ import {
 import { fileUrl, listFiles, uploadFile, type EnquiryFile } from "../../services/attachments";
 import { customsFor, removeCustoms, startCustoms, updateCustoms } from "../../services/customs";
 import { listPartners, type Partner } from "../../services/partners";
+import { SectionSkeleton } from "../../components/Loading";
 
 /**
  * Customs: the export clearance at origin, the import clearance at
@@ -93,9 +94,7 @@ export default function ShipmentCustoms() {
 
   if (!rows) {
     return (
-      <p className="flex items-center gap-2 py-8 text-[13px] text-text-muted">
-        <Loader2 size={14} className="animate-spin" /> Loading customs…
-      </p>
+      <SectionSkeleton lines={4} label="Loading customs" className="py-6" />
     );
   }
 

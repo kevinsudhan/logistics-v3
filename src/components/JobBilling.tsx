@@ -13,6 +13,7 @@ import {
   type Invoice,
   type InvoiceKind,
 } from "../services/billing";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * Everything billed against one job.
@@ -104,7 +105,7 @@ export default function JobBilling({
     onChanged?.();
   };
 
-  if (loading) return <p className="py-6 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <SectionSkeleton />;
 
   return (
     <div>

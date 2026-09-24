@@ -23,6 +23,7 @@ import { issueHouseBl } from "../services/consoles";
 import { listContainers, type Container } from "../services/containers";
 import { listPartners, type Partner } from "../services/partners";
 import type { Shipment } from "../services/enquiries";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * The consoles the desk is building.
@@ -178,7 +179,7 @@ export default function Consoles() {
     }
   }
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton />;
 
   return (
     <div>

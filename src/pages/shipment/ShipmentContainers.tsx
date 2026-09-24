@@ -15,6 +15,7 @@ import {
   updateShipmentContainer,
   type ShipmentContainer,
 } from "../../services/shipmentContainers";
+import { SectionSkeleton } from "../../components/Loading";
 
 /**
  * The boxes this shipment is travelling in.
@@ -157,7 +158,7 @@ export default function ShipmentContainers() {
     { packages: 0, weight: 0, volume: 0 }
   );
 
-  if (loading) return <p className="py-6 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <SectionSkeleton />;
 
   return (
     <div>

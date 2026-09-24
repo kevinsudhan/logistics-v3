@@ -13,6 +13,7 @@ import {
   CustomerExistsError,
   type Customer,
 } from "../services/customers";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * Adding a customer, or correcting one, on a page of its own.
@@ -161,7 +162,7 @@ export default function CustomerEdit() {
     }
   }
 
-  if (loading) return <p className="py-8 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton rows={4} />;
 
   if (missing)
     return (

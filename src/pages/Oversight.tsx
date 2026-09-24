@@ -19,6 +19,7 @@ import {
   type EnquiryEvent,
   type Person,
 } from "../services/enquiries";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * What the desk did, and who did it.
@@ -291,7 +292,7 @@ export default function Oversight() {
       </div>
 
       {loading && !rows.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !visible.length ? (
         <EmptyState
           title="Nothing to show"

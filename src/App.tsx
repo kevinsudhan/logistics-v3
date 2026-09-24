@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import RequireAuth from "./components/RequireAuth";
 import { ACCOUNTS_DESK } from "./lib/features";
+import { BootScreen } from "./components/Loading";
 
 /**
  * A page that only exists when the accounts desk is switched on.
@@ -80,13 +81,11 @@ const PartnerMail = lazy(() => import("./pages/PartnerMail"));
 const PartnerThreads = lazy(() => import("./pages/PartnerThreads"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 
-function PageFallback() {
-  return <div className="text-sm text-text-muted py-10">Loading…</div>;
-}
-
 export default function App() {
   return (
-    <Suspense fallback={<PageFallback />}>
+    // The first load, and the pages outside the app's shell (sign-in, the customer's
+    // quotation and tracking pages). Pages inside the shell wait in AppLayout.
+    <Suspense fallback={<BootScreen />}>
       <Routes>
         {/* Sign-in — the two doors. */}
         <Route path="/login" element={<Login role="employee" />} />

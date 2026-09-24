@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * The shell every signed-in page sits inside.
@@ -57,7 +58,11 @@ export default function AppLayout() {
       <div className="flex-1 min-w-0 flex flex-col">
         <Topbar onOpenNav={() => setNavOpen(true)} />
         <main className="flex-1 w-full max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
-          <Outlet />
+          {/* A page still downloading waits here, under the sidebar and top bar,
+              rather than taking the whole window with it. */}
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

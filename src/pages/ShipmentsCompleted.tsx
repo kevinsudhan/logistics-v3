@@ -13,6 +13,7 @@ import {
   type Person,
   type ShipmentRow,
 } from "../services/enquiries";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * Delivered shipments, kept for history, billing and audit.
@@ -73,7 +74,7 @@ export default function ShipmentsCompleted() {
       )}
 
       {loading && !rows.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !rows.length ? (
         <EmptyState
           icon={PackageCheck}

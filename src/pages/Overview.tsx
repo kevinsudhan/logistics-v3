@@ -29,6 +29,7 @@ import {
   type Shipment,
 } from "../services/enquiries";
 import { countWaiting } from "../services/intake";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The first screen after signing in.
@@ -232,7 +233,7 @@ export default function Overview() {
             </h2>
 
             {loading && !events.length ? (
-              <p className="text-[13px] text-text-muted py-6">Loading…</p>
+              <ListSkeleton rows={4} />
             ) : !events.length ? (
               <div className="card px-4 py-8 text-center">
                 <p className="text-[13px] text-text-secondary">

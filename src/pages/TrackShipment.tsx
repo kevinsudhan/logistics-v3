@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Check, Loader2, Plane, Ship, Truck, TrainFront, Warehouse } from "lucide-react";
+import { AlertTriangle, Check, Plane, Ship, Truck, TrainFront, Warehouse } from "lucide-react";
 import { milestoneBar } from "../lib/milestoneBar";
 import { stageLabel, stagesFor, type Enquiry, type ShipmentStage } from "../services/enquiries";
 import ShipmentRouteMap from "../components/ShipmentRouteMap";
 import { trackingByToken, trackPointsByToken, type PublicTracking } from "../services/tracking";
 import { customsByToken, type PublicCustoms } from "../services/customs";
+import { SectionSkeleton } from "../components/Loading";
 
 /**
  * The customer's tracking page: /t/:token, no account needed.
@@ -102,9 +103,7 @@ export default function TrackShipment() {
 
         <main className="rounded-b-xl border border-t-0 border-[#e5e7eb] bg-white px-5 py-6 sm:px-6">
           {!t && !failed ? (
-            <p className="flex items-center gap-2 py-8 text-[13px]" style={{ color: MUTED }}>
-              <Loader2 size={14} className="animate-spin" /> Loading…
-            </p>
+            <SectionSkeleton lines={4} label="Loading the shipment" className="py-6" />
           ) : !t || t.state === "unknown" ? (
             <Ended
               title="We could not find this shipment"

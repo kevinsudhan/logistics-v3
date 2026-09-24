@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarRange, Loader2, X } from "lucide-react";
 import { onLane } from "../lib/schedules";
 import { departureName, upcomingSchedules, type Schedule } from "../services/schedules";
+import { InlineLoading } from "./Loading";
 
 /**
  * "Pick from sailing schedule" — one control, used wherever a departure is
@@ -103,9 +104,7 @@ export default function SchedulePicker({
             </div>
 
             {!rows ? (
-              <p className="flex items-center gap-2 py-6 text-[13px] text-text-muted">
-                <Loader2 size={14} className="animate-spin" /> Loading the schedule…
-              </p>
+              <InlineLoading label="Loading the schedule" />
             ) : !shown.length ? (
               <p className="py-6 text-center text-[13px] text-text-muted">
                 {rows.length

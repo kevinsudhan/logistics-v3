@@ -26,6 +26,7 @@ import {
   type QuoteStatus,
 } from "../services/rfq";
 import type { Enquiry } from "../services/enquiries";
+import { SectionSkeleton } from "./Loading";
 
 /**
  * What the partners came back with.
@@ -187,7 +188,7 @@ export default function PartnerQuotes({ enquiry }: { enquiry: Enquiry }) {
       )}
 
       {loading ? (
-        <p className="mt-3 text-[12px] text-text-muted">Loading…</p>
+        <SectionSkeleton lines={2} className="mt-3" />
       ) : rows.length === 0 ? (
         <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2.5 text-[12px] text-text-secondary">
           No partner has been asked about this enquiry yet.

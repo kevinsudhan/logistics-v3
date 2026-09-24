@@ -40,6 +40,7 @@ import {
   type Shipment,
   type ShipmentStage,
 } from "../services/enquiries";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * Everything this desk has done for one customer.
@@ -162,7 +163,7 @@ export default function CustomerFile() {
     }
   }
 
-  if (loading && !customer) return <p className="py-8 text-[13px] text-text-muted">Loading…</p>;
+  if (loading && !customer) return <PageSkeleton />;
 
   if (!customer)
     return (

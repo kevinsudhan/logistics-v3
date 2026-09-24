@@ -6,6 +6,7 @@ import AgeingTable from "../../components/AgeingTable";
 import { downloadWorkbook, stamped } from "../../lib/xlsx";
 import { money } from "../../services/billing";
 import { BUCKETS, BUCKET_LABEL, receivablesAgeing, type AgedRow } from "../../services/reports";
+import { PageSkeleton } from "../../components/Loading";
 
 /**
  * What customers owe us, aged.
@@ -33,7 +34,7 @@ export default function Outstanding() {
 
   useEffect(() => { void load(); }, [load]);
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton />;
 
   const total = rows.reduce((t, r) => t + r.total, 0);
   const over90 = rows.reduce((t, r) => t + r.buckets.d90plus, 0);

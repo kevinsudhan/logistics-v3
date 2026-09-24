@@ -15,6 +15,7 @@ import {
   type AgentStatement,
   type StatementLine,
 } from "../../services/reports";
+import { PageSkeleton, SectionSkeleton } from "../../components/Loading";
 
 /**
  * Settling a period with an overseas agent.
@@ -106,7 +107,7 @@ export default function AgentSOA() {
     }
   }
 
-  if (loading) return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+  if (loading) return <PageSkeleton />;
 
   return (
     <div>
@@ -312,7 +313,7 @@ export default function AgentSOA() {
                     </dl>
 
                     {(lines[s.id] ?? []).length === 0 ? (
-                      <p className="text-[12px] text-text-muted">Loading the lines…</p>
+                      <SectionSkeleton lines={2} label="Loading the lines" className="py-1" />
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[32rem] text-[13px]">

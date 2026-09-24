@@ -13,6 +13,7 @@ import {
   type Partner,
   type PartnerRole,
 } from "../services/partners";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * Whose correspondence to open.
@@ -145,7 +146,7 @@ export default function PartnerMail() {
       )}
 
       {loading && !partners.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton />
       ) : !partners.length ? (
         <EmptyState
           icon={Handshake}

@@ -41,6 +41,7 @@ import {
   type MovementKind,
 } from "../../services/movements";
 import { listPartners, type Partner } from "../../services/partners";
+import { SectionSkeleton } from "../../components/Loading";
 
 /**
  * Collecting the cargo, and handing it over at the other end.
@@ -117,9 +118,7 @@ export default function ShipmentPickupDelivery() {
         </p>
       )}
       {!loaded ? (
-        <p className="flex items-center gap-2 py-6 text-[12px] text-text-muted">
-          <Loader2 size={13} className="animate-spin" /> Loading…
-        </p>
+        <SectionSkeleton lines={4} label="Loading the pickups and deliveries" className="py-6" />
       ) : (
         (["pickup", "delivery"] as MovementKind[]).map((kind) => (
           <KindSection

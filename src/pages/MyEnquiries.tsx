@@ -19,6 +19,7 @@ import {
   type Person,
   type Shipment,
 } from "../services/enquiries";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The enquiries this person took on.
@@ -147,7 +148,7 @@ export default function MyEnquiries() {
       )}
 
       {loading && !rows.length ? (
-        <p className="text-[13px] text-text-muted py-8">Loading…</p>
+        <ListSkeleton />
       ) : !mine.length ? (
         <EmptyState
           icon={UserCheck}

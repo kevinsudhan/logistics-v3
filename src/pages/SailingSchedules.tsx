@@ -11,6 +11,7 @@ import { todayIST } from "../lib/progress";
 import { listContainers, type Container } from "../services/containers";
 import { listPartners, type Partner } from "../services/partners";
 import { departureName, importSchedules, listSchedules, removeSchedule, saveSchedule, STATUS_LABEL, type Schedule } from "../services/schedules";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The sailing schedule: departures the rest of the system is built from.
@@ -321,7 +322,7 @@ export default function SailingSchedules() {
 
       {/* ---- the list ---- */}
       {loading && !rows.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton avatar={false} />
       ) : !rows.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <CalendarRange size={20} className="mx-auto text-text-muted" />

@@ -43,6 +43,7 @@ import {
 import { intakeByMessage, type Intake } from "../services/intake";
 import { refsFor } from "../services/threadRefs";
 import { listPeople, type Person } from "../services/enquiries";
+import { ListSkeleton, SectionSkeleton } from "../components/Loading";
 
 const FOLDER_ICON: Record<FolderId, React.ElementType> = {
   inbox: Inbox,
@@ -495,7 +496,7 @@ export default function Mail() {
         {/* ---- message list ---- */}
         <div className="card overflow-hidden">
           {loading && messages.length === 0 ? (
-            <p className="text-[13px] text-text-muted p-4">Loading…</p>
+            <ListSkeleton bare rows={7} />
           ) : messages.length === 0 ? (
             <p className="text-[13px] text-text-muted p-4">
               {query ? "Nothing matches that search." : "Nothing in this folder."}
@@ -631,7 +632,7 @@ export default function Mail() {
                     </button>
                   </div>
                 ) : (
-                  <p className="text-[13px] text-text-muted">Loading the message…</p>
+                  <SectionSkeleton lines={5} label="Loading the message" className="py-2" />
                 )}
               </div>
 

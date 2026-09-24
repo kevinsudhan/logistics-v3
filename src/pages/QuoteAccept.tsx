@@ -7,6 +7,7 @@ import {
   type PublicQuote,
   type QuoteLinkState,
 } from "../services/publicQuote";
+import { SectionSkeleton } from "../components/Loading";
 
 /**
  * The page a customer lands on from the quotation mail.
@@ -85,9 +86,7 @@ export default function QuoteAccept() {
 
         <main className="rounded-b-xl border border-t-0 border-[#e5e7eb] bg-white px-6 py-6">
           {loading ? (
-            <p className="flex items-center gap-2 py-8 text-[13px] text-[#6b7280]">
-              <Loader2 size={14} className="animate-spin" /> Loading the quotation…
-            </p>
+            <SectionSkeleton lines={4} label="Loading the quotation" className="py-6" />
           ) : failed || !quote ? (
             <Ended
               title="We could not open this quotation"

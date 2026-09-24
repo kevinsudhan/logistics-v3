@@ -20,6 +20,7 @@ import {
   DORMANT_AFTER_DAYS,
   type CustomerSummary,
 } from "../services/customers";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * Who this desk works for.
@@ -213,7 +214,7 @@ export default function Customers() {
       )}
 
       {loading && !rows.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton />
       ) : !rows.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <Building2 size={20} className="mx-auto text-text-muted" />

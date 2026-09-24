@@ -35,6 +35,7 @@ import {
 import { listPartners, PARTNER_ROLE_LABEL, type Partner } from "../services/partners";
 import { mailIsLive } from "../services/backend";
 import type { MailMessage } from "../services/mockMail";
+import { PageSkeleton } from "../components/Loading";
 
 /**
  * One partner, and everything we have exchanged with them.
@@ -209,7 +210,7 @@ export default function PartnerThreads() {
 
 
   if (loading && !partner) {
-    return <p className="py-10 text-[13px] text-text-muted">Loading…</p>;
+    return <PageSkeleton />;
   }
 
   if (!partner) {

@@ -36,6 +36,7 @@ import {
   stageLabel,
   type ShipmentStage,
 } from "../services/enquiries";
+import { ListSkeleton } from "../components/Loading";
 
 /**
  * The in-process worklist: every job between acceptance and delivery.
@@ -354,7 +355,7 @@ export default function ShipmentsInProcess() {
       )}
 
       {loading && !rows.length ? (
-        <p className="py-8 text-[13px] text-text-muted">Loading…</p>
+        <ListSkeleton />
       ) : !rows.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <Truck size={20} className="mx-auto text-text-muted" />
