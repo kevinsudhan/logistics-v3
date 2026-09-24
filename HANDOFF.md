@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (38 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (39 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **082**, so the next one is `083-….sql`.
+  migration filename (§6). The last migration is **083**, so the next one is `084-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 82 migrations
+## 4. Data model — 83 migrations
 
-`supabase-v2/001…082`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…083`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -165,6 +165,7 @@ transaction).
 | `080` | `quotes` added to the `supabase_realtime` publication |
 | `081` | `enquiries`, `shipments`, `intake` and `shipment_checkpoints` added to it too |
 | `082` | the console's master B/L copied to its jobs (`mainline_no`); console and numbering functions closed to `anon` |
+| `083` | free time: the job's free days and D&D rates (`shipments`), six clock dates per box (`shipment_containers`) |
 
 **Realtime covers those five tables.** Overview, Enquiries overview, Inbound enquiries, My
 enquiries, In-process, Completed, the job file (header and steps) and the case file refresh
@@ -204,7 +205,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 38 suites, pure logic
+npm test                             # 39 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -221,7 +222,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 38 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 39 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -339,7 +340,7 @@ screen.
 
 ### Product gaps
 
-- There is no free-time or demurrage clock.
+- **Free time (083)** is counted in `lib/freeTime.ts` from dates the desk types per box. Nothing fills those dates yet: tracking's `discharged`/`gate_out` events (072) and the pickup/delivery moves (079) could suggest them. The tariff is one rate per day; slab tariffs and holiday rules are not modelled. LCL (CFS storage) is not counted.
 - **Sea bills (082).** The master B/L is entered once on the console and the database copies it
   to every job on it (`shipments.mainline_no`). A job not on a console has its master typed on
   the Bill tab. The pre-alert, tracking, the worklist search and the arrival notice, delivery
@@ -413,6 +414,7 @@ There are 63 commits. Grouped:
 | iPhone app | `24f6104` | Add to Home Screen gives a standalone app with the user's logo as the icon |
 | Realtime desk (081) | `a15f629` | Enquiries, shipments, intake and job steps update live on every list and file page |
 | Printed documents | `763a153` | PDFs numbered `BKG-ALG09004-26` (no `ARX-`), on the navy letterhead with the mail's logo |
+| Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)

@@ -290,6 +290,7 @@ export const DOCUMENTS: DocSpec[] = [
           { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
           { label: "Port of discharge", value: (d) => d.destination },
           { label: "Vessel ETA", value: (d) => d.etaDate },
+          { label: "Free time per box", value: (d) => d.freeTimeText, optional: true },
           { label: "Container number", value: (d) => d.containerId },
           { label: "Container type", value: (d) => d.containerType },
         ],

@@ -87,6 +87,12 @@ is("and filed without the slashes", documentFilename(BL, consol), "BL-HBL-26-27-
 is("a direct job's one bill is not printed twice", documentDataFromBooking({ ...booking, bl_number: "MSKU7654321", mainline_no: "MSKU7654321" }).masterBlNumber, undefined);
 is("no master recorded: none", fromBooking.masterBlNumber, undefined);
 
+console.log("\nfree time on the arrival notice (083)");
+const fclTerms = { transport_mode: "sea_fcl", free_time_basis: "separate", demurrage_free_days: 14, detention_free_days: 7 };
+is("an FCL job's terms in words", documentDataFromBooking({ ...booking, ...fclTerms }).freeTimeText, "14 days demurrage, 7 days detention");
+is("an LCL job has no box on the clock", documentDataFromBooking({ ...booking, ...fclTerms, transport_mode: "sea_lcl" }).freeTimeText, undefined);
+is("no free days recorded: nothing printed", documentDataFromBooking({ ...booking, transport_mode: "sea_fcl" }).freeTimeText, undefined);
+
 console.log("\nnothing printed says ARX-");
 for (const [label, data, spec] of [
   ["enquiry", fromEnquiry, QUO],

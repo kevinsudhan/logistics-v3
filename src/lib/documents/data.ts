@@ -2,6 +2,7 @@ import type { Shipment } from "../../types";
 import type { RealRecord } from "../../services/backend";
 import { fieldDef, type RequestDetails } from "../../data/requestFields";
 import type { DataKey, DocumentData } from "./types";
+import { appliesTo, termsText, type FreeTimeTerms } from "../freeTime";
 
 /**
  * Builds the one shape every document draws from.
@@ -237,7 +238,8 @@ export function documentDataFromBooking(
     incoterm?: string | null;
     payment_terms?: string | null;
     letter_of_credit?: boolean | null;
-  },
+    transport_mode?: string | null;
+  } & Partial<FreeTimeTerms>,
   customer?: { name?: string | null; company?: string | null; phone?: string | null } | null
 ): DocumentData {
   const un = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
@@ -253,6 +255,19 @@ export function documentDataFromBooking(
     // The same number twice says nothing: on a direct job the carrier's bill is
     // both, and the second line would only look like a second document.
     masterBlNumber: s.mainline_no && s.mainline_no !== s.bl_number ? s.mainline_no : undefined,
+    // Only a full container load has a box on the line's clock.
+    freeTimeText: appliesTo(s.transport_mode)
+      ? termsText({
+          free_time_basis: s.free_time_basis ?? "separate",
+          demurrage_free_days: s.demurrage_free_days ?? null,
+          detention_free_days: s.detention_free_days ?? null,
+          combined_free_days: s.combined_free_days ?? null,
+          demurrage_rate: null,
+          detention_rate: null,
+          combined_rate: null,
+          dnd_currency: null,
+        })
+      : undefined,
 
     // The booking's own shipper wins over the customer record: they are usually
     // the same and occasionally not, and the booking is the later statement.

@@ -8,6 +8,10 @@ import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import { supabase } from "../lib/supabase";
 import { useTablesChanges } from "../lib/useTableChanges";
+import { todayIST } from "../lib/progress";
+import { appliesTo, clocksFor, NO_FREE_TIME, sideOf, summarise } from "../lib/freeTime";
+import { FreeTimePill } from "../components/FreeTime";
+import { listShipmentContainers, type ShipmentContainer } from "../services/shipmentContainers";
 import { money } from "../services/billing";
 import { ACCOUNTS_DESK } from "../lib/features";
 import SendPreAlert from "../components/SendPreAlert";
@@ -148,6 +152,7 @@ export default function ShipmentDetail() {
   const [shipment, setShipment] = useState<(Shipment & { customer: Customer | null }) | null>(null);
   const [enquiry, setEnquiry] = useState<(Enquiry & { customer: Customer | null }) | null>(null);
   const [lines, setLines] = useState<DimensionLine[]>([]);
+  const [boxes, setBoxes] = useState<ShipmentContainer[]>([]);
   const [moving, setMoving] = useState(false);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [margin, setMargin] = useState<Margin | null>(null);
@@ -176,12 +181,15 @@ export default function ShipmentDetail() {
       // The enquiry after the shipment, because its reference comes from it.
       // Best-effort: a booking whose enquiry cannot be read still opens.
       if (s) {
-        const [e, d] = await Promise.all([
+        const [e, d, b] = await Promise.all([
           getEnquiry(s.enquiry_ref).catch(() => null),
           listDimensions(s.enquiry_ref).catch(() => [] as DimensionLine[]),
+          // The boxes, for the free-time alert in the header; only an FCL job has one.
+          appliesTo(s.transport_mode) ? listShipmentContainers(s.id).catch(() => [] as ShipmentContainer[]) : Promise.resolve([] as ShipmentContainer[]),
         ]);
         setEnquiry(e);
         setLines(d);
+        setBoxes(b);
       }
       setBilling((billingRow.data as BillingSummary) ?? null);
       setMargin(m);
@@ -258,6 +266,13 @@ export default function ShipmentDetail() {
   const billed = billing?.billed_inr ?? 0;
   const agreed = s.agreed_inr;
 
+  // Free time (083), worst box first. Shown on every tab, like the stage: a
+  // lapsing free period is the one thing on a job that costs money by the day.
+  const today = todayIST();
+  const freeTime = appliesTo(mode)
+    ? summarise(boxes.map((b) => clocksFor(sideOf(s.trade_direction ?? enquiry?.trade_direction), s, b, today)), today)
+    : NO_FREE_TIME;
+
   // Revenue counts issued invoices net of credit notes, which the view already
   // does; `billed` from the billing summary counts tax invoices only and is
   // kept for the draft badge.
@@ -305,6 +320,12 @@ export default function ShipmentDetail() {
           {stageLabel(s.stage, mode)}
         </StatusPill>
         {s.signed_off_at && <StatusPill tone="success">Signed off</StatusPill>}
+        <FreeTimePill summary={freeTime} to={`/shipments/${s.id}/containers`} quiet />
+        {(freeTime.accrued ?? 0) > 0 && (
+          <span className="text-[11px] tabular-nums text-text-danger" title="At the rates recorded on the Containers tab; an estimate">
+            about {freeTime.currency} {freeTime.accrued!.toLocaleString("en-IN")} in D&amp;D
+          </span>
+        )}
         {/* A signed-off job's progress is locked (070); the button would only
             meet the refusal. */}
         {next && s.stage !== "cancelled" && !s.signed_off_at && (

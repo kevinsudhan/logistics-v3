@@ -7,9 +7,11 @@ import {
   NO_EXTRAS,
   NO_FILTERS,
   sortRows,
+  urgentBy,
   type Extras,
   type WorkRow,
 } from "../../src/lib/worklist";
+import { NO_FREE_TIME, type FreeTimeSummary } from "../../src/lib/freeTime";
 
 /**
  * The in-process worklist: find a job from whatever is in hand, narrow the
@@ -129,6 +131,31 @@ is("a vessel with its voyage", t.rows[0][7], "MSC AURORA / FA412E");
 is("a flight for air", t.rows[1][7], "EK 543");
 is("dates are dates", t.rows[0][10] instanceof Date, true);
 is("customs in words", [t.rows[0][16], t.rows[1][16]], ["On hold", "In progress"]);
+
+console.log("\nfree time (083)");
+{
+  const ft = (state: FreeTimeSummary["state"], lastFreeDay: string | null, text: string): FreeTimeSummary => ({
+    ...NO_FREE_TIME,
+    state,
+    lastFreeDay,
+    text,
+  });
+  const fx: Record<string, Extras> = {
+    // A step due 5 Oct, but a box whose free time ends on the 1st.
+    "ARX-SHP-0001": { ...NO_EXTRAS, soonest: "2026-10-05", freeTime: ft("ending", "2026-10-01", "Free time ends tomorrow") },
+    "ARX-SHP-0002": { ...NO_EXTRAS, soonest: "2026-10-03", freeTime: ft("running", "2026-10-20", "Free until 20 Oct") },
+    "ARX-SHP-0003": { ...NO_EXTRAS, freeTime: ft("over", "2026-09-25", "Free time over by 4 days") },
+  };
+  const f = (id: string) => fx[id] ?? NO_EXTRAS;
+  is("running out: ending or over, not merely running", ids(applyFilters(all, { ...NO_FILTERS, focus: "freetime" }, f)), ["1", "3"]);
+  is("a step's date when it comes first", urgentBy(fx["ARX-SHP-0002"]), "2026-10-03");
+  is("the last free day when it comes first", urgentBy(fx["ARX-SHP-0001"]), "2026-10-01");
+  is("a job with only a clock is still dated", urgentBy(fx["ARX-SHP-0003"]), "2026-09-25");
+  is("waiting does not count", urgentBy({ ...NO_EXTRAS, soonest: "2026-10-09", freeTime: ft("waiting", "2026-10-01", "") }), "2026-10-09");
+  is("urgency orders by either", ids(sortRows(all, "urgency", f)), ["3", "1", "2"]);
+  const ft2 = exportTable([road], f, (r) => r.stage);
+  is("the spreadsheet says it in words", ft2.rows[0][ft2.columns.length - 1], "Free time over by 4 days");
+}
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

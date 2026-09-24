@@ -14,12 +14,14 @@
  *
  * WHAT A JOB CARRIES BESIDES ITS ROW
  *
- * Its open steps (the next one and how late), its customs clearances (077)
- * and the tracking updates waiting for somebody to confirm (072) are loaded
- * alongside and passed in as `Extras`, so the rules here can be tested on
- * plain data.
+ * Its open steps (the next one and how late), its customs clearances (077),
+ * the tracking updates waiting for somebody to confirm (072) and its boxes'
+ * free time (083) are loaded alongside and passed in as `Extras`, so the
+ * rules here can be tested on plain data.
  * ---------------------------------------------------------------------------
  */
+
+import { NO_FREE_TIME, type FreeTimeSummary } from "./freeTime";
 
 export interface WorkRow {
   id: string;
@@ -60,9 +62,20 @@ export interface Extras {
   customs: CustomsState;
   /** Tracking updates waiting for a person (072). */
   updates: number;
+  /** The job's worst free-time clock (083). */
+  freeTime: FreeTimeSummary;
 }
 
-export const NO_EXTRAS: Extras = { soonest: null, overdue: 0, dueToday: 0, nextLabel: null, nextDue: null, customs: "none", updates: 0 };
+export const NO_EXTRAS: Extras = {
+  soonest: null,
+  overdue: 0,
+  dueToday: 0,
+  nextLabel: null,
+  nextDue: null,
+  customs: "none",
+  updates: 0,
+  freeTime: NO_FREE_TIME,
+};
 
 export interface Filters {
   query: string;
@@ -70,7 +83,22 @@ export interface Filters {
   mode: string;
   carrier: string;
   customs: "any" | CustomsState;
-  focus: "all" | "overdue" | "today" | "updates";
+  focus: "all" | "overdue" | "today" | "updates" | "freetime";
+}
+
+/** Free time over, or ending within ENDING_DAYS: the boxes worth a phone call today. */
+export const freeTimeUrgent = (x: Extras) => x.freeTime.state === "over" || x.freeTime.state === "ending";
+
+/**
+ * The date a job is most urgent by: its soonest open step, or the last free day
+ * on a box whose clock is running, whichever comes first.
+ */
+export function urgentBy(x: Extras): string | null {
+  const live = x.freeTime.state === "running" || x.freeTime.state === "ending" || x.freeTime.state === "over";
+  const free = live ? x.freeTime.lastFreeDay : null;
+  if (!free) return x.soonest;
+  if (!x.soonest) return free;
+  return free < x.soonest ? free : x.soonest;
 }
 
 export const NO_FILTERS: Filters = { query: "", stage: "all", mode: "all", carrier: "all", customs: "any", focus: "all" };
@@ -135,6 +163,7 @@ export function applyFilters(rows: WorkRow[], f: Filters, extras: (id: string) =
     if (f.focus === "overdue" && x.overdue === 0) return false;
     if (f.focus === "today" && x.dueToday === 0) return false;
     if (f.focus === "updates" && x.updates === 0) return false;
+    if (f.focus === "freetime" && !freeTimeUrgent(x)) return false;
     return matches(r, f.query);
   });
 }
@@ -154,8 +183,9 @@ export function sortRows(rows: WorkRow[], key: SortKey, extras: (id: string) => 
   const out = [...rows];
   switch (key) {
     case "urgency":
-      // The soonest open date first — overdue before today before later.
-      return out.sort(by((r) => extras(r.id).soonest, (a, b) => daysBetween(b, a)));
+      // The soonest open date first — overdue before today before later. A
+      // box's last free day counts as a date too (083).
+      return out.sort(by((r) => urgentBy(extras(r.id)), (a, b) => daysBetween(b, a)));
     case "etd":
       return out.sort(by((r) => r.etd, text));
     case "eta":
@@ -220,6 +250,7 @@ export function exportTable(
       { header: "Overdue steps", width: 8 },
       { header: "Customs", width: 12 },
       { header: "Updates waiting", width: 8 },
+      { header: "Free time", width: 24 },
     ],
     rows: rows.map((r) => {
       const x = extras(r.id);
@@ -242,6 +273,7 @@ export function exportTable(
         x.overdue || null,
         x.customs === "none" ? null : CUSTOMS_LABEL[x.customs],
         x.updates || null,
+        x.freeTime.text || null,
       ];
     }),
   };

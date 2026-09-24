@@ -1,4 +1,6 @@
 import { supabase } from "../lib/supabase";
+import type { BoxDates } from "../lib/freeTime";
+import { whereIn } from "./paging";
 
 // The pure half lives in lib/ so a test can load it without Vite's
 // import.meta.env — the same split as applyPlan.ts next to intake.ts.
@@ -52,8 +54,26 @@ export interface ShipmentContainer {
   is_empty: boolean;
   is_coload: boolean;
 
+  // Free time (083): the dates that start and stop each box's clocks.
+  discharged_on: string | null;
+  gate_out_on: string | null;
+  empty_returned_on: string | null;
+  empty_picked_on: string | null;
+  gate_in_on: string | null;
+  loaded_on: string | null;
+
   created_at: string;
   updated_at: string;
+}
+
+export const FREE_TIME_DATES = "shipment_id, is_soc, discharged_on, gate_out_on, empty_returned_on, empty_picked_on, gate_in_on, loaded_on";
+
+/** Each job's boxes, with only what the free-time clock reads — for the worklist. */
+export async function freeTimeBoxes(shipmentIds: string[]): Promise<Array<BoxDates & { shipment_id: string }>> {
+  if (!shipmentIds.length) return [];
+  return (await whereIn("shipment_containers", FREE_TIME_DATES, "shipment_id", shipmentIds)) as unknown as Array<
+    BoxDates & { shipment_id: string }
+  >;
 }
 
 export async function listShipmentContainers(shipmentId: string): Promise<ShipmentContainer[]> {

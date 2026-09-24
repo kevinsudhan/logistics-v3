@@ -23,6 +23,8 @@ export interface DocumentData {
   blNumber?: string;
   /** The carrier's master bill the house bill sits under, where there is one (082). */
   masterBlNumber?: string;
+  /** The free days granted per box, in words (083): "14 days demurrage, 7 days detention". */
+  freeTimeText?: string;
 
   // parties
   shipperName?: string;

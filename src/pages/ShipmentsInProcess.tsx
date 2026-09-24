@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import EnquiryLink from "../components/EnquiryLink";
-import { AlertCircle, ChevronRight, Download, LayoutList, Radar, RefreshCw, Search, Table2, Truck, X } from "lucide-react";
+import { AlertCircle, ChevronRight, Download, LayoutList, Radar, RefreshCw, Search, Table2, Timer, Truck, X } from "lucide-react";
+import { FreeTimePill, needsAttention } from "../components/FreeTime";
+import { appliesTo, clocksFor, sideOf, summarise, type BoxDates } from "../lib/freeTime";
+import { freeTimeBoxes } from "../services/shipmentContainers";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import { openStepsFor, type Checkpoint } from "../services/checkpoints";
@@ -120,6 +123,7 @@ export default function ShipmentsInProcess() {
   const [steps, setSteps] = useState<Checkpoint[]>([]);
   const [customs, setCustoms] = useState<Map<string, Extras["customs"]>>(new Map());
   const [updates, setUpdates] = useState<Map<string, number>>(new Map());
+  const [boxes, setBoxes] = useState<Map<string, BoxDates[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useRemembered<"cards" | "table">("worklist:view", "cards", ["cards", "table"]);
@@ -134,12 +138,16 @@ export default function ShipmentsInProcess() {
       setPeople(who);
       const ids = ships.map((x) => x.id);
       // Best-effort, each of them: the list still shows its jobs without them.
-      const [open, cs, ups] = await Promise.all([
+      const [open, cs, ups, fcl] = await Promise.all([
         openStepsFor(ids).catch(() => [] as Checkpoint[]),
         customsForShipments(ids).catch(() => []),
         waitingUpdatesFor(ids).catch(() => []),
+        freeTimeBoxes(ships.filter((x) => appliesTo(x.transport_mode)).map((x) => x.id)).catch(() => []),
       ]);
       setSteps(open);
+      const byBox = new Map<string, BoxDates[]>();
+      for (const b of fcl) byBox.set(b.shipment_id, [...(byBox.get(b.shipment_id) ?? []), b]);
+      setBoxes(byBox);
       const byJob = new Map<string, Array<{ status: string }>>();
       for (const c of cs) byJob.set(c.shipment_id, [...(byJob.get(c.shipment_id) ?? []), { status: customsStatus(c) }]);
       setCustoms(new Map([...byJob].map(([id, list]) => [id, customsState(list)])));
@@ -199,10 +207,12 @@ export default function ShipmentsInProcess() {
       const w = m.get(r.id) ?? { ...NO_EXTRAS };
       w.customs = customs.get(r.id) ?? "none";
       w.updates = updates.get(r.id) ?? 0;
+      const b = boxes.get(r.id);
+      if (b?.length) w.freeTime = summarise(b.map((box) => clocksFor(sideOf(r.trade_direction), r, box, today)), today);
       m.set(r.id, w);
     }
     return m;
-  }, [steps, rows, customs, updates, today]);
+  }, [steps, rows, customs, updates, boxes, today]);
   const x = useCallback((id: string) => extras.get(id) ?? NO_EXTRAS, [extras]);
 
   const mine = rows.filter((r) => ownedBy(r.assigned_to, owner, session?.userId));
@@ -291,6 +301,11 @@ export default function ShipmentsInProcess() {
         </Chip>
         <Chip active={filters.focus === "updates"} onClick={() => set({ focus: "updates" })}>
           <Radar size={11} /> Updates to confirm <span className="opacity-60">{count({ focus: "updates" })}</span>
+        </Chip>
+        <Chip active={filters.focus === "freetime"} onClick={() => set({ focus: "freetime" })}>
+          <Timer size={11} />
+          <span className={count({ focus: "freetime" }) ? "text-text-danger" : ""}>Free time running out</span>{" "}
+          <span className="opacity-60">{count({ focus: "freetime" })}</span>
         </Chip>
       </div>
 
@@ -406,6 +421,7 @@ function Badges({ w }: { w: Extras }) {
           <Radar size={10} /> {w.updates} to confirm
         </span>
       )}
+      <FreeTimePill summary={w.freeTime} />
     </>
   );
 }
@@ -531,6 +547,11 @@ function WorkTable({ rows, x, people, meId, today }: { rows: ShipmentRow[]; x: (
                     </>
                   ) : (
                     <span className="text-text-muted">Nothing open</span>
+                  )}
+                  {needsAttention(w.freeTime) && (
+                    <span className="mt-1 block">
+                      <FreeTimePill summary={w.freeTime} to={`/shipments/${s.id}/containers`} />
+                    </span>
                   )}
                 </td>
                 <td className="whitespace-nowrap px-2.5 py-2 align-top">

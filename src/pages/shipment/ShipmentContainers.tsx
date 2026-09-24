@@ -16,6 +16,10 @@ import {
   type ShipmentContainer,
 } from "../../services/shipmentContainers";
 import { SectionSkeleton } from "../../components/Loading";
+import { BoxFreeTime, FreeTimeTermsCard } from "../../components/FreeTime";
+import { updateShipment } from "../../services/enquiries";
+import { appliesTo, clocksFor, sideOf, summarise } from "../../lib/freeTime";
+import { todayIST } from "../../lib/progress";
 
 /**
  * The boxes this shipment is travelling in.
@@ -114,7 +118,7 @@ function Flag({
 }
 
 export default function ShipmentContainers() {
-  const { shipment, reload } = useShipment();
+  const { shipment, enquiry, reload } = useShipment();
   const [rows, setRows] = useState<ShipmentContainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +153,13 @@ export default function ShipmentContainers() {
   const edit = (id: string, patch: Partial<ShipmentContainer>) =>
     void run(() => updateShipmentContainer(id, patch));
 
+  // Free time (083): only a full container load has a box on the line's clock.
+  const freeTime = appliesTo(shipment.transport_mode ?? enquiry?.transport_mode);
+  const side = sideOf(shipment.trade_direction ?? enquiry?.trade_direction);
+  const today = todayIST();
+  const clocks = new Map(rows.map((r) => [r.id, clocksFor(side, shipment, r, today)]));
+  const summary = summarise([...clocks.values()], today);
+
   const totals = rows.reduce(
     (t, r) => ({
       packages: t.packages + (r.package_count ?? 0),
@@ -167,6 +178,14 @@ export default function ShipmentContainers() {
           <AlertCircle size={13} className="mt-px shrink-0" />
           {error}
         </div>
+      )}
+
+      {freeTime && (
+        <FreeTimeTermsCard
+          terms={shipment}
+          summary={summary}
+          onSave={(patch) => void run(() => updateShipment(shipment.id, patch as Record<string, unknown>))}
+        />
       )}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -362,6 +381,16 @@ export default function ShipmentContainers() {
                     />
                   </Labelled>
                 </div>
+
+                {freeTime && (
+                  <BoxFreeTime
+                    side={side}
+                    box={c}
+                    clocks={clocks.get(c.id) ?? []}
+                    today={today}
+                    onSave={(patch) => edit(c.id, patch)}
+                  />
+                )}
               </section>
             );
           })}

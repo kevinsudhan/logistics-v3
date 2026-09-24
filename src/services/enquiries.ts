@@ -447,6 +447,16 @@ export interface Shipment {
 
   /** The ship's AIS identity, for following it (072). */
   vessel_mmsi: string | null;
+
+  /* Free time the carrier granted, per box (083; counted in lib/freeTime.ts). */
+  free_time_basis: "separate" | "combined";
+  demurrage_free_days: number | null;
+  detention_free_days: number | null;
+  combined_free_days: number | null;
+  demurrage_rate: number | null;
+  detention_rate: number | null;
+  combined_rate: number | null;
+  dnd_currency: string;
   vessel_imo: string | null;
 
   /* Closed by operations (070). Set and cleared only by the sign-off functions. */
