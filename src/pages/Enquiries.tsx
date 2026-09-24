@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 import AssignContainer from "../components/AssignContainer";
+import EnquiryRegisterDownload from "../components/EnquiryRegisterDownload";
 import { quoteProgress, type QuoteProgress } from "../services/rfq";
 import PageHeader from "../components/PageHeader";
 import NewEnquiry from "../components/NewEnquiry";
@@ -232,6 +233,8 @@ export default function Enquiries() {
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
+
+        <EnquiryRegisterDownload />
       </div>
 
       {/* Two rows of filters, because they answer different questions: whose is
