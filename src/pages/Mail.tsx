@@ -98,6 +98,8 @@ export default function Mail() {
    * under the second message's header. A counter can.
    */
   const openReq = useRef(0);
+  /** The reading pane, so a message opened from deep in a long thread starts at its top. */
+  const reader = useRef<HTMLDivElement>(null);
   /** The desk, so a message can be handed straight to a colleague. */
   const [people, setPeople] = useState<Person[]>([]);
   /**
@@ -328,6 +330,11 @@ export default function Mail() {
   async function open(m: MailMessage) {
     setSelectedId(m.id);
 
+    // Reading a long thread scrolls the page; the next message opened from the
+    // pinned list should start at its own top, not part-way down.
+    const top = reader.current?.getBoundingClientRect().top;
+    if (top !== undefined && top < 0) window.scrollBy({ top: top - 72 });
+
     // The body has to be fetched; the row does not have one.
     loadBody(m.id);
 
@@ -493,8 +500,14 @@ export default function Mail() {
       {/* Two panes now, not three. The list keeps a readable column and the
           message takes everything else. */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] gap-3 items-start">
-        {/* ---- message list ---- */}
-        <div className="card overflow-hidden">
+        {/*
+          ---- message list ----
+          Pinned under the top bar on a wide screen. A long thread scrolls the
+          page, and the list used to scroll away with it — so the way back to
+          the inbox was to scroll a whole thread back up. It now stays where it
+          is, sized to the window, and scrolls on its own.
+        */}
+        <div className="card flex flex-col overflow-hidden lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)]">
           {loading && messages.length === 0 ? (
             <ListSkeleton bare rows={7} />
           ) : messages.length === 0 ? (
@@ -502,7 +515,7 @@ export default function Mail() {
               {query ? "Nothing matches that search." : "Nothing in this folder."}
             </p>
           ) : (
-            <ul className="divide-y divide-border max-h-[calc(100vh-260px)] min-h-[300px] overflow-y-auto">
+            <ul className="divide-y divide-border max-h-[calc(100vh-260px)] min-h-[300px] overflow-y-auto overscroll-contain lg:max-h-none lg:min-h-0 lg:flex-1">
               {messages.map((m) => (
                 <MailListRow
                   key={m.id}
@@ -544,7 +557,7 @@ export default function Mail() {
         </div>
 
         {/* ---- reading pane ---- */}
-        <div className="card p-5 min-h-[320px]">
+        <div ref={reader} className="card p-5 min-h-[320px]">
           {!selected ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-16">
               <MailIcon size={22} className="text-text-muted mb-2" />
@@ -566,7 +579,12 @@ export default function Mail() {
 
               <ShipmentLinks text={`${selected.subject} ${selected.body.content}`} />
 
-              <div className="mt-4 flex flex-wrap items-start gap-2">
+              {/*
+                Pinned under the top bar while the thread scrolls, so replying
+                to the end of a long thread does not mean scrolling back to its
+                start first.
+              */}
+              <div className="sticky top-14 z-10 -mx-5 mt-4 flex flex-wrap items-start gap-2 border-b border-transparent bg-surface-1/95 px-5 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface-1/85">
                 <button
                   onClick={() => setComposing({ replyTo: selected })}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark text-white text-[12px] font-medium transition-colors"
