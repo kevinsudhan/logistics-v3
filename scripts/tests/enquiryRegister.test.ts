@@ -1,4 +1,4 @@
-import { agentAndRate, hintOf, inPeriod, periodText, presetRange, portOf, REGISTER_COLUMNS, registerRow, registerSheet, registerStatus, termOf, type RegisterInput } from "../../src/lib/enquiryRegister";
+import { agentAndRate, categoryOf, hintOf, inPeriod, periodText, presetRange, portOf, REGISTER_COLUMNS, registerRow, registerSheet, registerStatus, registerWorkbook, termOf, type RegisterInput } from "../../src/lib/enquiryRegister";
 import { buildWorkbook, reportRowHeight } from "../../src/lib/xlsx";
 
 /**
@@ -101,6 +101,7 @@ const shipment: NonNullable<RegisterInput["shipment"]> = {
   bl_type: "forwarder",
   console_id: null,
   cancelled: false,
+  delivered: false,
   signed_off: false,
 };
 const booked = { ...base, shipment, stageText: "Booked", nextStep: "BL draft", coloader: "CCI", cfsInr: 2280 };
@@ -149,6 +150,23 @@ is("an ampersand in a name is escaped", xml.includes("AAKARSH AIR &amp; SEA"), t
 is("empty cells still carry the grid", xml.includes('<c r="K7" s='), true);
 is("a long note makes a taller row", reportRowHeight(["x".repeat(100)], [{ header: "H", width: 40, kind: "wrap" }]), 43);
 is("short text leaves the row alone", reportRowHeight(["short"], [{ header: "H", width: 40, kind: "wrap" }]), null);
+
+console.log("\ninbound, in process, completed");
+is("no shipment: inbound", categoryOf(base), "inbound");
+is("declined or lost: not proceeding", [categoryOf({ ...base, enquiry: { ...base.enquiry, status: "declined" } }), categoryOf({ ...base, enquiry: { ...base.enquiry, status: "lost" } })], ["not_proceeding", "not_proceeding"]);
+is("a shipment under way: in process", categoryOf(booked), "in_process");
+is("delivered: completed", categoryOf({ ...booked, shipment: { ...shipment, delivered: true } }), "completed");
+is("cancelled: not proceeding", categoryOf({ ...booked, shipment: { ...shipment, cancelled: true } }), "not_proceeding");
+const meta = { company: "Aashish Logistics Global Pvt Ltd", from: null, to: null, generatedAt: new Date(2026, 8, 24, 10, 0), generatedBy: "Aarathy" };
+const done = { ...booked, enquiry: { ...booked.enquiry, ref: "ALG09002-26" }, shipment: { ...shipment, delivered: true, signed_off: true } };
+const wb = registerWorkbook([base, booked, done], meta);
+is("summary, then a sheet for each", wb.map((x) => x.name), ["Summary", "Inbound", "In process", "Completed"]);
+is("each sheet holds its own", wb.slice(1).map((x) => x.rows.map((r) => r[3])), [["ALG09003-26"], ["ALG09003-26"], ["ALG09002-26"]]);
+is("the summary counts them", wb[0].rows.filter((r) => !String(r[0]).startsWith(" ")).map((r) => [r[0], r[1]]), [["Inbound", 1], ["In process", 1], ["Completed", 1], ["Total", 3]]);
+is("completed split by closing", wb[0].rows.some((r) => String(r[0]).trim() === "Closed (signed off)" && r[1] === 1), true);
+is("a not-proceeding sheet only when there is one", registerWorkbook([base, { ...base, enquiry: { ...base.enquiry, status: "lost" } }], meta).map((x) => x.name), ["Summary", "Inbound", "In process", "Completed", "Not proceeding"]);
+is("sheet titles say which", wb[2].report?.title, "Enquiry register — in process");
+is("the file opens with every sheet", (new TextDecoder().decode(buildWorkbook(wb)).match(/<sheet name=/g) ?? []).length, 4);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

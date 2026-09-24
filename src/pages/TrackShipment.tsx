@@ -7,6 +7,7 @@ import ShipmentRouteMap from "../components/ShipmentRouteMap";
 import { trackingByToken, trackPointsByToken, type PublicTracking } from "../services/tracking";
 import { customsByToken, type PublicCustoms } from "../services/customs";
 import { SectionSkeleton } from "../components/Loading";
+import { COMPANY, MAIL_LOGO_PATH } from "../lib/company";
 
 /**
  * The customer's tracking page: /t/:token, no account needed.
@@ -22,32 +23,38 @@ import { SectionSkeleton } from "../components/Loading";
  * It reads again every five minutes while it is open, and when the tab comes
  * back into view, so a customer who leaves it open sees the flight land.
  *
- * The same plain shell as the quotation page: somebody opening it on a phone
- * from a mail should see their shipment, not an application.
+ * The same shell as the quotation page and the mails — the logo on navy, the
+ * blue rule, the registered details at the foot: somebody opening it on a
+ * phone from a mail should see their shipment, from the company that sent it,
+ * not an application.
  * ---------------------------------------------------------------------------
  */
 
 const INK = "#1f2937";
 const MUTED = "#6b7280";
 const FAINT = "#9ca3af";
-const BRAND = "#2f4f6f";
+const BRAND = "#0F213A";
 const DONE = "#2f7a4f";
 
 const REFRESH_MS = 5 * 60_000;
 
-const day = (d: string | null | undefined, time?: string | null) =>
-  d
-    ? `${new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}${
-        time ? `, ${time.slice(0, 5)}` : ""
-      }`
-    : null;
+// Months spelled here rather than by the locale, which writes "Sept" on some systems: the
+// mails and the quotation say "Sep", and one customer reading both should see one format.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const day = (d: string | null | undefined, time?: string | null) => {
+  if (!d) return null;
+  const [y, m, dd] = d.slice(0, 10).split("-").map(Number);
+  return `${dd} ${MONTHS[m - 1]} ${y}${time ? `, ${time.slice(0, 5)}` : ""}`;
+};
 
 /** A moment, or only its day when no time was recorded (filed as local midnight). */
 const moment = (iso: string | null | undefined) => {
   if (!iso) return null;
   const d = new Date(iso);
   const dayOnly = d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
-  return d.toLocaleString("en-GB", { day: "numeric", month: "short", ...(dayOnly ? {} : { hour: "2-digit", minute: "2-digit" }) });
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${dayOnly ? "" : `, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`}`;
 };
 
 function ago(iso: string): string {
@@ -94,14 +101,15 @@ export default function TrackShipment() {
   const air = mode === "air";
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] px-4 py-8" style={{ color: INK }}>
-      <div className="mx-auto w-full max-w-[680px]">
-        <header className="rounded-t-xl px-6 py-5 text-white" style={{ background: BRAND }}>
-          <p className="text-[22px] font-bold tracking-wide">SHIPMENT TRACKING</p>
-          <p className="mt-0.5 text-[12.5px] opacity-90">Aashish Logistics Global</p>
+    <div className="min-h-screen bg-[#eef2f7] px-4 py-8" style={{ color: INK }}>
+      <div className="mx-auto w-full max-w-[680px] overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_12px_32px_-18px_rgba(15,33,58,0.35)]">
+        <header className="px-6 pb-5 pt-6 text-white sm:px-7" style={{ background: BRAND }}>
+          <img src={MAIL_LOGO_PATH} alt={COMPANY.legalName} width={300} className="block h-auto w-[300px] max-w-full" />
+          <p className="mt-5 border-t border-[#24395a] pt-4 text-[20px] font-extrabold tracking-[0.16em]">SHIPMENT TRACKING</p>
         </header>
+        <div className="h-1 bg-[#1670b0]" />
 
-        <main className="rounded-b-xl border border-t-0 border-[#e5e7eb] bg-white px-5 py-6 sm:px-6">
+        <main className="px-5 py-6 sm:px-7">
           {!t && !failed ? (
             <SectionSkeleton lines={4} label="Loading the shipment" className="py-6" />
           ) : !t || t.state === "unknown" ? (
@@ -118,10 +126,18 @@ export default function TrackShipment() {
             <Shipment t={t} mode={mode} air={air} token={token} />
           )}
         </main>
-        <p className="mt-3 text-center text-[11px]" style={{ color: FAINT }}>
-          This page updates by itself. No login is needed.
-        </p>
+
+        <footer className="border-t border-[#e2e8f0] bg-[#f6f8fb] px-6 py-4 text-[11.5px] leading-relaxed text-[#64748b] sm:px-7">
+          <p className="text-[12.5px] font-bold text-[#0F213A]">{COMPANY.legalName}</p>
+          <p>{COMPANY.address.join(", ")}</p>
+          <p>
+            Tel {COMPANY.phone} · {COMPANY.website}
+          </p>
+        </footer>
       </div>
+      <p className="mt-3 text-center text-[11px]" style={{ color: FAINT }}>
+        This page updates by itself. No login is needed.
+      </p>
     </div>
   );
 }

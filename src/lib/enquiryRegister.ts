@@ -24,6 +24,14 @@ import type { CellValue, Column, Sheet } from "./xlsx";
  *                      an enquiry from the queue they begin with the whole
  *                      first mail, which would make one row a page tall
  *
+ * THE THREE KINDS, AND THE REST
+ *
+ * The workbook has a sheet for each place an enquiry can be: inbound (no
+ * shipment yet), in process (a shipment not yet delivered) and completed
+ * (delivered) — the same three the Inbound, In-process and Completed pages
+ * list — and one more, only when there is anything on it, for what did not go
+ * ahead: declined, lost, or a shipment cancelled.
+ *
  * Pure, so it is tested without a database: src/services/enquiryRegister.ts
  * reads the records and hands them here.
  * ---------------------------------------------------------------------------
@@ -78,6 +86,7 @@ export interface RegisterInput {
     bl_type: "house" | "forwarder" | null;
     console_id: string | null;
     cancelled: boolean;
+    delivered: boolean;
     signed_off: boolean;
   } | null;
   /** The shipment's stage in words ("Booked"), worked out by the caller. */
@@ -299,27 +308,88 @@ export const inPeriod = (i: RegisterInput, from: string | null, to: string | nul
   return (!from || d >= from) && (!to || d <= to);
 };
 
-/** The whole sheet, oldest first as the register was kept. */
-export function registerSheet(
-  inputs: RegisterInput[],
-  meta: { company: string; from: string | null; to: string | null; generatedAt: Date; generatedBy: string | null }
-): Sheet {
-  const sorted = [...inputs].sort((a, b) => registerDay(a).localeCompare(registerDay(b)) || a.enquiry.ref.localeCompare(b.enquiry.ref));
+export type RegisterCategory = "inbound" | "in_process" | "completed" | "not_proceeding";
+
+export const CATEGORY_LABEL: Record<RegisterCategory, string> = {
+  inbound: "Inbound",
+  in_process: "In process",
+  completed: "Completed",
+  not_proceeding: "Not proceeding",
+};
+
+/** Where an enquiry stands: the same split as the Inbound, In-process and Completed pages. */
+export function categoryOf(i: RegisterInput): RegisterCategory {
+  const s = i.shipment;
+  if (s) return s.cancelled ? "not_proceeding" : s.delivered ? "completed" : "in_process";
+  return i.enquiry.status === "declined" || i.enquiry.status === "lost" ? "not_proceeding" : "inbound";
+}
+
+type Meta = { company: string; from: string | null; to: string | null; generatedAt: Date; generatedBy: string | null };
+
+const generatedLine = (meta: Meta) => {
   const g = meta.generatedAt;
   const when = `${longDay(`${g.getFullYear()}-${g.getMonth() + 1}-${g.getDate()}`)}, ${String(g.getHours()).padStart(2, "0")}:${String(g.getMinutes()).padStart(2, "0")}`;
+  return `Generated ${when}${meta.generatedBy ? ` by ${meta.generatedBy}` : ""}`;
+};
+
+/** The whole sheet, oldest first as the register was kept. */
+export function registerSheet(inputs: RegisterInput[], meta: Meta, part?: { name: string; title: string }): Sheet {
+  const sorted = [...inputs].sort((a, b) => registerDay(a).localeCompare(registerDay(b)) || a.enquiry.ref.localeCompare(b.enquiry.ref));
+  const title = part?.title ?? "Enquiry register";
   return {
-    name: "Enquiry register",
+    name: part?.name ?? "Enquiry register",
     columns: REGISTER_COLUMNS,
     rows: sorted.map((i, k) => registerRow(k + 1, i)),
     report: {
-      title: "Enquiry register",
-      lines: [
-        meta.company,
-        `${periodText(meta.from, meta.to)} · ${sorted.length} ${sorted.length === 1 ? "enquiry" : "enquiries"}`,
-        `Generated ${when}${meta.generatedBy ? ` by ${meta.generatedBy}` : ""}`,
-      ],
+      title,
+      lines: [meta.company, `${periodText(meta.from, meta.to)} · ${sorted.length} ${sorted.length === 1 ? "enquiry" : "enquiries"}`, generatedLine(meta)],
       freezeColumns: 4,
+      footer: `${meta.company} — ${title}`,
+    },
+  };
+}
+
+/**
+ * The register as one workbook: a summary, then a sheet each for inbound, in
+ * process and completed, and one for what did not proceed when there is any.
+ */
+export function registerWorkbook(inputs: RegisterInput[], meta: Meta): Sheet[] {
+  const by: Record<RegisterCategory, RegisterInput[]> = { inbound: [], in_process: [], completed: [], not_proceeding: [] };
+  for (const i of inputs) by[categoryOf(i)].push(i);
+
+  const count = (list: RegisterInput[], f: (i: RegisterInput) => string) => {
+    const m = new Map<string, number>();
+    for (const i of list) m.set(f(i), (m.get(f(i)) ?? 0) + 1);
+    return [...m.entries()];
+  };
+  const rows: CellValue[][] = [];
+  const block = (cat: RegisterCategory, parts: Array<[string, number]>) => {
+    rows.push([CATEGORY_LABEL[cat], by[cat].length]);
+    for (const [label, n] of parts) rows.push([`   ${label}`, n]);
+  };
+  block("inbound", count(by.inbound, (i) => registerStatus(i)));
+  block("in_process", count(by.in_process, (i) => i.stageText ?? "Booked"));
+  block(
+    "completed",
+    count(by.completed, (i) => (i.shipment?.signed_off ? "Closed (signed off)" : "Delivered, not yet closed"))
+  );
+  if (by.not_proceeding.length) block("not_proceeding", count(by.not_proceeding, (i) => registerStatus(i)));
+  rows.push(["Total", inputs.length]);
+
+  const summary: Sheet = {
+    name: "Summary",
+    columns: [
+      { header: "WHERE THEY STAND", width: 40, kind: "text" },
+      { header: "ENQUIRIES", width: 14, kind: "number" },
+    ],
+    rows,
+    report: {
+      title: "Enquiry register — summary",
+      lines: [meta.company, `${periodText(meta.from, meta.to)} · ${inputs.length} ${inputs.length === 1 ? "enquiry" : "enquiries"}`, generatedLine(meta)],
       footer: `${meta.company} — Enquiry register`,
     },
   };
+
+  const cats: RegisterCategory[] = ["inbound", "in_process", "completed", ...(by.not_proceeding.length ? (["not_proceeding"] as RegisterCategory[]) : [])];
+  return [summary, ...cats.map((c) => registerSheet(by[c], meta, { name: CATEGORY_LABEL[c], title: `Enquiry register — ${CATEGORY_LABEL[c].toLowerCase()}` }))];
 }

@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { downloadWorkbook } from "../lib/xlsx";
-import { inPeriod, registerSheet, type RegisterInput } from "../lib/enquiryRegister";
+import { inPeriod, registerWorkbook, type RegisterInput } from "../lib/enquiryRegister";
 import { stageLabel, type ShipmentStage } from "./enquiries";
 import { all, group, num, str, whereIn, type Row } from "./paging";
 
@@ -12,7 +12,7 @@ import { all, group, num, str, whereIn, type Row } from "./paging";
  * batches. The rows are shaped in src/lib/enquiryRegister.ts.
  */
 
-const COMPANY = "Aashish Logistics Global";
+const COMPANY = "Aashish Logistics Global Pvt Ltd";
 
 /** The register's rows for a period (either end open), in no particular order. */
 export async function enquiryRegister(from: string | null, to: string | null): Promise<RegisterInput[]> {
@@ -137,6 +137,7 @@ export async function enquiryRegister(from: string | null, to: string | null): P
             bl_type: (s.bl_type ?? null) as "house" | "forwarder" | null,
             console_id: str(s.console_id),
             cancelled: s.stage === "cancelled",
+            delivered: s.stage === "delivered",
             signed_off: Boolean(s.signed_off_at),
           }
         : null,
@@ -149,13 +150,15 @@ export async function enquiryRegister(from: string | null, to: string | null): P
   });
 }
 
-/** Read the register and save it as a workbook. Returns how many enquiries it holds. */
+/**
+ * Read the register and save it as a workbook: a summary, then inbound, in
+ * process and completed on sheets of their own. Returns how many enquiries it
+ * holds.
+ */
 export async function downloadEnquiryRegister(from: string | null, to: string | null, generatedBy: string | null): Promise<number> {
   const inputs = await enquiryRegister(from, to);
   const today = new Date().toISOString().slice(0, 10);
   const span = from || to ? `${from ?? "start"}-to-${to ?? today}` : "all";
-  downloadWorkbook(`enquiry-register-${span}.xlsx`, [
-    registerSheet(inputs, { company: COMPANY, from, to, generatedAt: new Date(), generatedBy }),
-  ]);
+  downloadWorkbook(`enquiry-register-${span}.xlsx`, registerWorkbook(inputs, { company: COMPANY, from, to, generatedAt: new Date(), generatedBy }));
   return inputs.length;
 }

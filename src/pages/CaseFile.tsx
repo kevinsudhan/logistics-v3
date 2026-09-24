@@ -701,7 +701,7 @@ export default function CaseFile() {
 const BOARD_NAMES: Record<string, string> = {
   "/my-enquiries": "My enquiries",
   "/enquiries": "Inbound enquiries",
-  "/intake": "Enquiries queue",
+  "/intake": "Enquiries",
   "/oversight": "Team oversight",
   "/mail": "Mail",
   "/": "Overview",

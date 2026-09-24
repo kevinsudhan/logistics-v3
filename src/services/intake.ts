@@ -264,6 +264,20 @@ export async function assignMessageTo(m: MailMessage, userId: string): Promise<E
   return promoteIntake(row.id, undefined, false, userId);
 }
 
+/**
+ * A message straight onto the inbound board: queued and pushed through in one
+ * press, for whoever takes it. The desk decides from the mail itself, so a
+ * stop in a queue between the two was a stop nobody made.
+ *
+ * Not merged into one call, for the same reason as below: if the push is
+ * refused (no name to open it under), the row waits in the queue, and the
+ * Enquiries page lists what is waiting.
+ */
+export async function sendMessageToInbound(m: MailMessage): Promise<Enquiry> {
+  const row = await captureMessage(m);
+  return promoteIntake(row.id);
+}
+
 export async function takeMessageOn(m: MailMessage): Promise<Enquiry> {
   const row = await captureMessage(m);
   return promoteIntake(row.id, undefined, true);

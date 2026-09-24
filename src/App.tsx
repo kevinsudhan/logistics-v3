@@ -46,7 +46,7 @@ const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"
 const Consoles = lazy(() => import("./pages/Consoles"));
 const Documentation = lazy(() => import("./pages/Documentation"));
 const Mail = lazy(() => import("./pages/Mail"));
-const Intake = lazy(() => import("./pages/Intake"));
+const EnquiriesOverview = lazy(() => import("./pages/EnquiriesOverview"));
 const Enquiries = lazy(() => import("./pages/Enquiries"));
 const MyEnquiries = lazy(() => import("./pages/MyEnquiries"));
 const Oversight = lazy(() => import("./pages/Oversight"));
@@ -149,7 +149,7 @@ export default function App() {
             <Route path="/space-containers" element={<Navigate to="/sailing-schedule" replace />} />
             <Route path="/documentation" element={<Documentation />} />
             <Route path="/mail" element={<Mail />} />
-            <Route path="/intake" element={<Intake />} />
+            <Route path="/intake" element={<EnquiriesOverview />} />
             <Route path="/enquiries" element={<Enquiries />} />
             <Route path="/my-enquiries" element={<MyEnquiries />} />
             <Route path="/oversight" element={<Oversight />} />

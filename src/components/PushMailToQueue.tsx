@@ -8,8 +8,8 @@ import ReadingPanel from "./ReadingPanel";
 import Drafting from "./Drafting";
 import {
   assignMessageTo,
-  captureMessage,
   promoteIntake,
+  sendMessageToInbound,
   takeMessageOn,
   type Intake,
   type IntakeStatus,
@@ -24,18 +24,19 @@ import type { MailMessage } from "../services/backend";
  * ---------------------------------------------------------------------------
  * TWO ACTIONS, BECAUSE THERE ARE TWO SITUATIONS
  *
- * Send to enquiries is for mail you have not decided about. It costs nothing:
- * the row can be corrected, set aside or reopened, and no reference is
- * allocated until somebody pushes it through.
+ * Send to inbound opens an enquiry from the message on the shared inbound
+ * board, under a reference of ours, for whoever takes it. The desk decides
+ * from the mail itself, so it no longer stops in a queue first; if the push is
+ * refused (nothing to name it by), the message waits on the Enquiries page.
  *
- * My enquiries is for mail you have just read and know is yours. It queues,
- * pushes through and claims in one press, through the same functions and
- * leaving the same trail — somebody reading the timeline afterwards cannot tell
- * which button was used, and should not need to. It is named after the page it
- * puts the enquiry on, because that is the choice being made: the shared queue,
- * or your own list.
+ * My enquiries is for mail you have just read and know is yours: the same, and
+ * claimed in the same press, so it lands on your own list.
  *
- * Only the queue action appears on a list row. Two icons per row in a 200px
+ * Both go through the same functions and leave the same trail — somebody
+ * reading the timeline afterwards cannot tell which button was used, and
+ * should not need to.
+ *
+ * Only Send to inbound appears on a list row. Two icons per row in a 200px
  * column would make the list about its buttons, and the judgement that justifies
  * claiming something is one you make with the message open.
  *
@@ -47,19 +48,14 @@ import type { MailMessage } from "../services/backend";
  * places to fix the day the wording or the guard changes, so it is one
  * component that renders narrow or wide.
  *
- * WHY IT DOES NOT OPEN AN ENQUIRY DIRECTLY
+ * THE TRAIL
  *
- * Mail used to become an enquiry the moment you pressed the button, which meant
- * a reference was allocated for a morning's inbox of replies and circulars.
- * Every route now goes through the queue instead, and this is the only one left
- * from mail.
- *
- * Nothing is allocated here. The row can be corrected or set aside, and the
- * conversation id travels with it so that when it is eventually pushed through,
- * every later reply in the thread files itself against the new reference.
+ * Every route still passes through intake and is promoted by the same function
+ * under the same guards, and the conversation id travels with it, so every
+ * later reply in the thread files itself against the new reference.
  *
  * A submission from the website's own form is recognised and read on the way
- * in, so it arrives in the queue with its fields already filled.
+ * in, so it arrives with its fields already filled.
  * ---------------------------------------------------------------------------
  */
 export default function PushMailToQueue({
@@ -171,7 +167,8 @@ export default function PushMailToQueue({
     }
   }
 
-  const push = () => run("queue", () => captureMessage(message));
+  /** Onto the inbound board, for whoever takes it (or push the row already waiting). */
+  const push = () => run("queue", () => (queued ? promoteIntake(queued.id) : sendMessageToInbound(message)));
 
   /**
    * Queue it, push it through and take it on.
@@ -313,7 +310,7 @@ export default function PushMailToQueue({
   // Already dealt with. Say which, and where it went.
   if (queued) {
     const label: Record<IntakeStatus, string> = {
-      new: "In the queue",
+      new: "Waiting — push it through",
       promoted: queued.enquiry_ref ?? "Pushed through",
       dismissed: "Set aside",
     };
@@ -392,8 +389,8 @@ export default function PushMailToQueue({
           void push();
         }}
         disabled={busy !== null}
-        title={error ?? "Send to the enquiries queue"}
-        aria-label="Send to the enquiries queue"
+        title={error ?? "Send to inbound enquiries"}
+        aria-label="Send to inbound enquiries"
         className={`grid size-6 place-items-center rounded transition-colors disabled:opacity-50 ${
           error
             ? "text-text-danger"
@@ -435,7 +432,7 @@ export default function PushMailToQueue({
           ) : (
             <ClipboardList size={13} />
           )}
-          {web ? "Send this enquiry through" : "Send to enquiries"}
+          {web ? "Send this enquiry through" : "Send to inbound"}
         </button>
 
         {/*

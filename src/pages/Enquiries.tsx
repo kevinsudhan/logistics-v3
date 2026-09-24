@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import EnquiryLink from "../components/EnquiryLink";
 import {
   AlertCircle,
@@ -13,7 +13,6 @@ import {
   Truck,
 } from "lucide-react";
 import AssignContainer from "../components/AssignContainer";
-import EnquiryRegisterDownload from "../components/EnquiryRegisterDownload";
 import { quoteProgress, type QuoteProgress } from "../services/rfq";
 import PageHeader from "../components/PageHeader";
 import NewEnquiry from "../components/NewEnquiry";
@@ -235,7 +234,6 @@ export default function Enquiries() {
           Refresh
         </button>
 
-        <EnquiryRegisterDownload />
       </div>
 
       {/* Two rows of filters, because they answer different questions: whose is
@@ -457,11 +455,8 @@ export default function Enquiries() {
           {unfiled.length > 0 && <span className="text-text-muted">{unfiled.length}</span>}
         </h2>
         <p className="mb-2 text-[12px] text-text-secondary">
-          Sending one of these on puts it in the{" "}
-          <Link to="/intake" className="text-text-accent hover:underline">
-            enquiries queue
-          </Link>
-          , where it is pushed through to a reference once somebody has read it.
+          Sending one of these on makes it an inbound enquiry under a reference of ours, on this board for
+          whoever takes it; My enquiries puts it on your own list instead.
         </p>
 
         {!mailIsLive() ? (
