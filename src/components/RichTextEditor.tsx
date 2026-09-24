@@ -301,19 +301,38 @@ function ToolButton({
 // Sanitising
 // ---------------------------------------------------------------------------
 
-/** Tags a mail client will actually render. Everything else is unwrapped. */
+/**
+ * Tags a mail client will actually render. Everything else is unwrapped.
+ *
+ * The table parts are all here — head, foot and header cells too — because a
+ * designed mail (the quotation) is laid out in tables, and it opens in this
+ * editor to be written into. Unwrapping a <th> the moment somebody typed in
+ * the covering note collapsed the whole quotation into loose text.
+ */
 const ALLOWED = new Set([
   "A", "B", "STRONG", "I", "EM", "U", "BR", "DIV", "P", "SPAN",
-  "IMG", "UL", "OL", "LI", "TABLE", "TBODY", "TR", "TD", "FONT",
+  "IMG", "UL", "OL", "LI", "TABLE", "THEAD", "TBODY", "TFOOT", "TR", "TH", "TD", "FONT",
 ]);
 
+/** The presentational attributes email layout is built from; none of them runs anything. */
+const CELL_ATTRS = ["style", "align", "valign", "width", "height", "colspan", "rowspan", "bgcolor"];
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
-  A: new Set(["href", "target", "rel"]),
+  A: new Set(["href", "target", "rel", "style"]),
   IMG: new Set(["src", "alt", "width", "height", "style"]),
   SPAN: new Set(["style"]),
   DIV: new Set(["style"]),
   P: new Set(["style"]),
-  TD: new Set(["style", "align", "valign"]),
+  STRONG: new Set(["style"]),
+  OL: new Set(["style"]),
+  UL: new Set(["style"]),
+  LI: new Set(["style"]),
+  TABLE: new Set(["role", "width", "cellpadding", "cellspacing", "border", "bgcolor", "align", "style"]),
+  THEAD: new Set(["style"]),
+  TBODY: new Set(["style"]),
+  TFOOT: new Set(["style"]),
+  TR: new Set(["style", "bgcolor"]),
+  TD: new Set(CELL_ATTRS),
+  TH: new Set(CELL_ATTRS),
   FONT: new Set(["color", "face", "size"]),
 };
 
@@ -363,8 +382,23 @@ const STYLE_ALLOWED = new Set([
   "padding-right",
   "border",
   "border-left",
+  "border-right",
+  "border-top",
+  "border-bottom",
+  "border-color",
+  "border-radius",
   "border-collapse",
   "vertical-align",
+  // What a designed mail is drawn with. url() is refused below, so a
+  // background here is a colour and never a fetch.
+  "background",
+  "letter-spacing",
+  "text-transform",
+  "white-space",
+  "word-break",
+  "list-style-type",
+  "display",
+  "overflow",
 ]);
 
 export function sanitiseStyle(value: string): string {
@@ -424,6 +458,11 @@ export function sanitise(html: string): string {
           const v = attr.value.trim().toLowerCase();
           if (!/^https?:/.test(v)) child.removeAttribute("src");
         }
+        // A colour, and nothing that could be read as anything else.
+        if (attr.name.toLowerCase() === "bgcolor" && !/^(#[0-9a-f]{3,8}|[a-z]+)$/i.test(attr.value.trim())) {
+          child.removeAttribute("bgcolor");
+          continue;
+        }
         if (attr.name.toLowerCase() === "style") {
           const cleaned = sanitiseStyle(attr.value);
           if (cleaned) child.setAttribute("style", cleaned);
@@ -445,8 +484,12 @@ export function sanitise(html: string): string {
         if (!/max-width/i.test(style)) {
           child.setAttribute("style", `${style ? style + ";" : ""}max-width:220px;height:auto`);
         }
-        // width/height attributes fight the style rule and win in some clients.
-        child.removeAttribute("width");
+        // width/height attributes fight the style rule and win in some clients —
+        // but Outlook sizes an image by its width attribute alone, so a small
+        // one (a logo drawn at 300 from a 640px file) stays, and anything
+        // larger goes.
+        const w = Number(child.getAttribute("width"));
+        if (!(Number.isFinite(w) && w > 0 && w <= 320)) child.removeAttribute("width");
         child.removeAttribute("height");
       }
 

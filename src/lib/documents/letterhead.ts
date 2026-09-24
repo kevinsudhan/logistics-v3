@@ -1,5 +1,6 @@
 import type { jsPDF } from "jspdf";
 import { AASHISH_MARK_PNG } from "./mark";
+import { COMPANY } from "../company";
 
 /**
  * The page, the palette and the letterhead every document shares.
@@ -32,17 +33,8 @@ export const RULE: [number, number, number] = [214, 216, 206];
 export const TINT: [number, number, number] = [241, 242, 237];
 export const WARN: [number, number, number] = [150, 70, 20];
 
-/** The issuer, as it appears on the letterhead. */
-export const COMPANY = {
-  name: "AASHISH LOGISTICS GLOBAL",
-  tagline: "Freight forwarding, consolidation & customs documentation",
-  address: [
-    "The Calamine Canary Building, No.55, 3B, 3rd Floor",
-    "W-Block, 3rd Main Road, Anna Nagar, Chennai 600040",
-  ],
-  contact: ["Tel: 044-4811 6348", "www.aashishlogisticsglobal.com"],
-  gst: "GSTIN: 33ABDCA2229C1ZD",
-};
+/** The issuer, as it appears on the letterhead (src/lib/company.ts). */
+export { COMPANY };
 
 /**
  * The mark, the name, and the address block, with a rule under them.

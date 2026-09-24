@@ -1,4 +1,6 @@
 import { supabase } from "../lib/supabase";
+import { bytesToBase64 } from "../lib/base64";
+import { brandImages, imageType, withContentIds } from "../lib/inlineBrand";
 import type { FolderId, MailMessage, Recipient } from "./mockMail";
 import {
   isEmbeddedImage,
@@ -521,6 +523,9 @@ export interface OutgoingAttachment {
   name: string;
   contentType: string;
   contentBytes: string;
+  /** Shown in the body as `cid:<contentId>` rather than listed as a file. */
+  isInline?: boolean;
+  contentId?: string;
 }
 
 /**
@@ -562,8 +567,39 @@ function attachmentPayload(list: OutgoingAttachment[] | undefined) {
       name: a.name,
       contentType: a.contentType,
       contentBytes: a.contentBytes,
+      ...(a.isInline ? { isInline: true, contentId: a.contentId } : {}),
     })),
   };
+}
+
+/**
+ * The body and attachments as they go: our logo carried inside the message.
+ *
+ * See lib/inlineBrand.ts. An image that cannot be fetched is left as the link
+ * it was — a logo the reader has to click to see is still better than a send
+ * that fails over it.
+ */
+async function outgoing(content: string, attachments: OutgoingAttachment[] | undefined): Promise<{ content: string; attachments: OutgoingAttachment[] }> {
+  const found = brandImages(content, window.location.origin);
+  const inline: OutgoingAttachment[] = [];
+  const embedded = [];
+  for (const img of found) {
+    try {
+      const r = await fetch(new URL(img.src, window.location.origin).toString());
+      if (!r.ok) continue;
+      inline.push({
+        name: img.file,
+        contentType: imageType(img.file),
+        contentBytes: bytesToBase64(new Uint8Array(await r.arrayBuffer())),
+        isInline: true,
+        contentId: img.contentId,
+      });
+      embedded.push(img);
+    } catch {
+      // Left as a link.
+    }
+  }
+  return { content: withContentIds(content, embedded), attachments: [...(attachments ?? []), ...inline] };
 }
 
 /**
@@ -603,15 +639,16 @@ export async function sendTracked(input: {
   attachments?: OutgoingAttachment[];
 }): Promise<{ conversationId: string; draftId: string }> {
   const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
+  const out = await outgoing(input.content, input.attachments);
 
   const draft = await graph<{ id: string; conversationId: string }>("/me/messages", {
     method: "POST",
     body: JSON.stringify({
       subject: input.subject,
-      body: { contentType: "HTML", content: asOutgoingHtml(input.content) },
+      body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
-      ...attachmentPayload(input.attachments),
+      ...attachmentPayload(out.attachments),
     }),
   });
 
@@ -749,7 +786,8 @@ export async function replyTracked(input: {
 
   // Before the draft exists, so an oversized attachment does not leave one
   // behind in the mailbox.
-  const files = attachmentPayload(input.attachments);
+  const out = await outgoing(input.content, input.attachments);
+  const files = attachmentPayload(out.attachments);
 
   const draft = await graph<{ id: string; conversationId: string }>(
     `/me/messages/${encodeURIComponent(input.replyToId)}/createReply`,
@@ -760,7 +798,7 @@ export async function replyTracked(input: {
     method: "PATCH",
     body: JSON.stringify({
       subject: input.subject,
-      body: { contentType: "HTML", content: asOutgoingHtml(input.content) },
+      body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
       ...files,
@@ -789,6 +827,7 @@ export async function sendMessage(input: {
   attachments?: OutgoingAttachment[];
 }): Promise<void> {
   const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
+  const out = await outgoing(input.content, input.attachments);
 
   await graph("/me/sendMail", {
     method: "POST",
@@ -800,12 +839,12 @@ export async function sendMessage(input: {
         // among the easiest things for a strict receiver to reject, and the
         // same message composed in Outlook Web -- same sender, same recipient --
         // was being delivered where this one was not.
-        body: { contentType: "HTML", content: asOutgoingHtml(input.content) },
+        body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
         toRecipients: recipients(input.to),
         // Omitted entirely when empty. An explicit empty array is legal but
         // there is no reason to send a header nobody asked for.
         ...(input.cc?.length ? { ccRecipients: recipients(input.cc) } : {}),
-        ...attachmentPayload(input.attachments),
+        ...attachmentPayload(out.attachments),
       },
       saveToSentItems: true,
     }),

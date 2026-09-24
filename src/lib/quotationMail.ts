@@ -1,6 +1,7 @@
 import type { Customer, Enquiry, Quote } from "../services/enquiries";
 import type { QuoteLine } from "../services/quoteLines";
 import type { QuoteTerm } from "../services/quoteApproval";
+import { COMPANY, MAIL_LOGO_NAVY } from "./company";
 
 /**
  * The quotation, as a mail a customer opens.
@@ -21,11 +22,16 @@ import type { QuoteTerm } from "../services/quoteApproval";
  * one client this trade actually uses. Tables and inline attributes are ugly to
  * write and are what survives.
  *
- * WHY NO IMAGES AND NO WEB FONTS
+ * THE LOGO, AND WHY IT IS NOT A LINK TO AN IMAGE
  *
- * A remote image is blocked by default in Outlook, so a header that IS an image
- * is a blank rectangle on first read. The banner is a coloured table cell, which
- * renders everywhere, and the type is the system stack.
+ * A remote image is blocked by default in Outlook, so a logo fetched from the
+ * web is a blank rectangle on first read. The body names the logo by its
+ * address on this app (so the compose window can show it) and the send turns
+ * it into an attachment inside the message, which Outlook and Gmail show at
+ * once (lib/inlineBrand.ts). It sits on the navy it was cut from, so the
+ * header cell around it carries on seamlessly, and if a client still will not
+ * draw it the alt text is the company's name in white on that navy. No web
+ * fonts: the type is the system stack.
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  *
@@ -35,11 +41,21 @@ import type { QuoteTerm } from "../services/quoteApproval";
  * ---------------------------------------------------------------------------
  */
 
-const BRAND = "#2f4f6f";
+/*
+  Palette, from the logo: its navy for the header, the blue of its ring for the
+  accent, slate greys for everything that is not the point.
+*/
+const NAVY = MAIL_LOGO_NAVY;
+const NAVY_LINE = "#24395a";
+const NAVY_SOFT = "#9fb3cc";
+const ACCENT = "#1670b0";
+const ACCENT_SOFT = "#eaf3fb";
 const INK = "#1f2937";
-const MUTED = "#6b7280";
-const LINE = "#e5e7eb";
-const SOFT = "#f9fafb";
+const MUTED = "#64748b";
+const LINE = "#e2e8f0";
+const SOFT = "#f6f8fb";
+const PAGE = "#eef2f7";
+const FONT = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
 
 export interface QuotationMailInput {
   enquiry: Enquiry;
@@ -58,13 +74,18 @@ export interface QuotationMailInput {
    * Absent means no button is drawn — better than a button that goes nowhere.
    */
   acceptUrl?: string | null;
+  /**
+   * The logo's address (MAIL_LOGO_PATH on this app's origin).
+   *
+   * An http address so the compose window can show it; the send swaps it for
+   * an inline attachment (lib/inlineBrand.ts). Absent, the header sets the
+   * name in type instead.
+   */
+  logoSrc?: string | null;
 }
 
 /** The subject line, carrying the reference so the reply files itself. */
-export function quotationSubject(i: {
-  enquiry: Enquiry;
-  quote: Quote;
-}): string {
+export function quotationSubject(i: { enquiry: Enquiry; quote: Quote }): string {
   const lane = [i.enquiry.origin, i.enquiry.destination].filter(Boolean).join(" – ");
   return `Quotation ${i.enquiry.ref}${lane ? ` · ${lane}` : ""}`;
 }
@@ -80,53 +101,86 @@ export function quotationMessage(i: QuotationMailInput): string {
   );
 }
 
+const MODE_WORD: Record<string, string> = {
+  air: "Air freight",
+  sea_lcl: "Sea freight · LCL",
+  sea_fcl: "Sea freight · FCL",
+  road: "Road",
+  other: "Other",
+};
+
+/** A small uppercase caption over a section or a value. */
+const caption = (text: string, color = MUTED) =>
+  `<p style="margin:0 0 4px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:${color};font-weight:600;">${esc(text)}</p>`;
+
 export function quotationHtml(i: QuotationMailInput): string {
   const { enquiry, customer, quote, lines, terms } = i;
   const to = customer?.company || customer?.name || "";
-  const lane = [enquiry.origin, enquiry.destination].filter(Boolean).join(" → ");
   const message = i.message?.trim() || quotationMessage(i);
+  const ref = `${enquiry.ref}${quote.version > 1 ? `/${quote.version}` : ""}`;
 
   /*
     Three columns, not six.
 
     A table cannot render narrower than its content's minimum width, so six
     columns of charge, unit, quantity, rate and amount simply do not fit a
-    phone — the table stayed 640px wide inside a 400px screen and the rate and
-    amount columns fell off the right-hand edge. Padding could not fix that;
-    only fewer columns can.
-
-    So the unit sits under the charge name where it reads as a qualifier, and
-    the quantity and rate combine into the one line a person would say out
-    loud: "1 x INR 4,500". Nothing is lost and it fits.
+    phone — the rate and amount columns fell off the right-hand edge. So the
+    unit sits under the charge name, and quantity and rate combine into the one
+    line a person would say out loud: "1 × INR 4,500".
   */
   const charges = lines.length
     ? lines
         .map(
-          (l, n) => `
-        <tr>
-          <td style="padding:10px 6px;border-bottom:1px solid ${LINE};color:${INK};font-size:13px;">
-            <span style="color:${MUTED};">${n + 1}.</span> ${esc(l.description)}
-            ${l.unit ? `<span style="display:block;padding-left:14px;color:${MUTED};font-size:11.5px;">${esc(l.unit)}</span>` : ""}
-          </td>
-          <td style="padding:10px 6px;border-bottom:1px solid ${LINE};color:${MUTED};font-size:12px;" align="right">
-            ${num(l.quantity)} &times; ${esc(l.currency)}&nbsp;${num(l.rate)}
-          </td>
-          <td style="padding:10px 6px;border-bottom:1px solid ${LINE};color:${INK};font-size:13px;font-weight:600;" align="right">${money(l.amount_inr)}</td>
-        </tr>`
+          (l) => `
+          <tr>
+            <td style="padding:12px 8px;border-bottom:1px solid ${LINE};color:${INK};font-size:13.5px;line-height:1.4;word-break:break-word;">
+              ${esc(l.description)}
+              ${l.unit ? `<span style="display:block;margin-top:2px;color:${MUTED};font-size:11.5px;">per ${esc(l.unit)}</span>` : ""}
+            </td>
+            <td align="right" style="padding:12px 8px;border-bottom:1px solid ${LINE};color:${MUTED};font-size:12.5px;">
+              ${num(l.quantity)} &times; ${esc(l.currency)}&nbsp;${num(l.rate)}
+            </td>
+            <td align="right" style="padding:12px 8px;border-bottom:1px solid ${LINE};color:${INK};font-size:13.5px;font-weight:600;white-space:nowrap;">${money(l.amount_inr)}</td>
+          </tr>`
         )
         .join("")
-    : `<tr><td colspan="3" style="padding:14px 6px;color:${MUTED};font-size:13px;">Charges as discussed.</td></tr>`;
+    : `<tr><td colspan="3" style="padding:16px 10px;border-bottom:1px solid ${LINE};color:${MUTED};font-size:13px;font-style:italic;">Charges as discussed.</td></tr>`;
+
+  /* The shipment in brief: only what is known, two to a row. */
+  const pieces = [
+    enquiry.package_count ? `${num(enquiry.package_count)} ${esc(enquiry.package_type || "packages")}` : enquiry.piece_count ? `${num(enquiry.piece_count)} pcs` : null,
+    enquiry.gross_weight_kg ? `${num(enquiry.gross_weight_kg)} kg` : null,
+    enquiry.volume_cbm ? `${num(enquiry.volume_cbm)} CBM` : null,
+  ].filter(Boolean);
+  const facts: Array<[string, string]> = [
+    ["Mode", enquiry.transport_mode ? MODE_WORD[enquiry.transport_mode] ?? "" : ""],
+    ["Incoterm", enquiry.incoterm ? esc(enquiry.incoterm.toUpperCase()) : ""],
+    ["Cargo", esc(enquiry.cargo ?? "")],
+    ["Cargo ready", enquiry.ready_date ? longDate(enquiry.ready_date) : ""],
+    ["Packages & weight", pieces.join(" · ")],
+  ].filter(([, v]) => v) as Array<[string, string]>;
+  const factRows: string[] = [];
+  for (let k = 0; k < facts.length; k += 2) {
+    factRows.push(`<tr>${fact(...facts[k])}${facts[k + 1] ? fact(...facts[k + 1]) : `<td width="50%" style="padding:10px 16px;"></td>`}</tr>`);
+  }
+  const lane =
+    enquiry.origin || enquiry.destination
+      ? `<tr><td colspan="2" style="padding:14px 16px 10px;border-bottom:1px solid ${LINE};">
+          ${caption("Route")}
+          <p style="margin:0;font-size:15px;font-weight:700;color:${NAVY};">${esc(enquiry.origin || "—")} <span style="color:${ACCENT};">&rarr;</span> ${esc(enquiry.destination || "—")}</p>
+        </td></tr>`
+      : "";
 
   const grouped = groupTerms(terms);
   const termsHtml = grouped.length
     ? `
-      <tr><td style="padding:20px 20px 0;">
-        <p style="margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">Terms</p>
+      <tr><td style="padding:26px 24px 0;">
+        ${caption("Terms & conditions", NAVY)}
         ${grouped
           .map(
             (g) => `
-          ${g.label ? `<p style="margin:10px 0 4px;font-size:12px;font-weight:600;color:${INK};">${esc(g.label)}</p>` : ""}
-          <ol style="margin:0;padding-left:18px;color:${MUTED};font-size:12px;line-height:1.55;">
+          ${g.label ? `<p style="margin:10px 0 4px;font-size:12px;font-weight:700;color:${INK};">${esc(g.label)}</p>` : ""}
+          <ol style="margin:6px 0 0;padding-left:18px;list-style-type:decimal;color:${MUTED};font-size:12px;line-height:1.6;">
             ${g.items.map((t) => `<li style="margin:0 0 3px;">${esc(t)}</li>`).join("")}
           </ol>`
           )
@@ -134,128 +188,120 @@ export function quotationHtml(i: QuotationMailInput): string {
       </td></tr>`
     : "";
 
+  /*
+    The accept button: a link, not a form. The page it opens is what accepts;
+    following this URL only reads, because Outlook Safe Links and every mail
+    gateway fetch the links in a message before the recipient sees it.
+
+    A table cell with its own background rather than a styled <a> alone:
+    Outlook ignores padding and background on inline elements.
+  */
+  const accept = i.acceptUrl
+    ? `
+      <tr><td style="padding:24px 24px 0;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td bgcolor="${ACCENT}" style="background:${ACCENT};border-radius:6px;">
+            <a href="${esc(i.acceptUrl)}" style="display:inline-block;padding:13px 24px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:.02em;">Accept this quotation &rarr;</a>
+          </td>
+        </tr></table>
+        <p style="margin:8px 0 0;font-size:11.5px;color:${MUTED};line-height:1.5;">Opens a page showing this quotation, where you can confirm. Replying to this email works just as well.</p>
+      </td></tr>`
+    : "";
+
+  /*
+    The header: the logo on its own navy, so the image's edge disappears into
+    the cell around it. Stacked rather than side by side — two cells squeezed
+    onto a phone collided into "QUOTATIONRef ALG09004-26".
+  */
+  // width:100% capped at 300, not a fixed 300px: a fixed width sets the cell's minimum and pushes a
+  // narrow phone sideways. Outlook ignores the CSS and sizes it by the width attribute.
+  const brand = i.logoSrc
+    ? `<img src="${esc(i.logoSrc)}" width="300" alt="${esc(COMPANY.legalName)}" style="display:block;width:100%;max-width:300px;height:auto;border:0;color:#ffffff;font-size:16px;font-weight:700;" />`
+    : `<p style="margin:0;color:#ffffff;font-size:17px;font-weight:700;letter-spacing:.06em;">${esc(COMPANY.name)}</p>`;
+  const meta = (label: string, value: string) =>
+    // Values may wrap ("23 Sep / 2026") so three fit a narrow phone; on a desktop they sit on one line.
+    `<td valign="top" style="padding:0 14px 0 0;">
+      <p style="margin:0;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:${NAVY_SOFT};">${label}</p>
+      <p style="margin:3px 0 0;font-size:13px;font-weight:700;color:#ffffff;">${value}</p>
+    </td>`;
+
   return `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SOFT};padding:16px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <tr><td align="center">
-    <!--
-      width:100% with a max, NOT width="640".
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${PAGE}" style="background:${PAGE};font-family:${FONT};">
+  <tr><td align="center" style="padding:24px 8px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:100%;max-width:640px;background:#ffffff;border:1px solid ${LINE};border-radius:10px;border-collapse:separate;">
 
-      The fixed attribute kept the card 640px wide inside a 400px phone and the
-      right-hand side of every row fell off the screen. A table's used width
-      takes the attribute as a preferred width and will not shrink under it, so
-      max-width alone never got a chance. This way it fills a phone and stops at
-      640 on a desktop, which is the behaviour the max-width was there for.
-    -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:100%;max-width:640px;background:#ffffff;border:1px solid ${LINE};border-radius:8px;overflow:hidden;">
-
-      <!-- The banner. A table cell rather than an image: a remote image is
-           blocked by default in Outlook and would open as a blank rectangle. -->
-      <tr><td bgcolor="${BRAND}" style="background:${BRAND};padding:20px 20px;">
-        <!--
-          Stacked, not two cells side by side.
-
-          It was a two-column row, and on a phone the client squeezes the table
-          until the title and the reference block touch — "QUOTATIONRef
-          ALG09004-26", which is what the customer actually received. Stacking
-          cannot collide at any width, and the reference reads perfectly well
-          under the word it belongs to.
-        -->
-        <p style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:.04em;line-height:1.2;">
-          QUOTATION
-        </p>
-        <p style="margin:8px 0 0;color:#ffffff;font-size:12px;line-height:1.6;opacity:.92;">
-          <strong>Ref</strong>&nbsp;${esc(enquiry.ref)}${quote.version > 1 ? `/${quote.version}` : ""}
-          &nbsp;&middot;&nbsp; <strong>Date</strong>&nbsp;${longDate(quote.created_at)}${
-            quote.valid_until
-              ? `<br><strong>Valid to</strong>&nbsp;${longDate(quote.valid_until)}`
-              : ""
-          }
-        </p>
-      </td></tr>
-
-      <tr><td style="padding:20px 20px 0;">
-        <p style="margin:0 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">To</p>
-        <p style="margin:0;font-size:15px;font-weight:600;color:${INK};">${esc(to || "—")}</p>
-        ${customer?.name && customer.name !== to ? `<p style="margin:2px 0 0;font-size:13px;color:${MUTED};">${esc(customer.name)}</p>` : ""}
-      </td></tr>
-
-      <tr><td style="padding:16px 20px 0;">
-        <p style="margin:0;font-size:13.5px;line-height:1.6;color:${INK};">${esc(message).replace(/\n/g, "<br>")}</p>
-      </td></tr>
-
-      <!-- What is being shipped, so the figures have something to attach to. -->
-      <tr><td style="padding:16px 20px 0;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${SOFT}" style="background:${SOFT};border:1px solid ${LINE};border-radius:6px;">
-          <tr>${cell("Lane", lane || "—", "100%")}</tr>
-          ${
-            enquiry.cargo || enquiry.ready_date
-              ? `<tr>
-            ${cell("Cargo", enquiry.cargo || "—", "60%")}
-            ${cell("Ready", enquiry.ready_date ? longDate(enquiry.ready_date) : "—", "40%")}
-          </tr>`
-              : ""
-          }
+      <tr><td bgcolor="${NAVY}" style="background:${NAVY};padding:22px 24px 22px;border-radius:10px 10px 0 0;">
+        ${brand}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;border-top:1px solid ${NAVY_LINE};">
+          <tr><td style="padding-top:16px;">
+            <p style="margin:0 0 12px;color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.16em;">QUOTATION</p>
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              ${meta("Reference", esc(ref))}
+              ${meta("Date", longDate(quote.created_at))}
+              ${quote.valid_until ? meta("Valid until", longDate(quote.valid_until)) : ""}
+            </tr></table>
+          </td></tr>
         </table>
       </td></tr>
+      <tr><td height="4" bgcolor="${ACCENT}" style="background:${ACCENT};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
 
-      <tr><td style="padding:18px 20px 0;">
+      <tr><td style="padding:26px 24px 0;">
+        ${caption("Prepared for")}
+        <p style="margin:0;font-size:17px;font-weight:700;color:${NAVY};">${esc(to || "—")}</p>
+        ${customer?.name && customer.name !== to ? `<p style="margin:2px 0 0;font-size:13px;color:${MUTED};">Attn: ${esc(customer.name)}</p>` : ""}
+      </td></tr>
+
+      <tr><td style="padding:18px 24px 0;">
+        <p style="margin:0;font-size:14px;line-height:1.65;color:${INK};">${esc(message).replace(/\n/g, "<br>")}</p>
+      </td></tr>
+
+      ${
+        lane || factRows.length
+          ? `<tr><td style="padding:22px 24px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${SOFT}" style="background:${SOFT};border:1px solid ${LINE};border-radius:8px;border-collapse:separate;">
+          ${lane}
+          ${factRows.join("")}
+        </table>
+      </td></tr>`
+          : ""
+      }
+
+      <tr><td style="padding:24px 24px 0;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <thead>
-            <tr bgcolor="${SOFT}" style="background:${SOFT};">
-              <th align="left"  style="padding:8px 6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED};border-bottom:1px solid ${LINE};">Charge</th>
-              <th align="right" style="padding:8px 6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED};border-bottom:1px solid ${LINE};">Qty &times; rate</th>
-              <th align="right" style="padding:8px 6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED};border-bottom:1px solid ${LINE};">Amount</th>
+            <tr>
+              <th align="left" bgcolor="${NAVY}" style="background:${NAVY};padding:10px 8px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;font-weight:700;">Charge</th>
+              <th align="right" bgcolor="${NAVY}" style="background:${NAVY};padding:10px 8px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;font-weight:700;">Qty &times; rate</th>
+              <th align="right" bgcolor="${NAVY}" style="background:${NAVY};padding:10px 8px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;font-weight:700;">Amount</th>
             </tr>
           </thead>
           <tbody>${charges}</tbody>
           <tfoot>
             <tr>
-              <td colspan="2" align="right" style="padding:12px 6px;font-size:13px;color:${INK};font-weight:600;">Total</td>
-              <td align="right" style="padding:12px 6px;font-size:15px;color:${INK};font-weight:700;white-space:nowrap;">${money(quote.amount_inr)}</td>
+              <td colspan="2" align="right" bgcolor="${ACCENT_SOFT}" style="background:${ACCENT_SOFT};padding:14px 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${NAVY};font-weight:700;">Total (INR)</td>
+              <td align="right" bgcolor="${ACCENT_SOFT}" style="background:${ACCENT_SOFT};padding:14px 8px;font-size:17px;color:${NAVY};font-weight:800;white-space:nowrap;">${money(quote.amount_inr)}</td>
             </tr>
           </tfoot>
         </table>
       </td></tr>
 
-      ${
-        i.acceptUrl
-          ? `
-      <!--
-        The accept button.
-
-        A link, not a form: the page it opens is what accepts, and following
-        this URL only reads. That matters because Outlook Safe Links and every
-        antivirus gateway fetch the links in a message before the recipient
-        sees it — a button that accepted on being followed would be pressed by
-        a scanner.
-
-        Drawn as a table cell with its own background rather than a styled <a>,
-        because Outlook ignores padding and background on inline elements and
-        would render a bare blue link.
-      -->
-      <tr><td style="padding:20px 20px 0;">
-        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-          <td style="background:${BRAND};border-radius:6px;">
-            <a href="${esc(i.acceptUrl)}"
-               style="display:inline-block;padding:12px 26px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
-              Accept this quotation
-            </a>
-          </td>
-        </tr></table>
-        <p style="margin:8px 0 0;font-size:11.5px;color:${MUTED};">
-          Opens a page showing this quotation, where you can confirm. Nothing is
-          charged, and replying to this email works just as well.
-        </p>
-      </td></tr>`
-          : ""
-      }
+      ${accept}
 
       ${termsHtml}
 
-      <tr><td style="padding:20px 20px 24px;">
-        <p style="margin:0;font-size:13px;color:${INK};">
-          ${i.fromName ? `${esc(i.fromName)}<br>` : ""}
-          <span style="color:${MUTED};">${esc(i.company || "Aashish Logistics Global")}</span>
+      <tr><td style="padding:26px 24px 26px;">
+        <p style="margin:0;font-size:13.5px;line-height:1.6;color:${INK};">
+          Warm regards,<br>
+          ${i.fromName ? `<strong style="color:${NAVY};">${esc(i.fromName)}</strong><br>` : ""}
+          <span style="color:${MUTED};">${esc(i.company || COMPANY.legalName)}</span>
+        </p>
+      </td></tr>
+
+      <tr><td bgcolor="${SOFT}" style="background:${SOFT};border-top:1px solid ${LINE};padding:18px 24px 20px;border-radius:0 0 10px 10px;">
+        <p style="margin:0 0 4px;font-size:12.5px;font-weight:700;color:${NAVY};">${esc(COMPANY.legalName)}</p>
+        <p style="margin:0;font-size:11.5px;line-height:1.6;color:${MUTED};">
+          ${COMPANY.address.map(esc).join(", ")}<br>
+          Tel ${esc(COMPANY.phone)} &nbsp;&middot;&nbsp; <a href="https://${esc(COMPANY.website)}" style="color:${ACCENT};text-decoration:none;">${esc(COMPANY.website)}</a> &nbsp;&middot;&nbsp; GSTIN ${esc(COMPANY.gstin)}
         </p>
       </td></tr>
 
@@ -264,11 +310,11 @@ export function quotationHtml(i: QuotationMailInput): string {
 </table>`.trim();
 }
 
-/** One fact in the cargo strip. */
-function cell(label: string, value: string, width = "33%"): string {
-  return `<td width="${width}" style="padding:9px 12px;">
-    <p style="margin:0 0 2px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED};">${esc(label)}</p>
-    <p style="margin:0;font-size:13px;color:${INK};">${esc(value)}</p>
+/** One fact in the shipment box. */
+function fact(label: string, value: string): string {
+  return `<td width="50%" valign="top" style="padding:10px 16px;">
+    ${caption(label)}
+    <p style="margin:0;font-size:13.5px;color:${INK};line-height:1.4;">${value}</p>
   </td>`;
 }
 

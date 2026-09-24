@@ -8,6 +8,7 @@ import {
   type QuoteLinkState,
 } from "../services/publicQuote";
 import { SectionSkeleton } from "../components/Loading";
+import { COMPANY, MAIL_LOGO_PATH } from "../lib/company";
 
 /**
  * The page a customer lands on from the quotation mail.
@@ -77,14 +78,16 @@ export default function QuoteAccept() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] px-4 py-8 text-[#1f2937]">
-      <div className="mx-auto w-full max-w-[640px]">
-        <header className="rounded-t-xl bg-[#2f4f6f] px-6 py-5 text-white">
-          <p className="text-[22px] font-bold tracking-wide">QUOTATION</p>
-          <p className="mt-0.5 text-[12.5px] opacity-90">Aashish Logistics Global</p>
+    <div className="min-h-screen bg-[#eef2f7] px-4 py-8 text-[#1f2937]">
+      <div className="mx-auto w-full max-w-[640px] overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_12px_32px_-18px_rgba(15,33,58,0.35)]">
+        {/* The mail's header: the logo on the navy it was cut from, then the blue rule. */}
+        <header className="bg-[#0F213A] px-6 pb-5 pt-6 text-white sm:px-7">
+          <img src={MAIL_LOGO_PATH} alt={COMPANY.legalName} width={300} className="block h-auto w-[300px] max-w-full" />
+          <p className="mt-5 border-t border-[#24395a] pt-4 text-[20px] font-extrabold tracking-[0.16em]">QUOTATION</p>
         </header>
+        <div className="h-1 bg-[#1670b0]" />
 
-        <main className="rounded-b-xl border border-t-0 border-[#e5e7eb] bg-white px-6 py-6">
+        <main className="px-6 py-6 sm:px-7">
           {loading ? (
             <SectionSkeleton lines={4} label="Loading the quotation" className="py-6" />
           ) : failed || !quote ? (
@@ -132,7 +135,7 @@ export default function QuoteAccept() {
                   type="button"
                   onClick={() => void accept()}
                   disabled={busy}
-                  className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2f4f6f] text-[15px] font-semibold text-white disabled:opacity-60"
+                  className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1670b0] text-[15px] font-semibold text-white hover:bg-[#125e94] disabled:opacity-60"
                 >
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   Accept and proceed
@@ -147,10 +150,14 @@ export default function QuoteAccept() {
           )}
         </main>
 
-        <p className="mt-4 text-center text-[11.5px] text-[#9ca3af]">
-          Aashish Logistics Global · Chennai · Business is transacted subject to our standard
-          trading conditions.
-        </p>
+        <footer className="border-t border-[#e2e8f0] bg-[#f6f8fb] px-6 py-4 text-[11.5px] leading-relaxed text-[#64748b] sm:px-7">
+          <p className="text-[12.5px] font-bold text-[#0F213A]">{COMPANY.legalName}</p>
+          <p>{COMPANY.address.join(", ")}</p>
+          <p>
+            Tel {COMPANY.phone} · {COMPANY.website} · GSTIN {COMPANY.gstin}
+          </p>
+          <p className="mt-1.5 text-[#94a3b8]">Business is transacted subject to our standard trading conditions.</p>
+        </footer>
       </div>
     </div>
   );
@@ -190,43 +197,43 @@ function Summary({ quote }: { quote: PublicQuote }) {
 
       <table className="mt-5 w-full text-[13px]">
         <thead>
-          <tr className="border-b border-[#e5e7eb] text-left text-[10.5px] uppercase tracking-wide text-[#6b7280]">
-            <th className="py-2 font-medium">Charge</th>
-            <th className="py-2 text-right font-medium">Qty</th>
-            <th className="py-2 text-right font-medium">Rate</th>
-            <th className="py-2 text-right font-medium">Amount</th>
+          <tr className="bg-[#0F213A] text-left text-[10.5px] uppercase tracking-[0.08em] text-white">
+            <th className="px-2.5 py-2.5 font-bold">Charge</th>
+            <th className="px-2.5 py-2.5 text-right font-bold">Qty</th>
+            <th className="px-2.5 py-2.5 text-right font-bold">Rate</th>
+            <th className="px-2.5 py-2.5 text-right font-bold">Amount</th>
           </tr>
         </thead>
         <tbody>
           {quote.lines.map((l, n) => (
-            <tr key={n} className="border-b border-[#f1f2f4]">
-              <td className="py-2.5 pr-2">
+            <tr key={n} className="border-b border-[#e2e8f0]">
+              <td className="px-2.5 py-3">
                 {l.description}
-                <span className="block text-[11.5px] text-[#9ca3af]">{l.unit}</span>
+                {l.unit && <span className="block text-[11.5px] text-[#64748b]">per {l.unit}</span>}
               </td>
-              <td className="py-2.5 text-right tabular-nums">{fmt(l.quantity)}</td>
-              <td className="whitespace-nowrap py-2.5 text-right tabular-nums">
+              <td className="px-2.5 py-3 text-right tabular-nums">{fmt(l.quantity)}</td>
+              <td className="whitespace-nowrap px-2.5 py-3 text-right tabular-nums text-[#64748b]">
                 {l.currency} {fmt(l.rate)}
               </td>
-              <td className="whitespace-nowrap py-2.5 text-right font-medium tabular-nums">
+              <td className="whitespace-nowrap px-2.5 py-3 text-right font-semibold tabular-nums">
                 {money(l.amount_inr)}
               </td>
             </tr>
           ))}
           {!quote.lines.length && (
             <tr>
-              <td colSpan={4} className="py-3 text-[#6b7280]">
+              <td colSpan={4} className="px-2.5 py-3.5 italic text-[#64748b]">
                 Charges as discussed.
               </td>
             </tr>
           )}
         </tbody>
         <tfoot>
-          <tr>
-            <td colSpan={3} className="py-3 text-right text-[14px] font-semibold">
-              Total
+          <tr className="bg-[#eaf3fb] text-[#0F213A]">
+            <td colSpan={3} className="px-2.5 py-3.5 text-right text-[12px] font-bold uppercase tracking-[0.08em]">
+              Total (INR)
             </td>
-            <td className="whitespace-nowrap py-3 text-right text-[16px] font-bold tabular-nums">
+            <td className="whitespace-nowrap px-2.5 py-3.5 text-right text-[18px] font-extrabold tabular-nums">
               {money(quote.amount_inr)}
             </td>
           </tr>

@@ -17,6 +17,7 @@ import { useAuth } from "../lib/auth";
 import { failureText } from "../lib/errorText";
 import { quotationFile, renderQuotationPdf } from "../lib/documents";
 import { quotationHtml, quotationMessage, quotationSubject } from "../lib/quotationMail";
+import { MAIL_LOGO_PATH } from "../lib/company";
 import { acceptUrl, isReachable, issueLink } from "../services/publicQuote";
 import type { Customer, Enquiry, Quote } from "../services/enquiries";
 import { linesFor, type QuoteLine } from "../services/quoteLines";
@@ -470,6 +471,8 @@ export default function QuoteSend({
               message: quotationMessage({ enquiry, customer, quote, lines, terms }),
               fromName: session?.name,
               acceptUrl: link && isReachable(link) ? link : null,
+              // This app's own copy, which the send carries inside the message.
+              logoSrc: `${window.location.origin}${MAIL_LOGO_PATH}`,
             }),
           }}
           /*
