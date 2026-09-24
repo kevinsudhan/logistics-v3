@@ -100,6 +100,8 @@ export default function Mail() {
   const openReq = useRef(0);
   /** The reading pane, so a message opened from deep in a long thread starts at its top. */
   const reader = useRef<HTMLDivElement>(null);
+  /** The part of the reading pane that scrolls on a wide screen. */
+  const readerScroll = useRef<HTMLDivElement>(null);
   /** The desk, so a message can be handed straight to a colleague. */
   const [people, setPeople] = useState<Person[]>([]);
   /**
@@ -330,8 +332,10 @@ export default function Mail() {
   async function open(m: MailMessage) {
     setSelectedId(m.id);
 
-    // Reading a long thread scrolls the page; the next message opened from the
-    // pinned list should start at its own top, not part-way down.
+    // The next message opened starts at its own top, not part-way down where
+    // the last one was left: the pane's own scroll on a wide screen, the
+    // page's on a phone.
+    readerScroll.current?.scrollTo({ top: 0 });
     const top = reader.current?.getBoundingClientRect().top;
     if (top !== undefined && top < 0) window.scrollBy({ top: top - 72 });
 
@@ -366,7 +370,17 @@ export default function Mail() {
   if (!mailbox) return null;
 
   return (
-    <div>
+    /*
+      On a wide screen the page is exactly the window's height and does not
+      scroll: the list and the message each scroll inside their own pane, the
+      way Outlook does. It used to be a normal page with the list and the Reply
+      bar pinned by `sticky`, which only takes hold once the page has scrolled
+      past the header — so both rode up with the page first, and it read as the
+      whole screen moving. 104px is the top bar (56) and main's padding (48).
+      Below `lg` it is one column and scrolls as a page.
+    */
+    <div className="lg:flex lg:h-[calc(100dvh-104px)] lg:min-h-[560px] lg:flex-col">
+      <div className="lg:shrink-0">
       <PageHeader
         title="Mail"
         subtitle={
@@ -496,18 +510,14 @@ export default function Mail() {
             );
           })}
       </nav>
+      </div>
 
       {/* Two panes now, not three. The list keeps a readable column and the
-          message takes everything else. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] gap-3 items-start">
-        {/*
-          ---- message list ----
-          Pinned under the top bar on a wide screen. A long thread scrolls the
-          page, and the list used to scroll away with it — so the way back to
-          the inbox was to scroll a whole thread back up. It now stays where it
-          is, sized to the window, and scrolls on its own.
-        */}
-        <div className="card flex flex-col overflow-hidden lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)]">
+          message takes everything else. On a wide screen they fill what is left
+          of the window and scroll separately. */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-stretch">
+        {/* ---- message list ---- */}
+        <div className="card flex flex-col overflow-hidden lg:min-h-0">
           {loading && messages.length === 0 ? (
             <ListSkeleton bare rows={7} />
           ) : messages.length === 0 ? (
@@ -557,34 +567,31 @@ export default function Mail() {
         </div>
 
         {/* ---- reading pane ---- */}
-        <div ref={reader} className="card p-5 min-h-[320px]">
+        <div ref={reader} className="card min-h-[320px] p-5 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:p-0">
           {!selected ? (
-            <div className="h-full flex flex-col items-center justify-center text-center py-16">
+            <div className="h-full flex flex-col items-center justify-center text-center py-16 lg:px-5">
               <MailIcon size={22} className="text-text-muted mb-2" />
               <p className="text-[13px] text-text-muted">Select a message to read it.</p>
             </div>
           ) : (
-            <article>
+            <article className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              {/*
+                The subject and what can be done with the message, above the
+                part that scrolls: replying to the end of a long thread does not
+                mean scrolling back to its start first.
+              */}
+              {/* `contents` below lg: a sticky bar only sticks within its parent,
+                  and on a phone that has to be the whole message, not this. */}
+              <div className="contents lg:block lg:shrink-0 lg:border-b lg:border-border lg:px-5 lg:pb-3 lg:pt-5">
               <h2 className="text-[17px] font-semibold tracking-tight text-text-primary">
                 {selected.subject}
               </h2>
 
-              {/* Sender, recipients and the forward chain, as one record of who
-                  is involved rather than three lines of grey text. */}
-              <MessageHeader
-                message={selected}
-                complete={Boolean(full && full.id === selectedId)}
-                when={fullTime(selected.receivedDateTime)}
-              />
-
-              <ShipmentLinks text={`${selected.subject} ${selected.body.content}`} />
-
               {/*
-                Pinned under the top bar while the thread scrolls, so replying
-                to the end of a long thread does not mean scrolling back to its
-                start first.
+                On a phone the page scrolls, so the bar pins under the top bar
+                instead once it reaches it.
               */}
-              <div className="sticky top-14 z-10 -mx-5 mt-4 flex flex-wrap items-start gap-2 border-b border-transparent bg-surface-1/95 px-5 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface-1/85">
+              <div className="sticky top-14 z-10 -mx-5 mt-3 flex flex-wrap items-start gap-2 border-b border-transparent bg-surface-1/95 px-5 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface-1/85 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:backdrop-blur-none">
                 <button
                   onClick={() => setComposing({ replyTo: selected })}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark text-white text-[12px] font-medium transition-colors"
@@ -626,6 +633,18 @@ export default function Mail() {
                   </button>
                 )}
               </div>
+              </div>
+
+              <div ref={readerScroll} className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-5 lg:pb-5">
+              {/* Sender, recipients and the forward chain, as one record of who
+                  is involved rather than three lines of grey text. */}
+              <MessageHeader
+                message={selected}
+                complete={Boolean(full && full.id === selectedId)}
+                when={fullTime(selected.receivedDateTime)}
+              />
+
+              <ShipmentLinks text={`${selected.subject} ${selected.body.content}`} />
 
               <div className="mt-4 pt-4 border-t border-border">
                 {/*
@@ -663,6 +682,7 @@ export default function Mail() {
                 case file.
               */}
               <MessageAttachments message={selected} />
+              </div>
             </article>
           )}
         </div>
