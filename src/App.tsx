@@ -42,8 +42,6 @@ const ShipmentCustoms = lazy(() => import("./pages/shipment/ShipmentCustoms"));
 const ShipmentTracking = lazy(() => import("./pages/shipment/ShipmentTracking"));
 const ShipmentSignOff = lazy(() => import("./pages/shipment/ShipmentSignOff"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
-const SpaceContainers = lazy(() => import("./pages/SpaceContainers"));
-const Containers = lazy(() => import("./pages/Containers"));
 const Consoles = lazy(() => import("./pages/Consoles"));
 const Documentation = lazy(() => import("./pages/Documentation"));
 const Mail = lazy(() => import("./pages/Mail"));
@@ -146,8 +144,9 @@ export default function App() {
               )}
             </Route>
             <Route path="/consoles" element={<Consoles />} />
-            <Route path="/containers" element={<Containers />} />
-            <Route path="/space-containers" element={<SpaceContainers />} />
+            {/* Containers live under their departure on the sailing schedule now; old links land there. */}
+            <Route path="/containers" element={<Navigate to="/sailing-schedule" replace />} />
+            <Route path="/space-containers" element={<Navigate to="/sailing-schedule" replace />} />
             <Route path="/documentation" element={<Documentation />} />
             <Route path="/mail" element={<Mail />} />
             <Route path="/intake" element={<Intake />} />

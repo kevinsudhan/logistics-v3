@@ -705,7 +705,7 @@ const BOARD_NAMES: Record<string, string> = {
   "/mail": "Mail",
   "/": "Overview",
   "/documentation": "Documentation",
-  "/containers": "Containers",
+  "/sailing-schedule": "Sailing schedule",
   "/shipments/in-process": "In-process shipments",
   "/shipments/completed": "Completed shipments",
 };

@@ -47,6 +47,8 @@ export interface Container {
   cutoff_date: string | null;
   status: ContainerStatus;
   partner_id: string | null;
+  /** The sailing schedule departure it goes on. */
+  schedule_id: string | null;
   notes: string;
   created_at: string;
 

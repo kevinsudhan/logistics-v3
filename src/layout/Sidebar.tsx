@@ -13,8 +13,6 @@ import {
   Mail,
   PackageSearch,
   PackageCheck,
-  Boxes,
-  Ship,
   Layers,
   FileCheck2,
   MessageSquareWarning,
@@ -78,14 +76,10 @@ const groups: NavGroup[] = [
   {
     title: "Operations",
     items: [
-      // First: the departures everything below is built on. A console,
-      // a container and a booking each pick their sailing from here.
+      // First: the departures everything below is built on, with the
+      // containers held on each. A console and a booking pick their sailing here.
       { to: "/sailing-schedule", label: "Sailing schedule", icon: CalendarRange },
-      // Before containers: a console is the commercial object and the
-      // container is the space it fills.
       { to: "/consoles", label: "Consoles", icon: Layers },
-      { to: "/containers", label: "Containers", icon: Ship },
-      { to: "/space-containers", label: "Space & containers", icon: Boxes },
       { to: "/documentation", label: "Documentation", icon: FileCheck2 },
       // Maintenance rather than daily work, but it belongs beside the work it
       // feeds: a rate is corrected the moment somebody quoting notices it is

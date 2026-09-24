@@ -1,34 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  ArrowDown,
-  ArrowUp,
-  CalendarRange,
-  Download,
-  Loader2,
-  Pencil,
-  Plus,
-  Save,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, ArrowDown, ArrowUp, CalendarRange, Check, ChevronDown, Download, Loader2, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import AddContainer from "../components/AddContainer";
+import ContainerList from "../components/ContainerList";
 import PageHeader from "../components/PageHeader";
 import { failureText } from "../lib/errorText";
 import { downloadWorkbook, stamped } from "../lib/xlsx";
 import { readSpreadsheet } from "../lib/xlsxRead";
 import { SCHEDULE_COLUMNS, schedulesFromSheet, type ImportResult, type ScheduleInput } from "../lib/schedules";
 import { todayIST } from "../lib/progress";
+import { listContainers, type Container } from "../services/containers";
 import { listPartners, type Partner } from "../services/partners";
-import {
-  departureName,
-  importSchedules,
-  listSchedules,
-  removeSchedule,
-  saveSchedule,
-  STATUS_LABEL,
-  type Schedule,
-} from "../services/schedules";
+import { departureName, importSchedules, listSchedules, removeSchedule, saveSchedule, STATUS_LABEL, type Schedule } from "../services/schedules";
 
 /**
  * The sailing schedule: departures the rest of the system is built from.
@@ -48,6 +30,13 @@ import {
  * off"), each row that cannot be read is named by line, and nothing is
  * written until the preview is accepted. Download writes the same columns, so
  * a sheet can go out, be edited, and come back.
+ *
+ * THE CONTAINERS ON EACH DEPARTURE
+ *
+ * The boxes the desk holds space in are added under the sailing they go on,
+ * and open to show what is on board: one page for the departure and the
+ * space on it, where there used to be three. A container from before this,
+ * tied to no departure, is listed under the table until it sails.
  *
  * SAVED FILTERS
  *
@@ -80,13 +69,19 @@ export default function SailingSchedules() {
   const [preview, setPreview] = useState<(ImportResult & { file: string }) | null>(null);
   const [saved, setSaved] = useState<Array<{ name: string; filters: Filters }>>([]);
   const [reportName, setReportName] = useState("");
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [addingTo, setAddingTo] = useState<Schedule | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const upload = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await listSchedules());
+      const [schedules, boxes] = await Promise.all([listSchedules(), listContainers().catch(() => [] as Container[])]);
+      setRows(schedules);
+      setContainers(boxes);
     } catch (e) {
       setError(failureText(e, "Could not load the schedule.").message);
     } finally {
@@ -126,7 +121,7 @@ export default function SailingSchedules() {
             ? r.etd < today && r.status !== "cancelled"
             : f.view === "upcoming"
               ? r.etd >= today && r.status !== "cancelled"
-              : true
+              : true,
       )
       .filter((r) => !f.mode || r.mode === f.mode)
       .filter((r) => !f.service || r.services.includes(f.service))
@@ -135,7 +130,7 @@ export default function SailingSchedules() {
           !q ||
           [r.id, r.carrier, r.vessel, r.voyage, r.flight_number, r.port_of_receipt, r.port_of_loading, r.port_of_discharge, r.final_destination]
             .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(q))
+            .some((v) => String(v).toLowerCase().includes(q)),
       )
       .sort((a, b) => {
         const x = a[sort.key] ?? "";
@@ -143,6 +138,21 @@ export default function SailingSchedules() {
         return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
       });
   }, [rows, f, sort, today]);
+
+  const onDeparture = useMemo(() => {
+    const m = new Map<string, Container[]>();
+    for (const c of containers) if (c.schedule_id) m.set(c.schedule_id, [...(m.get(c.schedule_id) ?? []), c]);
+    return m;
+  }, [containers]);
+  // Tied to no departure on the list, and still to sail.
+  const loose = useMemo(() => {
+    const ids = new Set(rows.map((r) => r.id));
+    return containers.filter((c) => (!c.schedule_id || !ids.has(c.schedule_id)) && c.status !== "sailed");
+  }, [containers, rows]);
+  const changed = async (message: string) => {
+    setNotice(message);
+    await load();
+  };
 
   function download() {
     const cols = SCHEDULE_COLUMNS;
@@ -156,7 +166,7 @@ export default function SailingSchedules() {
             if (c.key === "services") return (v as string[]).join(" ");
             if (c.date) return v ? new Date(`${v}T00:00:00`) : null;
             return (v as string | number | null) ?? null;
-          })
+          }),
         ),
       },
     ]);
@@ -176,7 +186,7 @@ export default function SailingSchedules() {
     <th className="whitespace-nowrap px-2 py-2 font-medium">
       <button
         type="button"
-        onClick={() => setSort((s) => ({ key, dir: s.key === key ? ((-s.dir) as 1 | -1) : 1 }))}
+        onClick={() => setSort((s) => ({ key, dir: s.key === key ? (-s.dir as 1 | -1) : 1 }))}
         className="inline-flex items-center gap-1 hover:text-text-primary"
       >
         {label}
@@ -184,14 +194,13 @@ export default function SailingSchedules() {
       </button>
     </th>
   );
-  const day = (d: string | null) =>
-    d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "";
+  const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
 
   return (
     <div>
       <PageHeader
         title="Sailing schedule"
-        subtitle="Departures that bookings, consoles, containers and quotations pick from."
+        subtitle="Departures, and the containers the desk holds space in on each. Bookings, consoles and quotations pick from here."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -238,6 +247,16 @@ export default function SailingSchedules() {
         </div>
       )}
 
+      {notice && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-bg-success px-3 py-2.5 text-[12px] text-text-success">
+          <Check size={13} className="mt-px shrink-0" />
+          <span className="min-w-0 flex-1">{notice}</span>
+          <button type="button" onClick={() => setNotice(null)} className="shrink-0 underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* ---- filters ---- */}
       <div className="card mb-3 flex flex-wrap items-center gap-2 p-3">
         <select value={f.view} onChange={(e) => setF({ ...f, view: e.target.value as View })} className="h-8" aria-label="Which departures">
@@ -264,12 +283,7 @@ export default function SailingSchedules() {
           className="h-8 min-w-[220px] flex-1"
         />
         <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
-        <input
-          value={reportName}
-          onChange={(e) => setReportName(e.target.value)}
-          placeholder="Report name"
-          className="h-8 w-40"
-        />
+        <input value={reportName} onChange={(e) => setReportName(e.target.value)} placeholder="Report name" className="h-8 w-40" />
         <button
           type="button"
           disabled={!reportName.trim()}
@@ -312,9 +326,7 @@ export default function SailingSchedules() {
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <CalendarRange size={20} className="mx-auto text-text-muted" />
           <p className="mt-2 text-[14px] font-medium text-text-primary">No sailings yet</p>
-          <p className="mx-auto mt-1 max-w-md text-[13px] text-text-secondary">
-            Create one, or upload a carrier&rsquo;s schedule as Excel or CSV.
-          </p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] text-text-secondary">Create one, or upload a carrier&rsquo;s schedule as Excel or CSV.</p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
@@ -335,53 +347,99 @@ export default function SailingSchedules() {
                 {header("transit_days", "Transit")}
                 <th className="px-2 py-2 font-medium">Carrier / vessel</th>
                 <th className="px-2 py-2 font-medium">Status</th>
+                <th className="px-2 py-2 font-medium">Containers</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
-              {visible.map((r, i) => (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="px-2 py-2 text-text-muted">{i + 1}</td>
-                  <td className="px-2 py-2">
-                    <button type="button" onClick={() => setEditing(r)} className="font-mono text-[12px] font-medium text-text-accent hover:underline">
-                      {r.id}
-                    </button>
-                  </td>
-                  <td className="px-2 py-2">{r.services.join(" ")}</td>
-                  <td className="px-2 py-2">{r.port_of_receipt}</td>
-                  <td className="px-2 py-2">{r.port_of_loading}</td>
-                  <td className="px-2 py-2">{r.port_of_discharge}</td>
-                  <td className="px-2 py-2">{r.final_destination}</td>
-                  <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.cfs_cutoff)}</td>
-                  <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.port_cutoff)}</td>
-                  <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.etd)}</td>
-                  <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.eta)}</td>
-                  <td className="px-2 py-2 tabular-nums">{r.transit_days == null ? "" : `${r.transit_days}d`}</td>
-                  <td className="px-2 py-2">{departureName(r)}</td>
-                  <td className={`px-2 py-2 ${r.status === "cancelled" ? "text-text-danger" : "text-text-secondary"}`}>{STATUS_LABEL[r.status]}</td>
-                  <td className="whitespace-nowrap px-1 py-1 text-right">
-                    <button type="button" onClick={() => setEditing(r)} className="rounded p-1 text-text-muted hover:text-text-primary" aria-label={`Edit ${r.id}`}>
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`Delete ${r.id}? Bookings that picked it keep their dates.`))
-                          void removeSchedule(r.id)
-                            .then(load)
-                            .catch((e) => setError(failureText(e, "Could not delete it.").message));
-                      }}
-                      className="rounded p-1 text-text-muted hover:text-text-danger"
-                      aria-label={`Delete ${r.id}`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {visible.map((r, i) => {
+                const boxes = onDeparture.get(r.id) ?? [];
+                const open = openId === r.id;
+                const onBoard = boxes.reduce((n, c) => n + (c.enquiry_count ?? 0), 0);
+                return (
+                  <Fragment key={r.id}>
+                    <tr className={`border-t border-border ${open ? "bg-surface-2/60" : ""}`}>
+                      <td className="px-2 py-2 text-text-muted">{i + 1}</td>
+                      <td className="px-2 py-2">
+                        <button type="button" onClick={() => setEditing(r)} className="font-mono text-[12px] font-medium text-text-accent hover:underline">
+                          {r.id}
+                        </button>
+                      </td>
+                      <td className="px-2 py-2">{r.services.join(" ")}</td>
+                      <td className="px-2 py-2">{r.port_of_receipt}</td>
+                      <td className="px-2 py-2">{r.port_of_loading}</td>
+                      <td className="px-2 py-2">{r.port_of_discharge}</td>
+                      <td className="px-2 py-2">{r.final_destination}</td>
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.cfs_cutoff)}</td>
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.port_cutoff)}</td>
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.etd)}</td>
+                      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{day(r.eta)}</td>
+                      <td className="px-2 py-2 tabular-nums">{r.transit_days == null ? "" : `${r.transit_days}d`}</td>
+                      <td className="px-2 py-2">{departureName(r)}</td>
+                      <td className={`px-2 py-2 ${r.status === "cancelled" ? "text-text-danger" : "text-text-secondary"}`}>{STATUS_LABEL[r.status]}</td>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        {r.mode === "air" ? (
+                          <span className="text-text-muted">—</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setOpenId(open ? null : r.id)}
+                            aria-expanded={open}
+                            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] hover:bg-surface-2 ${boxes.length ? "font-medium text-text-primary" : "text-text-muted"}`}
+                          >
+                            {boxes.length ? `${boxes.length} ${boxes.length === 1 ? "box" : "boxes"}${onBoard ? ` · ${onBoard} on board` : ""}` : "None"}
+                            <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+                          </button>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-1 py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(r)}
+                          className="rounded p-1 text-text-muted hover:text-text-primary"
+                          aria-label={`Edit ${r.id}`}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Delete ${r.id}? Bookings that picked it keep their dates.`))
+                              void removeSchedule(r.id)
+                                .then(load)
+                                .catch((e) => setError(failureText(e, "Could not delete it.").message));
+                          }}
+                          className="rounded p-1 text-text-muted hover:text-text-danger"
+                          aria-label={`Delete ${r.id}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className="bg-surface-2/60">
+                        <td colSpan={16} className="px-3 pb-3 pt-1">
+                          {/* Pinned to the left edge, so a wide table scrolled sideways still shows it. */}
+                          <div className="sticky left-3 max-w-[calc(100vw-4rem)] lg:max-w-4xl">
+                            {boxes.length > 0 && <ContainerList containers={boxes} onChanged={changed} onError={setError} />}
+                            <button
+                              type="button"
+                              disabled={r.status === "cancelled"}
+                              onClick={() => setAddingTo(r)}
+                              className="mt-2 flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-border-strong bg-surface-1 px-3 text-[12px] text-text-secondary hover:text-text-primary disabled:opacity-50"
+                            >
+                              <Plus size={13} /> Add a container on this sailing
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
               {!visible.length && (
                 <tr>
-                  <td colSpan={15} className="px-2 py-6 text-center text-[12.5px] text-text-muted">
+                  <td colSpan={16} className="px-2 py-6 text-center text-[12.5px] text-text-muted">
                     Nothing matches these filters.
                   </td>
                 </tr>
@@ -391,11 +449,34 @@ export default function SailingSchedules() {
         </div>
       )}
 
+      {loose.length > 0 && (
+        <section className="mt-5">
+          <h2 className="mb-1 text-[13px] font-medium text-text-primary">Containers not on a departure</h2>
+          <p className="mb-2 text-[12px] text-text-muted">Added before containers went under their sailing. They stay here until they sail.</p>
+          <ContainerList containers={loose} onChanged={changed} onError={setError} />
+        </section>
+      )}
+
+      {addingTo && (
+        <AddContainer
+          partners={partners}
+          schedule={addingTo}
+          onClose={() => setAddingTo(null)}
+          onAdded={(c) => {
+            setAddingTo(null);
+            setOpenId(addingTo.id);
+            void changed(`${c.id} added on ${addingTo.id}.`);
+          }}
+        />
+      )}
+
       {editing && (
         <ScheduleForm
           schedule={editing === "new" ? null : editing}
           carriers={partners.filter((p) => p.role === "carrier" || p.role === "consol_partner")}
-          ports={[...new Set(rows.flatMap((r) => [r.port_of_receipt, r.port_of_loading, r.port_of_discharge, r.final_destination]).filter(Boolean) as string[])].sort()}
+          ports={[
+            ...new Set(rows.flatMap((r) => [r.port_of_receipt, r.port_of_loading, r.port_of_discharge, r.final_destination]).filter(Boolean) as string[]),
+          ].sort()}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
@@ -452,18 +533,19 @@ function ScheduleForm({
           eta: null,
           status: "scheduled",
           notes: null,
-        }
+        },
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof ScheduleInput>(k: K, v: ScheduleInput[K]) => setS((x) => ({ ...x, [k]: v }));
   const text = (k: keyof ScheduleInput) => (v: string) => set(k, (v.trim() || null) as never);
   const air = s.mode === "air";
-  const problem = !s.port_of_loading.trim() || !s.port_of_discharge.trim() || !s.etd
-    ? "Port of loading, port of discharge and ETD are needed."
-    : s.eta && s.eta < s.etd
-      ? "ETA is before ETD."
-      : null;
+  const problem =
+    !s.port_of_loading.trim() || !s.port_of_discharge.trim() || !s.etd
+      ? "Port of loading, port of discharge and ETD are needed."
+      : s.eta && s.eta < s.etd
+        ? "ETA is before ETD."
+        : null;
 
   async function save() {
     setBusy(true);
@@ -491,7 +573,12 @@ function ScheduleForm({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4" role="dialog" aria-modal="true" aria-label="Sailing schedule">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Sailing schedule"
+    >
       <div className="card mt-8 w-full max-w-3xl p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">{schedule ? `Edit ${schedule.id}` : "Create sailing schedule"}</h2>
@@ -519,7 +606,13 @@ function ScheduleForm({
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setS((x) => ({ ...x, mode: m, services: m === "air" ? ["AIR"] : x.services.filter((v) => v !== "AIR").length ? x.services.filter((v) => v !== "AIR") : ["LCL", "FCL"] }))}
+                  onClick={() =>
+                    setS((x) => ({
+                      ...x,
+                      mode: m,
+                      services: m === "air" ? ["AIR"] : x.services.filter((v) => v !== "AIR").length ? x.services.filter((v) => v !== "AIR") : ["LCL", "FCL"],
+                    }))
+                  }
                   className={`h-8 rounded-lg border px-3 text-[12px] ${s.mode === m ? "border-brand bg-brand text-white" : "border-border text-text-secondary"}`}
                 >
                   {m === "sea" ? "Sea" : "Air"}
@@ -587,22 +680,19 @@ function ScheduleForm({
 }
 
 /** What an uploaded sheet will do, before it does it. */
-function UploadPreview({
-  result,
-  onClose,
-  onDone,
-}: {
-  result: ImportResult & { file: string };
-  onClose: () => void;
-  onDone: () => Promise<void>;
-}) {
+function UploadPreview({ result, onClose, onDone }: { result: ImportResult & { file: string }; onClose: () => void; onDone: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Awaited<ReturnType<typeof importSchedules>> | null>(null);
   const updates = result.rows.filter((r) => r.id).length;
   const fresh = result.rows.length - updates;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4" role="dialog" aria-modal="true" aria-label="Upload preview">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Upload preview"
+    >
       <div className="card mt-8 w-full max-w-2xl p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">Upload {result.file}</h2>
@@ -638,9 +728,7 @@ function UploadPreview({
               {fresh} new {fresh === 1 ? "sailing" : "sailings"}
               {updates ? `, ${updates} ${updates === 1 ? "update" : "updates"} to existing schedules` : ""}.
             </p>
-            {result.ignored.length > 0 && (
-              <p className="mt-1 text-[12px] text-text-muted">Columns not used: {result.ignored.join(", ")}.</p>
-            )}
+            {result.ignored.length > 0 && <p className="mt-1 text-[12px] text-text-muted">Columns not used: {result.ignored.join(", ")}.</p>}
             {result.errors.length > 0 && (
               <>
                 <p className="mt-3 text-[12px] font-medium text-text-danger">

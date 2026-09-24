@@ -71,7 +71,7 @@ export default function AssignContainer({
     setError(null);
     try {
       await assignContainer(enquiryRef, sailingId);
-      // The load counts on the containers page are now stale.
+      // The load counts on the sailing schedule are now stale.
       cached = null;
       onChanged();
     } catch (e) {
@@ -87,7 +87,7 @@ export default function AssignContainer({
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <Link
-          to="/containers"
+          to="/sailing-schedule"
           title={on ? `${on.container_code} ${routeOf(on)}` : "On a container"}
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-text-success/25 bg-bg-success px-2.5 text-[12px] font-medium text-text-success transition-colors hover:border-text-success/50"
         >
