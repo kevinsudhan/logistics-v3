@@ -1,5 +1,5 @@
 import type { jsPDF } from "jspdf";
-import { AASHISH_MARK_PNG } from "./mark";
+import { LETTERHEAD_BAND_JPG } from "./mark";
 import { COMPANY } from "../company";
 
 /**
@@ -24,25 +24,37 @@ export const MARGIN = 16;
 export const CONTENT_W = PAGE_W - MARGIN * 2;
 export const FOOTER_Y = PAGE_H - 20;
 
-/** The house palette, matched to the CRM so the two look like one system. */
-export const BRAND: [number, number, number] = [15, 110, 86];
-export const INK: [number, number, number] = [20, 21, 15];
-export const MUTED: [number, number, number] = [110, 112, 100];
-export const FAINT: [number, number, number] = [155, 157, 146];
-export const RULE: [number, number, number] = [214, 216, 206];
-export const TINT: [number, number, number] = [241, 242, 237];
+/**
+ * The house palette, the mail's (lib/brandedMail.ts): the logo's navy, the blue
+ * of its ring, and slate greys. It was a green and warm greys until the logo
+ * came in; a quotation attached to a navy mail printed as somebody else's.
+ */
+export const BRAND: [number, number, number] = [15, 33, 58];
+export const ACCENT: [number, number, number] = [22, 112, 176];
+export const INK: [number, number, number] = [31, 41, 55];
+export const MUTED: [number, number, number] = [100, 116, 139];
+export const FAINT: [number, number, number] = [148, 163, 184];
+export const RULE: [number, number, number] = [214, 221, 230];
+export const TINT: [number, number, number] = [241, 245, 249];
 export const WARN: [number, number, number] = [150, 70, 20];
+/** Text on the navy band: the address a step back from the white GSTIN. */
+const ON_BRAND: [number, number, number] = [200, 214, 232];
 
 /** The issuer, as it appears on the letterhead (src/lib/company.ts). */
 export { COMPANY };
 
 /**
- * The mark, the name, and the address block, with a rule under them.
+ * The lockup and the address on a navy band, with the blue rule under it — the
+ * head of the quotation mail, on paper.
  *
  * A letterhead without an address is a header. These documents are presented to
  * carriers, banks and customs, all of whom expect to see who issued it and
  * where they are — so the registered address and the GSTIN are part of the
  * document, not decoration.
+ *
+ * The band sits inside the margins rather than bleeding off the page: office
+ * printers leave a few millimetres unprinted at the edge, and a bleed comes
+ * out with a white sliver down each side.
  *
  * @returns the y to carry on drawing from
  */
@@ -50,39 +62,42 @@ export function drawLetterhead(doc: jsPDF, y: number): number {
   const set = (c: [number, number, number]) => doc.setTextColor(c[0], c[1], c[2]);
   const fill = (c: [number, number, number]) => doc.setFillColor(c[0], c[1], c[2]);
 
-  const LOGO = 14;
+  // The band and the logo are one image, cut to these 178 x 26mm (see mark.ts).
+  const BAND_H = 26;
   try {
-    doc.addImage(AASHISH_MARK_PNG, "PNG", MARGIN, y, LOGO, LOGO);
+    doc.addImage(LETTERHEAD_BAND_JPG, "JPEG", MARGIN, y, CONTENT_W, BAND_H);
   } catch {
-    // A letterhead without its mark is still a valid document. Failing the
-    // whole render because an image would not decode is not.
+    // A letterhead without its logo is still a valid document. Failing the
+    // whole render because an image would not decode is not — a plain band
+    // and the name stand in.
+    fill(BRAND);
+    doc.rect(MARGIN, y, CONTENT_W, BAND_H, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    set([255, 255, 255]);
+    doc.text(COMPANY.name, MARGIN + 6, y + BAND_H / 2 + 1.8);
   }
-
-  const nameX = MARGIN + LOGO + 4;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14.5);
-  set(BRAND);
-  doc.text(COMPANY.name, nameX, y + 5.5);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.6);
-  set(MUTED);
-  doc.text(COMPANY.tagline, nameX, y + 10);
-  doc.text(COMPANY.gst, nameX, y + 13.6);
 
   // Address right-aligned, so the two blocks frame the head of the page.
-  doc.setFontSize(7.4);
-  let ay = y + 3;
-  for (const line of [...COMPANY.address, ...COMPANY.contact]) {
-    doc.text(line, PAGE_W - MARGIN, ay, { align: "right" });
-    ay += 3.4;
+  const right = PAGE_W - MARGIN - 5;
+  const lines = [...COMPANY.address, COMPANY.contact.join("  ·  ")];
+  const step = 3.7;
+  let ay = y + (BAND_H - step * (lines.length + 1)) / 2 + 2.6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.3);
+  set(ON_BRAND);
+  for (const line of lines) {
+    doc.text(line, right, ay, { align: "right" });
+    ay += step;
   }
+  doc.setFont("helvetica", "bold");
+  set([255, 255, 255]);
+  doc.text(COMPANY.gst, right, ay, { align: "right" });
 
-  y += 18;
-  // Weighted so it reads as a division rather than another hairline on a page
-  // that has several.
-  fill(BRAND);
-  doc.rect(MARGIN, y, CONTENT_W, 0.8, "F");
-  return y + 7;
+  y += BAND_H;
+  fill(ACCENT);
+  doc.rect(MARGIN, y, CONTENT_W, 1.1, "F");
+  return y + 1.1 + 7;
 }
 
 /** "18 Sep 2026". The month is spelled from a list — see quotationMail.ts. */

@@ -15,7 +15,7 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (37 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (38 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
   migration filename (§6). The last migration is **081**, so the next one is `082-….sql`.
@@ -203,7 +203,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 37 suites, pure logic
+npm test                             # 38 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -220,7 +220,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 37 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 38 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -291,8 +291,8 @@ not in Graph's default fields, and `$select` replaces the defaults rather than a
 `outgoing()` swap `/brand/*.jpg` for an inline attachment when the mail is sent. The preview
 shows the same-origin URL.
 
-**Month names are hard-coded arrays.** `toLocaleDateString("en-IN")` prints "Sept", so do not
-use it for dates. Rupee amounts use `en-IN` grouping. The financial year runs April to March,
+**Month names are hard-coded arrays.** `toLocaleDateString("en-IN")` prints "Sept", and so does
+`"en-GB"`, so do not use either for dates (`docDate` in `lib/documents/letterhead.ts` is one). Rupee amounts use `en-IN` grouping. The financial year runs April to March,
 so Q1 is April to June. Days are counted in IST.
 
 **`.card` must live in `@layer components`,** or it overrides utility classes. `surface-inset`
@@ -321,8 +321,6 @@ screen.
   delete them or not.
 - The 3D planner (`ContainerPlanView`, `ContainerScene`, `lib/scene3d`) is no longer
   referenced by any page since the sailings merge. Delete it or not.
-- **The quotation PDF letterhead is still green.** The mail letterhead is navy. A navy PDF
-  version was offered and not yet taken up.
 
 ### Live data worth knowing (24 September)
 
@@ -337,8 +335,9 @@ screen.
 
 - There is no free-time or demurrage clock.
 - Master and house B/L numbering for sea consoles is not modelled (air has a HAWB, 075).
-- Printed documents still carry `ARX-` in their numbers (`lib/documents/render.ts`).
-  Enquiry refs are `ALG…`.
+- Shipment row ids are still `ARX-SHP-0004`. Nothing printed or mailed shows them any more
+  (documents are numbered `BKG-ALG09004-26`, see `documentNo` in `lib/documents/data.ts`),
+  but the job file header and the enquiry register's booking-number fallback still do.
 - No full end-to-end demo has been run yet. A dummy enquiry mail was written for one: send
   it in, push it to inbound, then quote, approve, accept and book.
 

@@ -16,7 +16,9 @@ import type { RequestDetails } from "../../data/requestFields";
  */
 export interface DocumentData {
   // identity
+  /** The job's own reference, ALG09004-26: what the desk and the customer call it. */
   reference: string;
+  /** What the document is numbered by: the B/L number once there is one, the reference until then. */
   documentNumber: string;
   blNumber?: string;
 
@@ -118,7 +120,7 @@ export interface DocSpec {
   /** One line explaining what the document is for, shown in the UI. */
   purpose: string;
   issuer: Issuer;
-  /** Prefix for the generated document number, e.g. QUO -> ARX-QUO-<ref>. */
+  /** Prefix for the generated document number, e.g. QUO -> QUO-ALG09004-26 (see documentNo). */
   numberPrefix: string;
   /** Fields the document cannot honestly be issued without. */
   requires: DataKey[];

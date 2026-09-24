@@ -141,8 +141,8 @@ export function documentDataFromEnquiry(
   const h = un(e.piece_height_cm);
 
   return {
-    // The enquiry ref already starts with ARX-, and the renderer prefixes its
-    // own — leaving it in produces ARX-QUO-ARX-C0001-E02.
+    // Enquiries are ALG09004-26 now. A ref from before 044 (ARX-C0001-E02) is
+    // numbered without its house prefix, so no document says ARX- twice or at all.
     reference: e.ref,
     documentNumber: e.ref.replace(/^ARX-/, ""),
 
@@ -242,10 +242,12 @@ export function documentDataFromBooking(
   const un = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
 
   return {
-    // The B/L number once there is one, and the booking's own id until then —
-    // a document has to be numbered even while it is a draft.
-    reference: s.bl_number || s.id,
-    documentNumber: s.bl_number || s.id,
+    // The job's reference, not the booking's row id: ARX-SHP-0004 is how the
+    // database files it, and nobody outside the database has heard of it. The
+    // number is the B/L number once there is one, and the job reference until
+    // then — a document has to be numbered even while it is a draft.
+    reference: s.enquiry_ref,
+    documentNumber: s.bl_number || s.enquiry_ref,
     blNumber: un(s.bl_number),
 
     // The booking's own shipper wins over the customer record: they are usually
@@ -283,12 +285,26 @@ export function documentDataFromBooking(
     paymentTerms: un(s.payment_terms),
     letterOfCredit: un(s.letter_of_credit),
 
-    sourceNote: `From booking ${s.id} against enquiry ${s.enquiry_ref}.`,
+    sourceNote: `From the booking on job ${s.enquiry_ref}.`,
     raw: {} as RequestDetails,
   };
 }
 
 
+
+/**
+ * The number a document prints and is filed under: what kind it is, then what
+ * it is numbered by — BKG-ALG09004-26, BL-MAEU123456789.
+ *
+ * It used to lead with ARX-, the house prefix from before Aashish Logistics
+ * had its own references. The ALG in the job reference says whose it is.
+ */
+export const documentNo = (spec: { numberPrefix: string }, data: { documentNumber: string }): string =>
+  `${spec.numberPrefix}-${data.documentNumber}`;
+
+/** The same number as a file name, with the document's kind spelled out. */
+export const documentFilename = (spec: { numberPrefix: string; id: string }, data: { documentNumber: string }): string =>
+  `${documentNo(spec, data)}-${spec.id}.pdf`;
 
 /** Which of a document's required fields are still outstanding. */
 export function readiness(data: DocumentData, requires: DataKey[]) {

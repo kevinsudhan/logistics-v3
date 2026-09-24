@@ -5,6 +5,7 @@ import { DOCUMENTS, documentSpec } from "./registry";
 import {
   documentDataFromBooking,
   documentDataFromEnquiry,
+  documentFilename,
   readiness,
 } from "./data";
 import { renderDocument } from "./render";
@@ -21,11 +22,8 @@ export {
 export type { DocSpec, DocumentData };
 export type { DataKey } from "./types";
 
-const filename = (spec: DocSpec, data: DocumentData) =>
-  `ARX-${spec.numberPrefix}-${data.documentNumber}-${spec.id}.pdf`;
-
 export function generateDocument(spec: DocSpec, data: DocumentData): void {
-  renderDocument(spec, data).save(filename(spec, data));
+  renderDocument(spec, data).save(documentFilename(spec, data));
 }
 
 /**
@@ -81,7 +79,7 @@ export function documentBytes(
 ): { name: string; contentType: string; bytes: Uint8Array } {
   const buffer = renderDocument(spec, data).output("arraybuffer") as ArrayBuffer;
   return {
-    name: filename(spec, data),
+    name: documentFilename(spec, data),
     contentType: "application/pdf",
     bytes: new Uint8Array(buffer),
   };

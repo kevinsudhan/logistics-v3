@@ -1,9 +1,10 @@
 import { jsPDF } from "jspdf";
 import type { DocSpec, DocumentData } from "./types";
-import { readiness } from "./data";
+import { documentNo, readiness } from "./data";
 import {
   BRAND,
   CONTENT_W,
+  docDate,
   drawLetterhead,
   FAINT,
   FOOTER_Y,
@@ -49,8 +50,8 @@ const TBD = "TBD";
  * ---------------------------------------------------------------------------
  */
 
-const today = () =>
-  new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+// Spelled from docDate's month list: the "en-GB" locale now prints "Sept".
+const today = () => docDate(new Date().toISOString());
 
 export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -118,7 +119,7 @@ export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
     nobody decided where the value goes. Split, they line up and can be scanned.
   */
   const metaRows: Array<[string, string, string, string]> = [
-    ["Document no", `ARX-${spec.numberPrefix}-${data.documentNumber}`, "Date issued", today()],
+    ["Document no", documentNo(spec, data), "Date issued", today()],
     [
       "Reference",
       data.reference,
