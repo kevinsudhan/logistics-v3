@@ -28,6 +28,7 @@ import {
   ListChecks,
   BarChart3,
   ShieldCheck,
+  TrendingUp,
   UserCheck,
   X,
 } from "lucide-react";
@@ -73,6 +74,9 @@ const groups: NavGroup[] = [
       { to: "/shipments/completed", label: "Completed shipments", icon: PackageCheck },
     ],
   },
+  // On its own: closing a job and reading what it made is neither booking the
+  // next one nor chasing a payment, and it is the page a manager opens first.
+  { separated: true, items: [{ to: "/job-closing", label: "Job closing", icon: TrendingUp }] },
   {
     title: "Operations",
     items: [

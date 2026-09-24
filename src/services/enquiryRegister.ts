@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { downloadWorkbook } from "../lib/xlsx";
 import { inPeriod, registerSheet, type RegisterInput } from "../lib/enquiryRegister";
 import { stageLabel, type ShipmentStage } from "./enquiries";
+import { all, group, num, str, whereIn, type Row } from "./paging";
 
 /**
  * Reading the enquiry register out of the database, and saving it as Excel.
@@ -12,40 +13,6 @@ import { stageLabel, type ShipmentStage } from "./enquiries";
  */
 
 const COMPANY = "Aashish Logistics Global";
-const PAGE = 1000;
-const BATCH = 150;
-
-type Row = Record<string, unknown>;
-
-/** Every row a query matches, a page at a time — PostgREST stops at 1,000. */
-async function all(query: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Row[]> {
-  const out: Row[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await query(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    out.push(...((data ?? []) as Row[]));
-    if (!data || data.length < PAGE) return out;
-  }
-}
-
-/** Rows whose `column` is one of `values`, asked for in batches short enough for a URL. */
-async function whereIn(table: string, select: string, column: string, values: string[]): Promise<Row[]> {
-  const unique = [...new Set(values.filter(Boolean))];
-  const out: Row[] = [];
-  for (let i = 0; i < unique.length; i += BATCH) {
-    const part = unique.slice(i, i + BATCH);
-    out.push(...(await all((from, to) => supabase.from(table).select(select).in(column, part).range(from, to))));
-  }
-  return out;
-}
-
-const group = (rows: Row[], key: string) => {
-  const m = new Map<string, Row[]>();
-  for (const r of rows) m.set(String(r[key]), [...(m.get(String(r[key])) ?? []), r]);
-  return m;
-};
-const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
-const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
 
 /** The register's rows for a period (either end open), in no particular order. */
 export async function enquiryRegister(from: string | null, to: string | null): Promise<RegisterInput[]> {
