@@ -344,10 +344,9 @@ screen.
   to every job on it (`shipments.mainline_no`). A job not on a console has its master typed on
   the Bill tab. The pre-alert, tracking, the worklist search and the arrival notice, delivery
   order and B/L particulars read it. The house B/L is issued from the Bill tab or the console
-  (`issue_house_bl`, 035) as `HBL/26-27/0001`, the generic FY series. **Open question for the
-  user:** keep that, or number HBLs like the HAWB (`MAA/JEA/HBL0000001`)? No HBL has been
-  issued on live data yet, so it can still change without renumbering anything. There is no
-  HBL form, lock or history like the HAWB's (075).
+  (`issue_house_bl`, 035) as `HBL/26-27/0001`, the FY series. **The user chose to keep that
+  format on 25 September** over a port-based one like the HAWB's (`MAA/JEA/HBL0000001`); do
+  not change it. There is no HBL form, lock or history like the HAWB's (075).
 - On air, the HAWB form's MAWB boxes do not write `shipments.mainline_no`, so an air pre-alert
   has no MAWB unless one is recorded some other way.
 - **Security audit (flagged 24 Sep, a separate task).** 62 `SECURITY DEFINER` functions were
