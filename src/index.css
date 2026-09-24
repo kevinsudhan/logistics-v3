@@ -422,6 +422,32 @@ pre {
 }
 
 /* ---------------------------------------------------------------------------
+ * Installed on a phone
+ *
+ * Added to the home screen, the CRM runs full screen with viewport-fit=cover,
+ * so the page reaches under the rounded corners and the home bar. Content is
+ * kept clear of them: the page itself, the menu drawer, and the bottom sheets
+ * dialogs become on a phone, whose buttons would otherwise sit behind the home
+ * bar where a tap is read as a swipe home. The status bar is solid
+ * ("default"), so nothing is needed at the top. In a browser tab all of these
+ * insets are zero and nothing moves.
+ * ------------------------------------------------------------------------- */
+@media (display-mode: standalone) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  aside.fixed {
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .fixed.inset-0.items-end {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * Loading
  *
  * Waiting is shown in the shape of what is coming — a header, a toolbar, rows

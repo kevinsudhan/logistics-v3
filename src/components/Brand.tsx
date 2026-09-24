@@ -102,10 +102,10 @@ export function CompanyBrand({
         to compensate for losing that box.
       */}
       <img
-        src="/aashish-mark.png"
+        src="/icons/icon-192.png"
         alt=""
         aria-hidden="true"
-        className={`${box} shrink-0 object-contain`}
+        className={`${box} shrink-0 rounded-[24%] object-cover shadow-sm`}
         draggable={false}
       />
       <div className="min-w-0">

@@ -50,6 +50,21 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
 
 # Hashed asset filenames change on every build, so they can be cached indefinitely.
+# The service worker and the manifest are read fresh every time, so a deploy
+# reaches the home-screen app on its next open rather than whenever a cache
+# decides to let go.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "no-cache"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]

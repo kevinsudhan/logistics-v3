@@ -62,6 +62,7 @@ import {
 import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
 import { PageSkeleton } from "../components/Loading";
+import { useTableChanges } from "../lib/useTableChanges";
 
 /**
  * Everything a reading of the mail may write on this page, less whatever the
@@ -218,6 +219,24 @@ export default function CaseFile() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /*
+    A quotation's approval is decided on another screen, usually by somebody
+    else. When it lands — approved, sent back, sent — the quote, the timeline
+    and the enquiry's status are read again, and only those: the mail and the
+    auto-fill in a full load are the slow part, and nothing about them moved.
+  */
+  const refreshQuotes = useCallback(async () => {
+    try {
+      const [q, ev, e] = await Promise.all([quotesFor(ref), eventsFor(ref), getEnquiry(ref)]);
+      setQuotes(q);
+      setEvents(ev);
+      if (e) setEnquiry(e);
+    } catch {
+      // The next change, or the next time the tab comes into view, tries again.
+    }
+  }, [ref]);
+  useTableChanges("quotes", `enquiry_ref=eq.${ref}`, () => void refreshQuotes(), !MAIL_ONLY_CASE_FILE && Boolean(ref));
 
   const groups = useMemo(
     () =>

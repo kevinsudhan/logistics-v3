@@ -13,6 +13,7 @@ import {
   type PendingQuote,
 } from "../services/quoteApproval";
 import { ListSkeleton } from "../components/Loading";
+import { useTableChanges } from "../lib/useTableChanges";
 
 /**
  * Quotations waiting to be cleared.
@@ -155,6 +156,10 @@ export default function QuoteApprovals() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A quotation sent for approval appears here as it is sent, and one cleared
+  // by another approver leaves — without anybody reloading the queue.
+  useTableChanges("quotes", null, () => void load());
 
   async function act(q: PendingQuote, approve: boolean) {
     setBusy(q.id);
