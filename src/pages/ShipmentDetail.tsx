@@ -7,6 +7,7 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import { supabase } from "../lib/supabase";
+import { useTablesChanges } from "../lib/useTableChanges";
 import { money } from "../services/billing";
 import { ACCOUNTS_DESK } from "../lib/features";
 import SendPreAlert from "../components/SendPreAlert";
@@ -194,6 +195,18 @@ export default function ShipmentDetail() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A colleague moving the job on, or editing the enquiry behind it, redraws
+  // the header and the open tab. The tabs keep their own drafts, so a change
+  // landing mid-edit does not wipe what somebody is typing.
+  useTablesChanges(
+    [
+      ["shipments", `id=eq.${id}`],
+      ...(shipment ? ([["enquiries", `ref=eq.${shipment.enquiry_ref}`]] as const) : []),
+    ],
+    () => void load(),
+    Boolean(id)
+  );
 
   if (loading) return <PageSkeleton />;
 

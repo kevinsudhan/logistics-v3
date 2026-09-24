@@ -62,7 +62,7 @@ import {
 import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
 import { PageSkeleton } from "../components/Loading";
-import { useTableChanges } from "../lib/useTableChanges";
+import { useTablesChanges } from "../lib/useTableChanges";
 
 /**
  * Everything a reading of the mail may write on this page, less whatever the
@@ -222,21 +222,41 @@ export default function CaseFile() {
 
   /*
     A quotation's approval is decided on another screen, usually by somebody
-    else. When it lands — approved, sent back, sent — the quote, the timeline
-    and the enquiry's status are read again, and only those: the mail and the
+    else, and a colleague may take the enquiry, change its details or book it
+    while it is open here. When any of that lands, the enquiry, its quotes, its
+    booking and the timeline are read again, and only those: the mail and the
     auto-fill in a full load are the slow part, and nothing about them moved.
   */
-  const refreshQuotes = useCallback(async () => {
+  const refreshCase = useCallback(async () => {
     try {
-      const [q, ev, e] = await Promise.all([quotesFor(ref), eventsFor(ref), getEnquiry(ref)]);
-      setQuotes(q);
-      setEvents(ev);
+      const [e, ev, q, sh] = await Promise.all([
+        getEnquiry(ref),
+        eventsFor(ref),
+        MAIL_ONLY_CASE_FILE ? Promise.resolve<Quote[]>([]) : quotesFor(ref),
+        MAIL_ONLY_CASE_FILE ? Promise.resolve<Shipment | null>(null) : shipmentFor(ref),
+      ]);
       if (e) setEnquiry(e);
+      setEvents(ev);
+      setQuotes(q);
+      setShipment(sh);
     } catch {
       // The next change, or the next time the tab comes into view, tries again.
     }
   }, [ref]);
-  useTableChanges("quotes", `enquiry_ref=eq.${ref}`, () => void refreshQuotes(), !MAIL_ONLY_CASE_FILE && Boolean(ref));
+  const REF = ref.toUpperCase();
+  useTablesChanges(
+    [
+      ["enquiries", `ref=eq.${REF}`],
+      ...(MAIL_ONLY_CASE_FILE
+        ? []
+        : ([
+            ["quotes", `enquiry_ref=eq.${REF}`],
+            ["shipments", `enquiry_ref=eq.${REF}`],
+          ] as const)),
+    ],
+    () => void refreshCase(),
+    Boolean(ref)
+  );
 
   const groups = useMemo(
     () =>

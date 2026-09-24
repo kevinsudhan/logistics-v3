@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (37 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **080**, so the next one is `081-….sql`.
+  migration filename (§6). The last migration is **081**, so the next one is `082-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 80 migrations
+## 4. Data model — 81 migrations
 
-`supabase-v2/001…080`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…081`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -163,10 +163,15 @@ transaction).
 | `072–078` | live tracking plus cron, customer tracking page, HAWB, route map, customs clearance, pre-alert |
 | `079` | pickup and delivery desk: multiple movements per job, with attempts, LR, e-way bill and proof |
 | `080` | `quotes` added to the `supabase_realtime` publication |
+| `081` | `enquiries`, `shipments`, `intake` and `shipment_checkpoints` added to it too |
 
-**Realtime covers `quotes` only.** To make another table live, add it to the publication in
-a migration (copy 080), then call `useTableChanges(table, filter, onChange)` from
-`src/lib/useTableChanges.ts` on the page.
+**Realtime covers those five tables.** Overview, Enquiries overview, Inbound enquiries, My
+enquiries, In-process, Completed, the job file (header and steps) and the case file refresh
+when a row they show changes. To make another table live, add it to the publication in a
+migration (copy 081), then call `useTableChanges(table, filter, onChange)`, or
+`useTablesChanges([[table, filter], …], onChange)` for several tables on one channel with one
+refresh, from `src/lib/useTableChanges.ts`. **A page's loader must not write to a table it
+listens to,** or every open copy of the page refreshes itself in a loop.
 
 ---
 
@@ -247,8 +252,11 @@ The UI has no automated tests. It is verified by hand in the way described below
 - **Signing in.** It needs a password, which the assistant does not type, so no signed-in
   screen has been checked in a real session.
 - **Realtime between two users.** It was checked at the database level: an update delivered
-  an UPDATE event with the enquiry filter. Two people watching an approval land has not been
-  observed.
+  an UPDATE event with the enquiry filter (080), and a same-value update on `intake` reached
+  an unfiltered and a row-filtered subscriber but not one filtered to another row (081). The
+  pages were checked in a preview harness with a stubbed channel: each subscribes to the
+  right tables and filters, and a burst of events causes one reload. Two people watching a
+  change land in real sessions has not been observed.
 - **Microsoft sign-in inside the iPhone home-screen app.** Standalone mode can open the
   OAuth redirect in Safari.
 - **In a real mailbox:** that a reply nests in its Outlook thread, and that the logo
@@ -327,8 +335,6 @@ screen.
 
 ### Product gaps
 
-- **Realtime covers quotes only.** Shipments, enquiries and intake still refresh when the tab
-  comes back into view or on reload. Extend this with the 080 pattern.
 - There is no free-time or demurrage clock.
 - Master and house B/L numbering for sea consoles is not modelled (air has a HAWB, 075).
 - Printed documents still carry `ARX-` in their numbers (`lib/documents/render.ts`).

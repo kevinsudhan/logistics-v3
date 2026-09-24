@@ -7,6 +7,7 @@ import Select from "../components/Select";
 import { openStepsFor, type Checkpoint } from "../services/checkpoints";
 import { DUE_TONE, dueState, dueText, todayIST } from "../lib/progress";
 import { useAuth } from "../lib/auth";
+import { useTablesChanges } from "../lib/useTableChanges";
 import { customsStatus } from "../lib/customs";
 import { downloadWorkbook, stamped } from "../lib/xlsx";
 import {
@@ -161,6 +162,15 @@ export default function ShipmentsInProcess() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A step ticked or a job moved on by anybody updates this list as they do it.
+  useTablesChanges(
+    [
+      ["shipments", null],
+      ["shipment_checkpoints", null],
+    ],
+    () => void load()
+  );
 
   /*
     Per job: the next open step, and how many are overdue or due today.

@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import { useAuth } from "../lib/auth";
+import { useTableChanges } from "../lib/useTableChanges";
 import HandledBy, { OWNERSHIP, ownedBy, type Ownership } from "../components/HandledBy";
 import {
   listPeople,
@@ -49,6 +50,9 @@ export default function ShipmentsCompleted() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A job delivered or signed off elsewhere lands here without a reload.
+  useTableChanges("shipments", null, () => void load());
 
   return (
     <div>

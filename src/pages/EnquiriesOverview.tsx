@@ -7,6 +7,7 @@ import { PageSkeleton } from "../components/Loading";
 import { useAuth } from "../lib/auth";
 import { failureText } from "../lib/errorText";
 import { todayIST } from "../lib/progress";
+import { useTablesChanges } from "../lib/useTableChanges";
 import { istDay, periodText, presetRange, type Preset } from "../lib/enquiryRegister";
 import { dayLabel } from "../lib/jobPnl";
 import { downloadEnquiryRegister } from "../services/enquiryRegister";
@@ -81,6 +82,17 @@ export default function EnquiriesOverview() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // An enquiry booked, a job delivered, a mail pushed through: the counts and
+  // the waiting list follow without a reload.
+  useTablesChanges(
+    [
+      ["enquiries", null],
+      ["shipments", null],
+      ["intake", null],
+    ],
+    () => void load()
+  );
 
   const stats = useMemo(() => {
     const booked = new Set(shipments.map((s) => s.enquiry_ref));

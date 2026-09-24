@@ -20,6 +20,7 @@ import PushMailToQueue from "../components/PushMailToQueue";
 import AssignControl from "../components/AssignControl";
 import { useAuth } from "../lib/auth";
 import { failureText, type FailureText } from "../lib/errorText";
+import { useTablesChanges } from "../lib/useTableChanges";
 import {
   listEnquiries,
   listPeople,
@@ -153,6 +154,17 @@ export default function Enquiries() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A colleague quoting, booking or taking an enquiry shows on this board as
+  // they do it, rather than at the next reload.
+  useTablesChanges(
+    [
+      ["enquiries", null],
+      ["shipments", null],
+      ["intake", null],
+    ],
+    () => void load()
+  );
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();

@@ -7,6 +7,7 @@ import EmptyState from "../components/EmptyState";
 import AssignControl from "../components/AssignControl";
 import JobState, { STATE_LABEL, stateOf } from "../components/JobState";
 import { useAuth } from "../lib/auth";
+import { useTablesChanges } from "../lib/useTableChanges";
 import {
   arrivedAt,
   listEnquiries,
@@ -99,6 +100,15 @@ export default function MyEnquiries() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // An enquiry handed to this person, or one of theirs booked, appears as it happens.
+  useTablesChanges(
+    [
+      ["enquiries", null],
+      ["shipments", null],
+    ],
+    () => void load()
+  );
 
   const mine = useMemo(
     () => rows.filter((r) => r.assigned_to === me).sort(byClaimAge),

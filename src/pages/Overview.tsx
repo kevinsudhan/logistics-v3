@@ -30,6 +30,7 @@ import {
 } from "../services/enquiries";
 import { countWaiting } from "../services/intake";
 import { ListSkeleton } from "../components/Loading";
+import { useTablesChanges } from "../lib/useTableChanges";
 
 /**
  * The first screen after signing in.
@@ -113,6 +114,16 @@ export default function Overview() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The counts move as the desk works, not when somebody reloads.
+  useTablesChanges(
+    [
+      ["enquiries", null],
+      ["shipments", null],
+      ["intake", null],
+    ],
+    () => void load()
+  );
 
   const stats = useMemo(() => {
     const open = enquiries.filter((e) => e.status === "new" || e.status === "qualifying").length;

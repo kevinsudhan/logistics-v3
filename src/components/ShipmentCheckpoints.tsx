@@ -11,6 +11,7 @@ import {
 } from "../services/checkpoints";
 import { listPeople, stageLabel, type Person, type Shipment, type ShipmentStage } from "../services/enquiries";
 import { DUE_TONE, dueState, dueText, todayIST } from "../lib/progress";
+import { useTableChanges } from "../lib/useTableChanges";
 import { SectionSkeleton } from "./Loading";
 
 /**
@@ -72,6 +73,9 @@ export default function ShipmentCheckpoints({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A step ticked, dated or handed over by somebody else shows on this line as they do it.
+  useTableChanges("shipment_checkpoints", `shipment_id=eq.${shipmentId}`, () => void load());
 
   async function toggle(c: Checkpoint) {
     setBusy(c.id);
