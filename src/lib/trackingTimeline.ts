@@ -95,6 +95,7 @@ const EVENTS: Record<string, "warning" | undefined> = {
   warehouse_discrepancy: "warning",
   confirmation_sent: undefined,
   tracking_link_sent: undefined,
+  pre_alert_sent: undefined,
 };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

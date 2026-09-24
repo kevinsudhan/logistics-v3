@@ -11,7 +11,7 @@
     "test:space": "tsx server/spaceEngine.test.ts",
     "start": "tsx server/index.ts",
     "test:scene": "tsx src/lib/scene3d.test.ts",
-    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads && npm run test:token && npm run test:inline && npm run test:chargeable && npm run test:base64 && npm run test:sections && npm run test:dimensions && npm run test:update && npm run test:progress && npm run test:warehouse && npm run test:timeline && npm run test:xlsxread && npm run test:schedules && npm run test:trackread && npm run test:trackmail && npm run test:milestones && npm run test:hawb && npm run test:searoute && npm run test:routemodel && npm run test:customs && npm run test:worklist",
+    "test": "npm run test:space && npm run test:scene && npm run test:fields && npm run test:web && npm run test:fwd && npm run test:apply && npm run test:greet && npm run test:container && npm run test:allocate && npm run test:xlsx && npm run test:errors && npm run test:threads && npm run test:token && npm run test:inline && npm run test:chargeable && npm run test:base64 && npm run test:sections && npm run test:dimensions && npm run test:update && npm run test:progress && npm run test:warehouse && npm run test:timeline && npm run test:xlsxread && npm run test:schedules && npm run test:trackread && npm run test:trackmail && npm run test:milestones && npm run test:hawb && npm run test:searoute && npm run test:routemodel && npm run test:customs && npm run test:worklist && npm run test:prealert",
     "check:secrets": "node scripts/check-bundle-secrets.mjs",
     "test:fields": "tsx scripts/tests/requestFields.test.ts",
     "test:web": "tsx scripts/tests/webEnquiry.test.ts",
@@ -42,7 +42,8 @@
     "test:searoute": "tsx scripts/tests/seaRoute.test.ts",
     "test:routemodel": "tsx scripts/tests/routeModel.test.ts",
     "test:customs": "tsx scripts/tests/customs.test.ts",
-    "test:worklist": "tsx scripts/tests/worklist.test.ts"
+    "test:worklist": "tsx scripts/tests/worklist.test.ts",
+    "test:prealert": "tsx scripts/tests/preAlertMail.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

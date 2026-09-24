@@ -258,6 +258,13 @@ export async function removeFile(file: EnquiryFile): Promise<void> {
   await supabase.storage.from(BUCKET).remove([file.path]);
 }
 
+/** A filed file as bytes, for a mail that opens with it already attached. */
+export async function fileAsAttachment(file: EnquiryFile): Promise<{ name: string; contentType: string; bytes: Uint8Array }> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(file.path);
+  if (error) throw error;
+  return { name: file.name, contentType: file.content_type, bytes: new Uint8Array(await data.arrayBuffer()) };
+}
+
 /** A filed file, ready to go back out on a mail. */
 export async function asOutgoing(file: EnquiryFile): Promise<OutgoingAttachment> {
   const { data, error } = await supabase.storage.from(BUCKET).download(file.path);

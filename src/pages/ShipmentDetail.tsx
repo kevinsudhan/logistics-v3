@@ -9,6 +9,7 @@ import StatusPill from "../components/StatusPill";
 import { supabase } from "../lib/supabase";
 import { money } from "../services/billing";
 import { ACCOUNTS_DESK } from "../lib/features";
+import SendPreAlert from "../components/SendPreAlert";
 import { marginPct, shipmentMargin, type Margin } from "../services/bills";
 import {
   getEnquiry,
@@ -302,6 +303,10 @@ export default function ShipmentDetail() {
             {moving && <Loader2 size={11} className="animate-spin" />}
             Move to {stageLabel(next, mode).toLowerCase()}
           </button>
+        )}
+        {/* The pre-alert goes out on exports; on an import the agent sends it to us. */}
+        {s.trade_direction !== "import" && s.stage !== "cancelled" && (
+          <SendPreAlert shipment={s} enquiry={enquiry} onSent={() => void load()} />
         )}
         {(billing?.draft_count ?? 0) > 0 && (
           <StatusPill tone="warning">
