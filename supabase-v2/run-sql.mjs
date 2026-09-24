@@ -2,6 +2,12 @@
  * Applies a migration to the v2 project.
  *
  *   node supabase-v2/run-sql.mjs 013-partners.sql
+ *   node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"
+ *
+ * An argument ending in .sql is a file in supabase-v2/; anything else is sent
+ * as the query itself, for a quick look at live data. A look that must not
+ * change anything belongs in `do $$ ... raise exception 'RESULTS %' ... $$`
+ * so the work rolls back (HANDOFF.md, "Testing database behaviour").
  *
  * There is no Supabase CLI on this machine, so migrations go through the
  * Management API's query endpoint. The whole file is sent as one statement
@@ -19,11 +25,12 @@ const TOKEN = accessToken();
 
 const file = process.argv[2];
 if (!file) {
-  console.error("usage: node supabase-v2/run-sql.mjs <file.sql>");
+  console.error('usage: node supabase-v2/run-sql.mjs <file.sql | "select ...">');
   process.exit(1);
 }
 
-const sql = readFileSync(join(root, "supabase-v2", file), "utf-8");
+const isFile = file.endsWith(".sql");
+const sql = isFile ? readFileSync(join(root, "supabase-v2", file), "utf-8") : file;
 
 const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT}/database/query`, {
   method: "POST",
@@ -32,6 +39,6 @@ const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT}/database/
 });
 
 const text = await r.text();
-console.log(`${file} -> ${r.status}`);
-console.log(text.slice(0, 1200));
+console.log(`${isFile ? file : "query"} -> ${r.status}`);
+console.log(text.slice(0, isFile ? 1200 : 8000));
 process.exit(r.ok ? 0 : 1);

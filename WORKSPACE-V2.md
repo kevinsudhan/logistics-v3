@@ -1,3 +1,6 @@
+> **Stale, kept for history.** Written 28 August, when v2 ran on an in-memory mock.
+> v2 now has its own Supabase project and backend. Read `HANDOFF.md` instead.
+
 # v2 workspace
 
 A clone of the production CRM, for redesigning it without touching the one in use.
