@@ -38,9 +38,16 @@ export interface MailFolder {
  * TOKEN LIFETIME. Supabase hands back Microsoft's access token as
  * `provider_token` when the OAuth round trip completes, and it lives about an
  * hour. Supabase does not refresh it -- it refreshes its own JWT, not
- * Microsoft's -- so the token is stashed at sign-in and, when Graph answers 401,
- * the mailbox reports that it needs reconnecting rather than silently showing
- * nothing. Signing in again is the fix, and is one click.
+ * Microsoft's. Until 25 Sep 2026 that meant Outlook dropped an hour after
+ * signing in, mid-send.
+ *
+ * Now (094) the refresh token that comes back with it is handed once to the
+ * `outlook-token` function, which keeps it against this sign-in and trades it
+ * for a fresh access token whenever the one here is about to run out or Graph
+ * answers 401 -- redeeming it needs the Azure app's client secret, which only
+ * the server has. So Outlook stays connected for as long as the CRM does, and
+ * signing out ends both. Only when Microsoft itself ends the connection
+ * (password changed, access revoked) does the mailbox ask to be reconnected.
  * ---------------------------------------------------------------------------
  */
 
@@ -53,13 +60,23 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
  * machines are shared, and a mailbox token must not outlive the browser tab.
  */
 const TOKEN_KEY = "araxys.graphToken";
+/** When that token runs out (epoch ms); absent while its lifetime is unknown. */
+const EXPIRES_KEY = "araxys.graphTokenExpires";
+/** Which sign-in's refresh token the server already holds, so a reload does not hand it over again. */
+const LINKED_KEY = "araxys.outlookLinked";
 
-export function storeGraphToken(token: string | null) {
-  if (token) sessionStorage.setItem(TOKEN_KEY, token);
+export function storeGraphToken(token: string | null, expiresInSeconds?: number) {
+  if (!token) return;
+  sessionStorage.setItem(TOKEN_KEY, token);
+  if (expiresInSeconds) sessionStorage.setItem(EXPIRES_KEY, String(Date.now() + expiresInSeconds * 1000));
+  else sessionStorage.removeItem(EXPIRES_KEY);
 }
 
 export function clearGraphToken() {
   sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(EXPIRES_KEY);
+  sessionStorage.removeItem(LINKED_KEY);
+  adopted = null;
 }
 
 export function hasGraphToken(): boolean {
@@ -68,33 +85,136 @@ export function hasGraphToken(): boolean {
 
 /** Thrown when Microsoft rejects the token, so the UI can offer a reconnect. */
 export class GraphAuthError extends Error {
-  constructor(message = "Your Outlook connection has expired. Sign in again to reconnect.") {
+  constructor(message = "Microsoft ended the Outlook connection. Connect Outlook again.") {
     super(message);
     this.name = "GraphAuthError";
   }
 }
 
-async function graph<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * Asks the `outlook-token` function (094). A 409 with `reconnect` is Microsoft
+ * having ended the connection: the token here goes too, and the mailbox offers
+ * "Connect Outlook". Anything else is a hiccup, reported as one.
+ */
+async function outlookToken(body: { action: "link" | "token"; refresh_token?: string }): Promise<{ access_token: string; expires_in: number }> {
+  const { data, error } = await supabase.functions.invoke("outlook-token", { body });
+  if (error) {
+    const said = await (error as { context?: Response }).context?.json?.().catch(() => null);
+    if (said?.reconnect) {
+      clearGraphToken();
+      throw new GraphAuthError();
+    }
+    throw new Error(said?.error ?? error.message);
+  }
+  return data as { access_token: string; expires_in: number };
+}
+
+/**
+ * Takes up the Microsoft tokens from a Supabase session, if it carries them —
+ * which it does only straight after the Microsoft sign-in, and until Supabase
+ * next renews its own session.
+ *
+ * The access token is usable at once. The refresh token goes to the server,
+ * once per sign-in; the fresh access token that comes back replaces the first.
+ * If that fails the hour's token still works, and the mailbox asks to be
+ * reconnected when it runs out, as it always did.
+ */
+let adopted: string | null = null;
+export function adoptMicrosoftSession(session: unknown) {
+  const s = session as { provider_token?: string | null; provider_refresh_token?: string | null } | null;
+  if (!s?.provider_token) return;
+  const refresh = s.provider_refresh_token;
+  if (!refresh) {
+    storeGraphToken(s.provider_token);
+    return;
+  }
+  // getSession and the SIGNED_IN event both deliver the same session.
+  if (adopted === refresh) return;
+  adopted = refresh;
+  const first = s.provider_token;
+  void (async () => {
+    const tag = await fingerprint(refresh);
+    // A reload within the hour: the server already has this one, and the
+    // token here is newer than the one on the session.
+    if (sessionStorage.getItem(LINKED_KEY) === tag && hasGraphToken()) return;
+    storeGraphToken(first);
+    try {
+      const got = await outlookToken({ action: "link", refresh_token: refresh });
+      storeGraphToken(got.access_token, got.expires_in);
+      sessionStorage.setItem(LINKED_KEY, tag);
+    } catch {
+      /* the first token stands; see above */
+    }
+  })();
+}
+
+async function fingerprint(value: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(d).slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** One renewal at a time: a folder load fires several Graph calls at once. */
+let renewing: Promise<string> | null = null;
+function renew(): Promise<string> {
+  renewing ??= outlookToken({ action: "token" })
+    .then((got) => {
+      storeGraphToken(got.access_token, got.expires_in);
+      return got.access_token;
+    })
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+}
+
+/**
+ * The token to call Graph with, renewed first when it has under two minutes
+ * left — a request started at 59:59 should not arrive at 60:01.
+ */
+async function usableToken(): Promise<string> {
   const token = sessionStorage.getItem(TOKEN_KEY);
   if (!token) throw new GraphAuthError("Outlook is not connected on this session.");
+  const expires = Number(sessionStorage.getItem(EXPIRES_KEY) ?? 0);
+  if (expires && expires - Date.now() < 2 * 60_000) {
+    try {
+      return await renew();
+    } catch (e) {
+      // Microsoft said no, or it has run out already: nothing to fall back on.
+      if (e instanceof GraphAuthError || Date.now() >= expires) throw e;
+      return token;
+    }
+  }
+  return token;
+}
 
-  // A path, or a next-page link Graph itself handed back (and only Graph's).
-  const url = path.startsWith("https://graph.microsoft.com/") ? path : `${GRAPH}${path}`;
-  const r = await fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+/**
+ * fetch against Graph with the token, renewing it once if Graph says it has
+ * run out. A 401 means nothing was done, so sending again is safe.
+ */
+async function graphFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const call = (token: string) =>
+    fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` } });
+  let r = await call(await usableToken());
+  if (r.status === 401) r = await call(await renew());
 
-  // 401 is an expired or revoked token; 403 is a permission the app was never
-  // granted. Both mean "reconnect", and neither is worth a stack trace at the user.
+  // Still 401 after a fresh token, or 403 (a permission the app was never
+  // granted): both mean "reconnect", and neither is worth a stack trace at the user.
   if (r.status === 401 || r.status === 403) {
     clearGraphToken();
-    throw new GraphAuthError();
+    throw new GraphAuthError(
+      r.status === 403 ? "Microsoft refused the CRM access to this mailbox. Connect Outlook again." : undefined
+    );
   }
+  return r;
+}
+
+async function graph<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // A path, or a next-page link Graph itself handed back (and only Graph's).
+  const url = path.startsWith("https://graph.microsoft.com/") ? path : `${GRAPH}${path}`;
+  const r = await graphFetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...((init.headers as Record<string, string> | undefined) ?? {}) },
+  });
 
   if (!r.ok) {
     const detail = await r.text();
@@ -305,27 +425,19 @@ export async function listMessages(
  * The next page, from the link Graph handed back.
  *
  * The link is an absolute URL rather than a path, so it cannot go through
- * `graph()` — which prefixes the v1.0 base and would produce a doubled URL. The
- * token handling is repeated here deliberately for that one reason.
+ * `graph()` — which prefixes the v1.0 base and would produce a doubled URL.
  */
 export async function listMore(
   mailbox: string,
   folder: FolderId,
   nextLink: string
 ): Promise<MessagePage> {
-  const token = sessionStorage.getItem(TOKEN_KEY);
-  if (!token) throw new GraphAuthError("Outlook is not connected on this session.");
-
   // Only ever a link Graph itself produced, and only against Graph's own host.
   if (!nextLink.startsWith("https://graph.microsoft.com/")) {
     throw new Error("Refusing to follow a page link that is not Microsoft Graph.");
   }
 
-  const r = await fetch(nextLink, { headers: { Authorization: `Bearer ${token}` } });
-  if (r.status === 401 || r.status === 403) {
-    clearGraphToken();
-    throw new GraphAuthError();
-  }
+  const r = await graphFetch(nextLink);
   if (!r.ok) throw new Error(`Outlook returned ${r.status}`);
 
   const data = (await r.json()) as { value: GraphMessage[]; "@odata.nextLink"?: string };
@@ -917,11 +1029,4 @@ export async function whoami(): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-/** Captures the Microsoft token Supabase returns after the OAuth round trip. */
-export async function captureGraphTokenFromSession(): Promise<void> {
-  const { data } = await supabase.auth.getSession();
-  const token = (data.session as { provider_token?: string } | null)?.provider_token;
-  if (token) storeGraphToken(token);
 }

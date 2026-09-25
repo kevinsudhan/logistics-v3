@@ -22,7 +22,8 @@
  *   set_role       employee or admin
  *   set_flags      may approve quotations, may assign enquiries
  *   set_password   one the administrator chooses, at least 10 characters
- *   set_disabled   signed out of everything and unable to sign back in, or
+ *   set_disabled   signed out of everything, Outlook disconnected (094) and
+ *                  unable to sign back in, or
  *                  let back in
  *
  * Nobody can disable or demote themselves, and the last administrator cannot
@@ -175,6 +176,8 @@ Deno.serve(async (req) => {
         if (input.disabled && target.role === "admin" && (await activeAdmins(input.id)) === 0) return fail("That is the last administrator.");
         const { error } = await admin.auth.admin.updateUserById(input.id, { ban_duration: input.disabled ? FOREVER : "none" });
         if (error) return fail(error.message);
+        // Their Outlook connections go too, whatever sign-ins are still open (094).
+        if (input.disabled) await admin.rpc("outlook_link_drop", { p_user: input.id });
         return json({ people: await everybody() });
       }
 

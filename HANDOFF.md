@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **093**, so the next one is `094-….sql`.
+  migration filename (§6). The last migration is **094**, so the next one is `095-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -90,7 +90,7 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
   surface) to `mockBackend.ts`. `netlify.toml` keeps `VITE_MOCK_BACKEND=on` and
   deliberately leaves `VITE_API_BASE` unset, so nothing can reach v1.
 
-### Edge Functions (5)
+### Edge Functions (6)
 
 | Function | What it does | Secrets |
 |---|---|---|
@@ -98,6 +98,7 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
 | `track-shipment` | Flight, vessel and container positions; hourly cron sweep (073) | `AISSTREAM_API_KEY`, `AERODATABOX_KEY`, `AERODATABOX_VIA=direct`, `TRACK_CRON_SECRET` |
 | `staff-accounts` | The admin console's Staff accounts: list, add (email confirmed, role in app_metadata), role, may-approve and may-assign flags, password, disable and enable. Admin callers only; refuses to disable or demote yourself or the last admin | none beyond the defaults |
 | `db-backup` | The nightly backup into the `backups` bucket, 30 days kept, each run in `backup_runs`; for an admin, the run list with download links and "Back up now" | `BACKUP_SECRET` (`set-backup-secret.mjs`) |
+| `outlook-token` | Keeps Outlook connected past Microsoft's hour (094). `link`: the browser hands over the Microsoft refresh token once after the Microsoft sign-in; it is redeemed and the rotated one kept, sealed, against that Supabase sign-in. `token`: a fresh access token from it. 409 `{reconnect}` when Microsoft has ended the connection | `OUTLOOK_TOKEN_KEY` (`set-outlook-key.mjs`), and the three `MS_*` below |
 | `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SYNC_SECRET` |
 
 Deploy a function with `node supabase-v2/deploy-function.mjs <slug>` (`--verify-jwt` for
@@ -156,7 +157,7 @@ flag on, it also has invoices and costs.
 
 ## 4. Data model — 93 migrations
 
-`supabase-v2/001…093`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…094`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -182,6 +183,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `094` | Outlook stays connected: `private.outlook_links` (one row per Supabase sign-in, keyed by `auth.sessions.id` **on delete cascade**, so a sign-out deletes it; the refresh token sealed by the function); `outlook_link_put / _get / _drop`, service role only; cron `araxys-v2-outlook-links-prune` (22:30 UTC) drops rows unused for 3 days (tabs closed without signing out). The `private` schema is outside the API and the backup |
 | `093` | nightly backups: `backup_export()` / `backup_export_text()` (service role only) write every public table, the accounts without passwords and the file list; the private bucket `backups`; `backup_runs` (admins read); cron `araxys-v2-db-backup` at 21:30 UTC (03:00 IST) |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
@@ -514,6 +516,24 @@ screen.
   - The rule in `require_approval_to_send` still refuses a direct `approval_status` change by
     a non-approver. Only `self_approve_quote` passes, by setting `app.self_approving` for its
     own transaction; a PostgREST request cannot set it.
+- **Outlook stays connected (094).** Until 25 Sep the Microsoft access token from the sign-in
+  died after about an hour and every send failed until the person signed in with Microsoft
+  again. Now:
+  - After the Microsoft sign-in, `adoptMicrosoftSession` (graphMail.ts) sends the refresh
+    token to `outlook-token` once; the fresh access token it returns (and its expiry) goes into
+    sessionStorage as before.
+  - Every Graph call goes through `graphFetch`: under two minutes left, it renews first; on a
+    401 it renews once and retries (a 401 means nothing was done, so a resend is safe). One
+    renewal at a time, however many calls are waiting.
+  - Only when Microsoft itself refuses (password changed, access revoked, 90 days unused) does
+    the mailbox say "Connect Outlook again". A hiccup renewing keeps the connection.
+  - The connection is per sign-in, as before: signing out deletes the Supabase session, which
+    deletes the kept token (foreign key). Disabling a person on Staff accounts drops all theirs.
+  - Redeeming needs `MS_CLIENT_SECRET`. If that secret expires in Azure, renewals fail with
+    "The CRM's Microsoft client secret is wrong or has expired" and mail-sync stops too: make a
+    new one and run `set-mail-sync-secret.mjs`.
+  - Password sign-ins are unchanged: they connect with "Connect Outlook" on the Mail page, and
+    from then on stay connected the same way.
 - **Backups (093).** Nightly at 03:00 IST: every public table, the accounts (no passwords)
   and the stored-file list, as `db/YYYY-MM-DD.json.gz` in the private `backups` bucket, 30
   days kept. The admin console shows whether last night's ran (red after 26 hours or a
@@ -664,6 +684,7 @@ There are 63 commits. Grouped:
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
+| Outlook stays connected (094) | see `git log` | No more "sign in again" an hour after signing in: the server renews the Microsoft token silently for as long as the person stays signed in |
 | Quote self-approval (091) | see `git log` | Approve a quotation yourself with a reason; the reason goes to the admins' review list with a sidebar count; admins accept or withdraw while unsent |
 | iPad sign-in | see `git log` | The sign-in no longer scrolls or bounces on iPad (dvh) |
 | Console manifest (090) | see `git log` | Every house B/L under a console on one PDF and Excel sheet, mailed to the destination agent; provisional until every B/L is final; flags house bills added since it was sent |

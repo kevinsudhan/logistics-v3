@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
-import { storeGraphToken, clearGraphToken } from "../services/graphMail";
+import { adoptMicrosoftSession, clearGraphToken } from "../services/graphMail";
 
 /**
  * Authentication, for real this time.
@@ -127,10 +127,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       const user = data.session?.user;
-      // Microsoft's own access token rides along on the session Supabase built
-      // from the OAuth callback. It is the only moment it is available, so it
-      // is stashed here rather than fetched later -- there is no later.
-      storeGraphToken((data.session as { provider_token?: string } | null)?.provider_token ?? null);
+      // Microsoft's own tokens ride along on the session Supabase built from
+      // the OAuth callback. It is the only moment they are available, so they
+      // are taken up here rather than fetched later -- there is no later. The
+      // refresh token goes to the server, which keeps Outlook connected (094).
+      adoptMicrosoftSession(data.session);
       if (!cancelled) {
         setSession(user ? await loadProfile(user.id, user.email ?? "") : null);
         setLoading(false);
@@ -139,7 +140,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (cancelled || signingIn.current) return;
-      storeGraphToken((s as { provider_token?: string } | null)?.provider_token ?? null);
+      // Deferred: handing the refresh token over calls a function, and a
+      // Supabase call made inside this callback waits on the lock it holds.
+      setTimeout(() => adoptMicrosoftSession(s), 0);
       const user = s?.user;
       setSession(user ? await loadProfile(user.id, user.email ?? "") : null);
       setLoading(false);
