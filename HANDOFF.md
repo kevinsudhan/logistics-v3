@@ -107,9 +107,13 @@ Deploy a function with `node supabase-v2/deploy-function.mjs <slug>` (`--verify-
 `node supabase-v2/set-mail-sync-secret.mjs` sets mail-sync's tenant, client id and scheduler
 secret (and `MS_CLIENT_SECRET` from `ms_client_secret` in `server-v2/.keys.json`, if present).
 
-On the Supabase account but not in this repo: `kb-sync` and `ingest-calls` (orphans from
-the voice-agent era) and a `SNAPSERVE_API_KEY` secret. **Whether to delete them is the
-user's call.**
+`kb-sync` and `ingest-calls` (the voice-agent era) were deleted on 26 Sep. They were deployed
+with no sign-in check, and `kb-sync` republished the voice agents' knowledge pack through
+SnapServe, so anyone who found the address could have run it. Their deployed code is saved
+locally in `backups/functions/` (gitignored). **Their four secrets are still set, for the user
+to remove** (the session was not allowed to delete secrets): `SNAPSERVE_API_KEY`,
+`SNAPSERVE_BASE_URL`, `ANTHROPIC_API_KEY` and `EXTRACTION_DISABLED`, under Supabase → Edge
+Functions → Secrets. Nothing in the repo reads them.
 
 ### Flags (`netlify.toml` → `src/lib/features.ts`)
 
@@ -440,10 +444,14 @@ screen.
     shows "Microsoft rejected the CRM app's client secret". Renew it as in §1.
   - Optional: an Exchange `ApplicationAccessPolicy` can limit the app to the desk's
     mailboxes. That is the user's call.
-- The orphan functions `kb-sync` and `ingest-calls`, and the `SNAPSERVE_API_KEY` secret:
-  delete them or not.
-- The 3D planner (`ContainerPlanView`, `ContainerScene`, `lib/scene3d`) is no longer
-  referenced by any page since the sailings merge. Delete it or not.
+- The voice-era secrets above: remove them in the dashboard.
+- `server/` is the first version's Express backend (with the voice-agent import code). The
+  live app does not use it (`VITE_MOCK_BACKEND` on, no `VITE_API_BASE`) and nothing in `src`
+  imports it. Only `test:space` runs anything from it. Delete it or not.
+- The old v1 project (`wremiarcmppuncgfzrqb`), which the live voice agents still share: keep it,
+  or retire it together with the agents. That is the user's call. Do not touch it until then.
+- (Done 26 Sep: the unused 3D planner, `ContainerPlanView`, `ContainerScene`, `lib/scene3d`,
+  was removed. It is in git history if it is ever wanted again.)
 
 ### Live data worth knowing (24 September)
 

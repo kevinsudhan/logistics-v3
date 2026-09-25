@@ -145,7 +145,7 @@ export default function ShipmentContainers() {
     try {
       await fn();
       await load();
-      // The gross weight on the booking and the stowage planner both read the
+      // The gross weight on the booking reads the
       // shipment, and the mirrored container number moves with these rows.
       await reload();
     } catch (e) {
