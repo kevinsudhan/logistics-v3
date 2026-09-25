@@ -39,11 +39,12 @@ compromised:
 | **Supabase personal access token** (in `server-v2/.keys.json`) | supabase.com/dashboard/account/tokens: revoke it, create a new one, put it back in `.keys.json` |
 | Gemini API key `AQ.Ab8RN6Iq…` | aistudio.google.com, then update the `GEMINI_API_KEY` function secret |
 | Azure client secret `JX38Q~…` | Entra ID → app registration → Certificates & secrets |
+| Azure client secret made on 25 Sep for mail-sync (`MS_CLIENT_SECRET`) | Same place: add a new one, put it in `.keys.json` as `ms_client_secret`, run `node supabase-v2/set-mail-sync-secret.mjs`, then delete the old one in Azure |
 | SnapServe `sk_live_705b5d…` | SnapServe account (v1 only; v2 does not use it) |
 | Anthropic `sk-ant-api03-YN9atg…` | console.anthropic.com (not used by v2) |
 
 The Supabase token is issued against the **account**, so it can reach v1 as well. That makes
-it the most urgent of the five. `TRACK_CRON_SECRET` is stored in three places: the function
+it the most urgent of these. `TRACK_CRON_SECRET` is stored in three places: the function
 secrets, Vault, and `.keys.json`. Rotate all three together with
 `node supabase-v2/set-track-secret.mjs`.
 
@@ -95,7 +96,7 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
 |---|---|---|
 | `classify-enquiry` | Gemini reads a mail and extracts enquiry fields | `GEMINI_API_KEY`, `GEMINI_FALLBACK_MODELS` |
 | `track-shipment` | Flight, vessel and container positions; hourly cron sweep (073) | `AISSTREAM_API_KEY`, `AERODATABOX_KEY`, `AERODATABOX_VIA=direct`, `TRACK_CRON_SECRET` |
-| `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` (not set yet), `MAIL_SYNC_SECRET` |
+| `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SYNC_SECRET` |
 
 Deploy a function with `node supabase-v2/deploy-function.mjs <slug>` (`--verify-jwt` for
 `track-shipment` and `mail-sync`: the cron sends the anon key and the shared secret).
@@ -210,8 +211,11 @@ admin role and the oversight password.
     (app-only, client credentials) and copies every CRM login's mailbox
     (`mail_sync_targets()` = every profile email) every 5 minutes by pg_cron. The first copy
     goes back 31 days. Its rows have `synced_by` null, so only admins read them.
-    **It needs the Azure admin to act first (§9).** Until then, each mailbox records
-    Microsoft's refusal in `server_error`, and the Mail sent tab shows it.
+    **Running since 25 September.** The first run copied 510 mails: parasu@ 438, info@ 69,
+    aashish@ 3, aarathy@ and imports@ none in 31 days. When Microsoft refuses a mailbox, the
+    refusal goes in `server_error` and the Mail sent tab shows it.
+    The Graph permission granted returns an empty `bodyPreview`, so server rows have no
+    preview.
   - **Each person's browser (086)**, via `services/mailLog.ts`: 4 s after the app opens,
     every 5 minutes, when the tab comes back into view, and 8 s after each send from the CRM.
     The first copy goes back 14 days. It is the only source of Outlook's preview line,
@@ -393,17 +397,13 @@ screen.
   (`apimarket`), each with its own key. **The assistant must not sign up for accounts.**
 - **aisstream works but hears almost nothing.** It has no shore receivers near India or the
   Gulf.
-- **The server's mail copy (087) is built and scheduled, and waits on their Azure admin.**
-  The app is `efb90aa6-9404-40d2-be1b-3b6a3d5f5866` (the CRM's Microsoft sign-in app).
-  1. Under API permissions, add Microsoft Graph **Application** permission
-     `Mail.ReadBasic.All`, then **Grant admin consent**.
-  2. Under Certificates & secrets, add a new client secret and copy its **Value**. Set it
-     as the edge function secret `MS_CLIENT_SECRET`, in the dashboard or through
-     `ms_client_secret` in `.keys.json` plus the script.
-  3. Check with a manual run (the cron secret is in `.keys.json`). Each mailbox's
-     `server_error` should clear.
-
-  Optional: an Exchange `ApplicationAccessPolicy` can limit the app to the desk's mailboxes.
+- **The server's mail copy (087)** runs on the Azure app
+  `efb90aa6-9404-40d2-be1b-3b6a3d5f5866` with application permission `Mail.ReadBasic.All`
+  (admin-consented) and the client secret made on 25 September.
+  - The secret expires on whatever date was chosen in Azure. When it does, every mailbox
+    shows "Microsoft rejected the CRM app's client secret". Renew it as in §1.
+  - Optional: an Exchange `ApplicationAccessPolicy` can limit the app to the desk's
+    mailboxes. That is the user's call.
 - The orphan functions `kb-sync` and `ingest-calls`, and the `SNAPSERVE_API_KEY` secret:
   delete them or not.
 - The 3D planner (`ContainerPlanView`, `ContainerScene`, `lib/scene3d`) is no longer
@@ -518,7 +518,7 @@ There are 63 commits. Grouped:
 | Live everywhere (084) | see `git log` | Every change on an enquiry or a job, by anybody, shows on everybody's open page: every tab of the job file, every panel of the case file, the boards, Job closing and Consoles |
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
-| Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes, waiting on the Azure admin's consent |
+| Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)
