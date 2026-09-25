@@ -420,8 +420,8 @@ export default function Mail() {
           <AlertCircle size={13} className="mt-px shrink-0" />
           <div className="flex-1">
             <p>
-              <strong className="font-medium">Demonstration mailbox.</strong> These messages are
-              samples, and anything sent from here is filed locally rather than delivered.
+              <strong className="font-medium">Outlook is not connected.</strong> These are sample
+              messages, not your mailbox, and nothing can be sent until you connect it.
             </p>
             <button
               onClick={() => void signInWithMicrosoft()}

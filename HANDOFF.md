@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **091**, so the next one is `092-….sql`.
+  migration filename (§6). The last migration is **092**, so the next one is `093-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -152,9 +152,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 91 migrations
+## 4. Data model — 92 migrations
 
-`supabase-v2/001…091`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…092`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -179,6 +179,7 @@ transaction).
 | `089` | releasing our own house B/L: `house_bills` gets charges received, originals handed over (to whom), originals back (how many), release sent (to whom), released at destination, a note; `house_bill_write` refuses a release before issue, a telex release before every original is back, and reopening while an original is out; history action `released`; timeline events |
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
+| `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -329,6 +330,13 @@ The UI has no automated tests. It is verified by hand in the way described below
 ---
 
 ## 8. Traps that cost real time
+
+- **Supabase grants `anon` every new table, view and function by default.** 092 changed the
+  default privileges. Still, check anything new with `has_function_privilege('anon', …)`.
+  A view or `SECURITY DEFINER` function runs past RLS.
+- **Sending without Outlook used to "succeed" into the demo mailbox.** `sendMail` and
+  `sendTrackedMail` now throw on the live site. The demo mailbox is only for `vite dev`
+  (`import.meta.env.DEV`).
 
 - **Theme colours are plain `var(--…)`**, so Tailwind's opacity modifier
   (`bg-bg-danger/40`, `border-text-accent/25`) generates nothing and the style silently
@@ -544,9 +552,16 @@ screen.
      `bl_type` is `forwarder`).
 - On air, the HAWB form's MAWB boxes do not write `shipments.mainline_no`, so an air pre-alert
   has no MAWB unless one is recorded some other way.
-- **Security audit (flagged 24 Sep, a separate task).** 62 `SECURITY DEFINER` functions were
-  executable by `anon` because nothing revoked PUBLIC. 082 closed the five console and
-  numbering ones. The rest need going through (§8).
+- **Security: closed on 25 Sep (092); what is left.**
+  - With the public anon key alone, anyone could read the 14 reporting views (customer
+    balances, margins) and call 88 `SECURITY DEFINER` functions, 24 of them with no caller
+    check. 092 closed all of it. Checked from outside: 401 on the views and on
+    `create_customer`, while the customer pages still answer.
+  - **Still open (the user's decision):** sign-ups are enabled (`disable_signup: false`), and
+    `handle_new_user` makes any new account an `employee` with full access. Switch sign-ups
+    off; admins then create staff accounts.
+  - Also: minimum password length 6, leaked-password protection off, 13 functions without
+    a fixed `search_path`, and the 14 views are still security definer (staff-only now).
 - Shipment row ids are still `ARX-SHP-0004`. Nothing printed or mailed shows them any more
   (documents are numbered `BKG-ALG09004-26`, see `documentNo` in `lib/documents/data.ts`),
   but the job file header and the enquiry register's booking-number fallback still do.

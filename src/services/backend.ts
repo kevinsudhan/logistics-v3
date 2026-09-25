@@ -379,13 +379,27 @@ export const moveMailMessage = async (mailbox: string, id: string, folder: Folde
  * without a way to match a reply — which is correct, because in the demo
  * mailbox no reply is ever coming.
  */
+/**
+ * Sending without Outlook is refused on the live site, in words.
+ *
+ * Until 25 Sep 2026 a send with no Microsoft connection went to the demo
+ * mailbox and came back as success: a quotation "sent" by somebody signed in
+ * with a password never left, and a rate request was recorded as asked when
+ * nobody had been. The demo mailbox is for running the app locally only.
+ */
+const NOT_CONNECTED = "Outlook is not connected, so nothing was sent. Sign out and sign in with Microsoft, then send it again.";
+const demoMail = import.meta.env.DEV;
+
 export const sendTrackedMail = async (input: {
   to: string[];
   cc?: string[];
   subject: string;
   content: string;
 }): Promise<{ conversationId: string | null }> => {
-  if (!live()) return { conversationId: null };
+  if (!live()) {
+    if (demoMail) return { conversationId: null };
+    throw new Error(NOT_CONNECTED);
+  }
   const { conversationId } = await graph.sendTracked(input);
   // Into the desk's mail log for oversight once Outlook has filed it (086).
   syncSentSoon();
@@ -450,6 +464,7 @@ export const sendMail = async (body: {
     syncSentSoon();
     return;
   }
+  if (!demoMail) throw new Error(NOT_CONNECTED);
   return post<{ message: MailMessage }>("/api/mail/send", body);
 };
 
