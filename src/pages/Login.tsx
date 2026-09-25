@@ -146,10 +146,15 @@ export default function Login({ role }: { role: Role }) {
                 className="absolute -inset-12 rounded-full blur-2xl"
                 style={{ background: "radial-gradient(closest-side, rgba(96,165,250,0.5), rgba(96,165,250,0))" }}
               />
+              {/* 12 KB, preloaded from index.html and cached for a year: the
+                  270 KB icon-512.png it replaced drew itself in from the top. */}
               <img
-                src="/icons/icon-512.png"
+                src="/media/mark-v1.webp"
                 alt=""
                 aria-hidden="true"
+                width={112}
+                height={112}
+                decoding="sync"
                 draggable={false}
                 className="relative w-24 h-24 xl:w-28 xl:h-28 rounded-[26%] ring-1 ring-white/15 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)]"
               />
@@ -167,7 +172,7 @@ export default function Login({ role }: { role: Role }) {
           </div>
 
           <div className="login-lockup-late absolute inset-x-0 bottom-10 flex justify-center">
-            <PoweredByAraxys tone="dark" />
+            <PoweredByAraxys tone="dark" stacked />
           </div>
         </div>
       </div>

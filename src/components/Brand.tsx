@@ -53,11 +53,23 @@ export function AraxysWordmark({
 export function PoweredByAraxys({
   tone = "light",
   className = "",
+  stacked = false,
 }: {
   tone?: "light" | "dark";
   className?: string;
+  /** "Powered by" over the wordmark, for a centred credit like the sign-in panel's. */
+  stacked?: boolean;
 }) {
   const muted = tone === "dark" ? "text-white/40" : "text-text-muted";
+
+  if (stacked) {
+    return (
+      <span className={`inline-flex flex-col items-center gap-1.5 ${className}`}>
+        <span className={`text-[10px] uppercase tracking-[0.2em] ${muted}`}>Powered by</span>
+        <AraxysWordmark tone={tone} className={`h-[13px] ${tone === "dark" ? "opacity-85" : "opacity-75"}`} />
+      </span>
+    );
+  }
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] ${muted} ${className}`}>
@@ -102,7 +114,7 @@ export function CompanyBrand({
         to compensate for losing that box.
       */}
       <img
-        src="/icons/icon-192.png"
+        src="/media/mark-v1.webp"
         alt=""
         aria-hidden="true"
         className={`${box} shrink-0 rounded-[24%] object-cover shadow-sm`}
