@@ -75,6 +75,7 @@ const EVENT_STYLE: Record<string, { label: string; className: string }> = {
   hbl_surrendered: { label: "Originals back", className: "bg-bg-accent text-text-accent" },
   telex_released: { label: "Telex release", className: "bg-bg-success text-text-success" },
   cargo_released: { label: "Released", className: "bg-bg-success text-text-success" },
+  quote_self_approved: { label: "Self-approved", className: "bg-bg-warning text-text-warning" },
 };
 
 function when(iso: string | null): string {

@@ -124,6 +124,8 @@ export const EVENT_LABEL: Record<string, string> = {
   hbl_surrendered: "Originals back",
   telex_released: "Telex release",
   cargo_released: "Released",
+  quote_self_approved: "Self-approved",
+  quote_self_approval_reviewed: "Self-approval reviewed",
   console_attached: "On console",
   console_detached: "Off console",
   mbl_recorded: "Master B/L",

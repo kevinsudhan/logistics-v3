@@ -1,6 +1,9 @@
 import { NavLink } from "react-router-dom";
 import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
+import { useTableChanges } from "../lib/useTableChanges";
+import { approvalCounts } from "../services/quoteApproval";
 import { ACCOUNTS_DESK } from "../lib/features";
 import {
   Building2,
@@ -190,6 +193,17 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const { session } = useAuth();
   const visible = groups.filter((g) => !g.adminOnly || session?.role === "admin");
 
+  // What is waiting on Quote approvals for this person: the queue for an
+  // approver, and the self-approvals to read for an admin (091). Live.
+  const approver = session?.canApproveQuotes === true;
+  const isAdmin = session?.role === "admin";
+  const [waiting, setWaiting] = useState(0);
+  const count = useCallback(() => {
+    if (approver) void approvalCounts(isAdmin).then(setWaiting, () => {});
+  }, [approver, isAdmin]);
+  useEffect(count, [count]);
+  useTableChanges("quotes", null, count, approver);
+
   return (
     <>
       {/* The scrim. Tapping anywhere off the panel is the fastest way out. */}
@@ -262,6 +276,14 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                       />
                       <item.icon size={16} className={isActive ? "text-brand" : ""} />
                       <span className="truncate">{item.label}</span>
+                      {item.to === "/approvals" && waiting > 0 && (
+                        <span
+                          className="ml-auto rounded-full bg-bg-warning px-1.5 text-[10.5px] font-medium tabular-nums text-text-warning"
+                          aria-label={`${waiting} waiting`}
+                        >
+                          {waiting}
+                        </span>
+                      )}
                     </>
                   )}
                 </NavLink>

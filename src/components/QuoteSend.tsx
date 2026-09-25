@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Trash2,
   Undo2,
+  UserCheck,
 } from "lucide-react";
 import ComposeMail from "./ComposeMail";
 import { useAuth } from "../lib/auth";
@@ -26,6 +27,7 @@ import {
   defaultTerms,
   markSent,
   saveTerms,
+  selfApprove,
   sendable,
   submitForApproval,
   type QuoteTerm,
@@ -83,6 +85,9 @@ export default function QuoteSend({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  /** The "approve it myself" box, open, and the reason being typed (091). */
+  const [selfOpen, setSelfOpen] = useState(false);
+  const [reason, setReason] = useState("");
   /**
    * The customer's acceptance link, minted when the mail is opened.
    *
@@ -233,6 +238,13 @@ export default function QuoteSend({
         </p>
       )}
 
+      {!exempt && quote.approval_status === "approved" && quote.self_approved && (
+        <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-[12px] text-text-secondary">
+          <UserCheck size={12} className="-mt-0.5 mr-1 inline" />
+          Approved by you. The admins have your reason: &ldquo;{quote.self_approval_reason}&rdquo;
+        </p>
+      )}
+
       {/* ---- terms ---- */}
       <div className="mt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -336,6 +348,52 @@ export default function QuoteSend({
         </div>
       )}
 
+      {selfOpen && !exempt && (quote.approval_status === "draft" || quote.approval_status === "pending") && (
+        <div className="mt-3 rounded-lg border border-border bg-surface-2 p-3">
+          <label className="block">
+            <span className="text-[12px] font-medium text-text-primary">Why are you approving it yourself?</span>
+            <span className="mt-0.5 block text-[11.5px] text-text-muted">
+              It can go to the customer straight away. Your reason goes to the admins, who can withdraw the approval while it has not been sent.
+            </span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              autoFocus
+              placeholder="e.g. Customer on the phone and both approvers are out; same rate as their last booking."
+              className="mt-2 w-full resize-y rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] leading-snug"
+            />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy !== null || reason.trim().length < 10}
+              title={reason.trim().length < 10 ? "A sentence, please: the admins will read it" : undefined}
+              onClick={() =>
+                void run("self", async () => {
+                  await selfApprove(quote.id, reason.trim());
+                  setSelfOpen(false);
+                  setReason("");
+                })
+              }
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+            >
+              {busy === "self" ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Approve and tell the admins
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelfOpen(false);
+                setReason("");
+              }}
+              className="h-8 rounded-lg px-3 text-[12px] text-text-secondary hover:text-text-primary"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ---- the three acts ---- */}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {!exempt &&
@@ -360,6 +418,19 @@ export default function QuoteSend({
             <Loader2 size={13} className="animate-spin" />
             With the approvers. It cannot go to the customer until one of them clears it.
           </p>
+        )}
+
+        {/* The other way through (091): clear it yourself, saying why. Not
+            over an approver's "no" — the database refuses that too. */}
+        {!exempt && (quote.approval_status === "draft" || quote.approval_status === "pending") && !selfOpen && (
+          <button
+            type="button"
+            onClick={() => setSelfOpen(true)}
+            disabled={busy !== null}
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-border-strong hover:text-text-primary disabled:opacity-60"
+          >
+            <UserCheck size={13} /> Approve it myself
+          </button>
         )}
 
         {ready && (

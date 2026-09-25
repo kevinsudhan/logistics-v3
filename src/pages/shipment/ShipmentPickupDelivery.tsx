@@ -526,7 +526,7 @@ function MoveCard({
           )}
 
           {(m.attempts ?? []).length > 0 && (
-            <div className="mb-4 rounded-lg border border-text-danger/25 bg-bg-danger/40 px-3 py-2">
+            <div className="mb-4 rounded-lg border border-text-danger/25 bg-bg-danger px-3 py-2">
               <p className="mb-1 text-[11.5px] font-medium text-text-danger">
                 {m.attempts.length === 1 ? "One failed attempt" : `${m.attempts.length} failed attempts`}
                 {status === "failed" && lastAttempt && " — plan a new day to go again"}

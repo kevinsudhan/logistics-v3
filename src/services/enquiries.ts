@@ -222,6 +222,12 @@ export interface Quote {
   approved_at: string | null;
   approved_by: string | null;
   approval_note: string;
+  /** Cleared by its writer, with a reason for the admins (091). */
+  self_approved?: boolean;
+  self_approval_reason?: string;
+  self_approval_reviewed_at?: string | null;
+  self_approval_reviewed_by?: string | null;
+  self_approval_review_note?: string;
   /** The terms printed under the charges, copied on at the time of sending. */
   terms: Array<{ scope: string; text: string }>;
 }

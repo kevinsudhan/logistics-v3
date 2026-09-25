@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, Check, Loader2, RefreshCw, ShieldCheck, Undo2 } from "lucide-react";
+import { AlertCircle, Check, Loader2, RefreshCw, ShieldCheck, Undo2, UserCheck } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import QuoteCharges from "../components/QuoteCharges";
 import AmountBreakdown from "../components/AmountBreakdown";
@@ -9,6 +9,8 @@ import { money } from "../services/charges";
 import {
   decide,
   pendingQuotes,
+  reviewSelfApproval,
+  selfApprovalsToReview,
   waitingFor,
   type PendingQuote,
 } from "../services/quoteApproval";
@@ -135,6 +137,8 @@ export function Figures({ q }: { q: PendingQuote }) {
 export default function QuoteApprovals() {
   const { session } = useAuth();
   const [rows, setRows] = useState<PendingQuote[]>([]);
+  /** Self-approvals no admin has read yet (091). Admins only. */
+  const [review, setReview] = useState<PendingQuote[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -145,13 +149,18 @@ export default function QuoteApprovals() {
     setLoading(true);
     setError(null);
     try {
-      setRows(await pendingQuotes());
+      const [queue, selfs] = await Promise.all([
+        pendingQuotes(),
+        session?.role === "admin" ? selfApprovalsToReview() : Promise.resolve([] as PendingQuote[]),
+      ]);
+      setRows(queue);
+      setReview(selfs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the queue.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session?.role]);
 
   useEffect(() => {
     void load();
@@ -166,6 +175,20 @@ export default function QuoteApprovals() {
     setError(null);
     try {
       await decide(q.id, approve, note[q.id] ?? "");
+      setNote((n) => ({ ...n, [q.id]: "" }));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That did not go through.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function answer(q: PendingQuote, withdraw: boolean) {
+    setBusy(q.id);
+    setError(null);
+    try {
+      await reviewSelfApproval(q.id, withdraw, note[q.id] ?? "");
       setNote((n) => ({ ...n, [q.id]: "" }));
       await load();
     } catch (e) {
@@ -213,8 +236,90 @@ export default function QuoteApprovals() {
         </div>
       )}
 
-      {loading && !rows.length ? (
+      {/* ---- approved by their writers, with a reason, for an admin to read (091) ---- */}
+      {review.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+            <UserCheck size={12} /> Self-approved — for your review
+            <span className="rounded-full bg-bg-warning px-1.5 text-[10.5px] text-text-warning">{review.length}</span>
+          </h2>
+          <div className="space-y-3">
+            {review.map((q) => {
+              const e = q.enquiry;
+              const sent = q.status !== "draft";
+              const stillApproved = q.approval_status === "approved";
+              return (
+                <article key={q.id} className="card border-l-4 border-l-text-warning p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-text-primary">
+                        {e?.customer?.company || e?.customer?.name || "Unknown customer"}
+                        <Link to={`/enquiries/${q.enquiry_ref}`} className="font-mono text-[12px] font-normal text-text-accent hover:underline">
+                          {q.enquiry_ref}
+                        </Link>
+                        <span className="text-[12px] font-normal text-text-muted">v{q.version}</span>
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-text-muted">
+                        Approved by {q.submitted_by_name ?? "its writer"} · {waitingFor(q.approved_at) === "just now" ? "just now" : `${waitingFor(q.approved_at)} ago`} ·{" "}
+                        {sent ? <span className="text-text-secondary">already sent to the customer</span> : stillApproved ? "not sent yet" : "changed since, no longer approved"}
+                      </p>
+                      <blockquote className="mt-2 max-w-prose rounded-lg bg-bg-warning px-3 py-2 text-[13px] text-text-primary">
+                        &ldquo;{q.self_approval_reason}&rdquo;
+                      </blockquote>
+                    </div>
+                    <Figures q={q} />
+                  </div>
+
+                  <div className="mt-4 border-t border-border pt-4">
+                    <button type="button" onClick={() => setOpen(open === q.id ? null : q.id)} className="text-[12px] text-text-secondary hover:text-text-primary">
+                      {open === q.id ? "Hide the charges" : "Show the charges"}
+                    </button>
+                    {open === q.id && (
+                      <div className="mt-3">
+                        <QuoteCharges quoteId={q.id} locked />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                    <input
+                      value={note[q.id] ?? ""}
+                      onChange={(ev) => setNote((n) => ({ ...n, [q.id]: ev.target.value }))}
+                      placeholder={sent || !stillApproved ? "A note, if you want one" : "A note; needed to withdraw it"}
+                      className="h-8 min-w-[220px] flex-1"
+                    />
+                    <button
+                      type="button"
+                      disabled={busy === q.id || sent || !stillApproved}
+                      title={sent ? "It has already gone to the customer" : !stillApproved ? "It is no longer approved" : undefined}
+                      onClick={() => void answer(q, true)}
+                      className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary hover:border-border-strong hover:text-text-danger disabled:opacity-50"
+                    >
+                      <Undo2 size={13} /> Withdraw the approval
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === q.id}
+                      onClick={() => void answer(q, false)}
+                      className="flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+                    >
+                      {busy === q.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Seen — fine
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {loading && !rows.length && !review.length ? (
         <ListSkeleton />
+      ) : !rows.length && review.length ? (
+        <p className="flex items-center gap-1.5 text-[12.5px] text-text-secondary">
+          <Check size={13} className="text-text-success" /> No quotations waiting for approval.
+        </p>
       ) : !rows.length ? (
         <div className="rounded-card border border-dashed border-border-strong bg-surface-1 p-10 text-center">
           <Check size={20} className="mx-auto text-text-success" />

@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **090**, so the next one is `091-….sql`.
+  migration filename (§6). The last migration is **091**, so the next one is `092-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -152,9 +152,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 90 migrations
+## 4. Data model — 91 migrations
 
-`supabase-v2/001…090`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…091`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -178,6 +178,7 @@ transaction).
 | `088` | a house B/L somebody else issued, received on our job (`received_house_bills`: issuer, their number and reference, draft → confirmed → final, corrections, release mode, the boxes, their PDF, release ticks and our DO); their number copied to `shipments.forwarders_bl_no`; `shipment_customs` gets `igm_subline`, `csn_no`, `csn_filed_on`, `cfs_code` |
 | `089` | releasing our own house B/L: `house_bills` gets charges received, originals handed over (to whom), originals back (how many), release sent (to whom), released at destination, a note; `house_bill_write` refuses a release before issue, a telex release before every original is back, and reopening while an original is out; history action `released`; timeline events |
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
+| `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -329,6 +330,14 @@ The UI has no automated tests. It is verified by hand in the way described below
 
 ## 8. Traps that cost real time
 
+- **Theme colours are plain `var(--…)`**, so Tailwind's opacity modifier
+  (`bg-bg-danger/40`, `border-text-accent/25`) generates nothing and the style silently
+  vanishes. Use the full colour; three backgrounds were fixed on 25 Sep.
+- **iPad Safari counts the toolbars in `100vh`.** A page exactly `min-h-screen` tall scrolls
+  by a toolbar's height. Use `.screen-min` / `.screen-lock-lg` in `index.css` (100vh then
+  100dvh in one rule). Tailwind emits `min-h-dvh` *before* `min-h-screen`, so writing both
+  classes leaves the vh one winning.
+
 - **The Browser pane downloads a PDF instead of showing it** (the user gets a save dialog),
   and headless Chrome renders PDFs blank. To check a PDF's layout, read its text positions
   with pypdf's `visitor_text`.
@@ -476,6 +485,20 @@ screen.
     - a release on a draft;
     - a telex release before all originals are back;
     - reopening, even by an admin, while an original is out.
+- **Self-approval of quotations (091, user's request 25 Sep).**
+  - Anyone who needs approval can press **Approve it myself** on the quote instead of
+    "Send for approval". It needs a reason of a sentence or more, which is stored on the quote
+    and on the timeline (`quote_self_approved`).
+  - Admins see self-approvals on **Quote approvals** under "Self-approved — for your review",
+    with the reason and the sale/buy/profit. They can mark it "Seen — fine", or "Withdraw the
+    approval" (with a note, only while the quote is unsent), which makes it rejected.
+  - The sidebar's Quote approvals item shows a live count: the queue for approvers, plus the
+    unreviewed self-approvals for admins.
+  - A quote an approver sent back cannot be self-approved. An edit after approval resets it
+    to draft (064), so it needs a new reason.
+  - The rule in `require_approval_to_send` still refuses a direct `approval_status` change by
+    a non-approver. Only `self_approve_quote` passes, by setting `app.self_approving` for its
+    own transaction; a PostgREST request cannot set it.
 - **Console cargo manifest (090).** On Consoles, an open console has a manifest section
   (`components/ConsoleManifest.tsx`; logic in `lib/consoleManifest.ts`; PDF in
   `lib/documents/manifestPdf.ts`).
@@ -590,6 +613,8 @@ There are 63 commits. Grouped:
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
+| Quote self-approval (091) | see `git log` | Approve a quotation yourself with a reason; the reason goes to the admins' review list with a sidebar count; admins accept or withdraw while unsent |
+| iPad sign-in | see `git log` | The sign-in no longer scrolls or bounces on iPad (dvh) |
 | Console manifest (090) | see `git log` | Every house B/L under a console on one PDF and Excel sheet, mailed to the destination agent; provisional until every B/L is final; flags house bills added since it was sent |
 | Our B/L's release (089) | see `git log` | After issue: charges received, originals handed over and to whom, the full set back for a telex release, the telex release written to the destination agent and sent, released at destination; each on the history and the timeline, with the rules held by the database |
 | Received house B/L (088) | see `git log` | The origin agent's B/L read in from their PDF, checked against the job, corrections for the agent, the job's blanks filled; the CSN with its ETA − 72h countdown; the release checklist and our DO against their number. Our own B/L gained IEC/GSTIN, said to contain, a freight table and cargo insurance |

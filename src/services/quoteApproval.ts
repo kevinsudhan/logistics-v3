@@ -66,6 +66,51 @@ export async function decide(quoteId: string, approve: boolean, note = ""): Prom
 }
 
 /**
+ * Clear it yourself, saying why (091).
+ *
+ * For when the approvers are out and the customer is waiting. The reason goes
+ * to the administrators, who can accept it or withdraw the approval while the
+ * quotation has not gone. The server refuses a reason under ten characters,
+ * and a quotation an approver has sent back.
+ */
+export async function selfApprove(quoteId: string, reason: string): Promise<Quote> {
+  const { data, error } = await supabase.rpc("self_approve_quote", { p_quote_id: quoteId, p_reason: reason });
+  if (error) throw new Error(error.hint ? `${error.message}. ${error.hint}` : error.message);
+  return data as Quote;
+}
+
+/** An administrator's answer to a self-approval: fine, or withdrawn with a note. */
+export async function reviewSelfApproval(quoteId: string, withdraw: boolean, note = ""): Promise<Quote> {
+  const { data, error } = await supabase.rpc("review_self_approval", { p_quote_id: quoteId, p_withdraw: withdraw, p_note: note });
+  if (error) throw new Error(error.message);
+  return data as Quote;
+}
+
+/** The self-approvals no administrator has looked at yet, newest first. */
+export async function selfApprovalsToReview(): Promise<PendingQuote[]> {
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*, enquiry:enquiries(*, customer:customers(*)), lines:quote_lines(*)")
+    .eq("self_approved", true)
+    .is("self_approval_reviewed_at", null)
+    .order("approved_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return withNames(((data ?? []) as unknown as PendingQuote[]).map((r) => ({ ...r, lines: [...(r.lines ?? [])].sort((a, b) => a.position - b.position) })));
+}
+
+/**
+ * What is waiting for this person on the approvals page: the queue for an
+ * approver, and the self-approvals to review as well for an administrator.
+ */
+export async function approvalCounts(isAdmin: boolean): Promise<number> {
+  const pending = await supabase.from("quotes").select("id", { count: "exact", head: true }).eq("approval_status", "pending");
+  const review = isAdmin
+    ? await supabase.from("quotes").select("id", { count: "exact", head: true }).eq("self_approved", true).is("self_approval_reviewed_at", null)
+    : { count: 0 };
+  return (pending.count ?? 0) + (review.count ?? 0);
+}
+
+/**
  * The queue, oldest first.
  *
  * Oldest first because the queue is a promise to somebody: the quotation that
@@ -86,8 +131,11 @@ export async function pendingQuotes(): Promise<PendingQuote[]> {
     ...r,
     lines: [...(r.lines ?? [])].sort((a, b) => a.position - b.position),
   }));
+  return withNames(rows);
+}
 
-  // Who asked, resolved in one query rather than one per row.
+/** Who asked, resolved in one query rather than one per row. */
+async function withNames(rows: PendingQuote[]): Promise<PendingQuote[]> {
   const ids = [...new Set(rows.map((r) => r.submitted_by).filter(Boolean))] as string[];
   if (!ids.length) return rows.map((r) => ({ ...r, submitted_by_name: null }));
 

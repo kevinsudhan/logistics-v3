@@ -504,7 +504,7 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((r) => (
-            <tr key={r.key} className={r.state === "differs" ? "bg-bg-danger/40" : undefined}>
+            <tr key={r.key} className={r.state === "differs" ? "bg-bg-danger" : undefined}>
               <td className="whitespace-nowrap px-2 py-1.5 text-text-secondary">{r.label}</td>
               <td className="px-2 py-1.5 text-text-primary">{r.theirs || <span className="text-text-muted">—</span>}</td>
               <td className="px-2 py-1.5 text-text-primary">{r.ours || <span className="text-text-muted">—</span>}</td>
