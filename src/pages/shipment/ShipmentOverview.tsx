@@ -22,6 +22,7 @@ import {
   type RoutingMove,
   type RoutingStatus,
 } from "../../services/shipmentExtras";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * The shipment's details, in the order the desk fills them in.
@@ -446,9 +447,11 @@ function Routings({ shipmentId, carriers }: { shipmentId: string; carriers: Part
     }
   }, [shipmentId]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("shipment_routings");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);

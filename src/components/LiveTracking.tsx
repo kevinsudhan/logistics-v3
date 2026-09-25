@@ -32,6 +32,7 @@ import {
   type TrackSource,
   type TrackingEvent,
 } from "../services/liveTracking";
+import { formatDate } from "../lib/dates";
 
 /**
  * What the airline, the carrier, the ship and the mail say — on the Tracking tab.
@@ -81,7 +82,7 @@ const clock = (iso: string | null | undefined) => {
   if (!iso) return null;
   const d = new Date(iso);
   const dayOnly = d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
-  return d.toLocaleString("en-GB", { day: "numeric", month: "short", ...(dayOnly ? {} : { hour: "2-digit", minute: "2-digit" }) });
+  return formatDate(d, { day: "numeric", month: "short", ...(dayOnly ? {} : { hour: "2-digit", minute: "2-digit" }) });
 };
 
 function ago(iso: string): string {

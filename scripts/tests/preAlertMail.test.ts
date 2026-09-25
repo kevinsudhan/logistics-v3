@@ -58,17 +58,17 @@ const air: PreAlertInput = {
 };
 
 console.log("\nthe subject");
-is("reference, bills, flight, day and route", preAlertSubject(air), "[ALG09004-26] PRE-ALERT — HAWB MAA/DXB/HAWB0000001 / MAWB 176-12345675 — EK543 25 Sept MAA-DXB");
+is("reference, bills, flight, day and route", preAlertSubject(air), "[ALG09004-26] PRE-ALERT — HAWB MAA/DXB/HAWB0000001 / MAWB 176-12345675 — EK543 25 Sep MAA-DXB");
 const sea = { ...air, mode: "sea_fcl", masterBill: "HLCUMAA260912345", houseBill: "HBL/26-27/0004", vessel: "MSC AURORA", voyage: "FA412E", flightNumber: null, portOfLoading: "Chennai (INMAA)", portOfDischarge: "Jebel Ali (AEJEA)" };
-is("sea: house and master B/L, vessel and voyage", preAlertSubject(sea), "[ALG09004-26] PRE-ALERT — HBL HBL/26-27/0004 / MBL HLCUMAA260912345 — MSC AURORA FA412E 25 Sept INMAA-AEJEA");
-is("without bills yet", preAlertSubject({ ...air, masterBill: null, houseBill: null }), "[ALG09004-26] PRE-ALERT — EK543 25 Sept MAA-DXB");
+is("sea: house and master B/L, vessel and voyage", preAlertSubject(sea), "[ALG09004-26] PRE-ALERT — HBL HBL/26-27/0004 / MBL HLCUMAA260912345 — MSC AURORA FA412E 25 Sep INMAA-AEJEA");
+is("without bills yet", preAlertSubject({ ...air, masterBill: null, houseBill: null }), "[ALG09004-26] PRE-ALERT — EK543 25 Sep MAA-DXB");
 
 console.log("\nthe body");
 const html = preAlertHtml(air);
 is("greets the agent", html.startsWith("<p>Dear Gulf Freight LLC,</p>"), true);
 is("bills come first", html.indexOf("MAWB") < html.indexOf("Airline"), true);
 is("chargeable weight on a flight", html.includes("2,600 kg"), true);
-is("date and time together", html.includes("25 Sep 2026, 09:35") || html.includes("25 Sept 2026, 09:35"), true);
+is("date and time together", html.includes("25 Sep 2026, 09:35") && !html.includes("Sept"), true);
 is("a field the job lacks is not a line", [html.includes("Notify"), html.includes("Marks")], [false, false]);
 is("final destination only when beyond the port", html.includes("Final destination"), false);
 is("addresses keep their lines", html.includes("Nilgiri Power Systems<br>Sriperumbudur"), true);

@@ -39,6 +39,7 @@ import {
 import { mailIsLive, type MailMessage } from "../services/backend";
 import { intakeByMessage, type Intake } from "../services/intake";
 import { ListSkeleton } from "../components/Loading";
+import { formatDate } from "../lib/dates";
 
 type Row = Enquiry & { customer: Customer | null };
 
@@ -64,7 +65,7 @@ function when(iso: string | null): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return formatDate(iso, { day: "numeric", month: "short" });
 }
 
 /**
@@ -162,6 +163,8 @@ export default function Enquiries() {
       ["enquiries", null],
       ["shipments", null],
       ["intake", null],
+      // The partner-rate line on each row (084).
+      ["partner_quotes", null],
     ],
     () => void load()
   );

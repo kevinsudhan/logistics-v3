@@ -3,6 +3,7 @@ import { CalendarRange, Loader2, X } from "lucide-react";
 import { onLane } from "../lib/schedules";
 import { departureName, upcomingSchedules, type Schedule } from "../services/schedules";
 import { InlineLoading } from "./Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * "Pick from sailing schedule" — one control, used wherever a departure is
@@ -59,7 +60,7 @@ export default function SchedulePicker({
   }, [rows, laneOnly, from, to, q]);
 
   const day = (d: string | null) =>
-    d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
+    d ? formatDate(d.slice(0, 10), { day: "numeric", month: "short" }) : "—";
 
   return (
     <>

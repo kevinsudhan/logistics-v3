@@ -41,6 +41,7 @@ import {
   type ShipmentStage,
 } from "../services/enquiries";
 import { ListSkeleton } from "../components/Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * The in-process worklist: every job between acceptance and delivery.
@@ -71,7 +72,7 @@ import { ListSkeleton } from "../components/Loading";
 
 /** "2 Oct" — the list is read at a glance, the year is noise. */
 const day = (d: string | null) =>
-  d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+  d ? formatDate(d.slice(0, 10), { day: "numeric", month: "short" }) : null;
 
 /** Everything before delivery. Delivered shipments live on the completed page. */
 const IN_PROCESS: ShipmentStage[] = SHIPMENT_STAGES.filter((s) => s !== "delivered");
@@ -176,6 +177,10 @@ export default function ShipmentsInProcess() {
     [
       ["shipments", null],
       ["shipment_checkpoints", null],
+      // Customs, updates to confirm and free time on each row (084).
+      ["shipment_customs", null],
+      ["tracking_events", null],
+      ["shipment_containers", null],
     ],
     () => void load()
   );

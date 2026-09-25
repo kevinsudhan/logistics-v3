@@ -19,6 +19,7 @@ import {
 } from "../services/billing";
 import { supabase } from "../lib/supabase";
 import { ListSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * One register, six pages.
@@ -192,7 +193,7 @@ export default function DocumentRegister({ spec }: { spec: RegisterSpec }) {
                     <span className="font-mono text-[11px] text-text-muted">{inv.shipment_id}</span>
                   )}
                   <span className="text-[12px] text-text-muted">
-                    {new Date(inv.invoice_date + "T00:00:00").toLocaleDateString("en-IN", {
+                    {formatDate(inv.invoice_date, {
                       day: "numeric",
                       month: "short",
                       year: "numeric",

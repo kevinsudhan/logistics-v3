@@ -27,6 +27,7 @@ import {
   type Party,
   type PartyRole,
 } from "../../lib/blParties";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * Shipper, consignee and notify party, as the bill of lading names them.
@@ -478,6 +479,12 @@ export default function ShipmentParties() {
       .then(setCustomers)
       .catch(() => setCustomers([]));
   }, [loadExtras]);
+
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("shipment_parties");
+  useEffect(() => {
+    if (live) void loadExtras();
+  }, [live, loadExtras]);
 
   const mode: Shipment["transport_mode"] = shipment.transport_mode ?? enquiry?.transport_mode ?? null;
   const row = shipment as unknown as Record<string, unknown>;

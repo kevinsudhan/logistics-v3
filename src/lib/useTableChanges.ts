@@ -32,9 +32,15 @@ export function useTableChanges(table: string, filter: string | null, onChange: 
  *
  * Booking an enquiry writes the shipment, moves the enquiry's status and adds
  * the job's steps within a moment. A page listening to all of them reads itself
- * once for that, not once per table.
+ * once for that, not once per table. `onChange` is told which tables moved, so
+ * a page can re-read only what they feed.
+ *
+ * A removed row is heard from the whole table, not just the filtered rows:
+ * Realtime cannot filter a delete, because by then the row's columns are gone
+ * and only its key is sent. Deletes are rare, and an extra refresh is cheaper
+ * than a container that stays on somebody's screen after it was removed.
  */
-export function useTablesChanges(watches: readonly Watch[], onChange: () => void, enabled = true): void {
+export function useTablesChanges(watches: readonly Watch[], onChange: (tables: Set<string>) => void, enabled = true): void {
   const latest = useRef(onChange);
   latest.current = onChange;
   // The list is usually written inline, so it is a new array every render; its
@@ -45,20 +51,29 @@ export function useTablesChanges(watches: readonly Watch[], onChange: () => void
     const list = JSON.parse(key) as Watch[];
     if (!enabled || !list.length) return;
     let timer: number | undefined;
-    const fire = () => {
+    let moved = new Set<string>();
+    const fire = (table: string | null) => {
+      if (table) moved.add(table);
+      else for (const [t] of list) moved.add(t);
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => latest.current(), 250);
+      timer = window.setTimeout(() => {
+        const tables = moved;
+        moved = new Set();
+        latest.current(tables);
+      }, 250);
     };
 
     const name = list.map(([t, f]) => `${t}:${f ?? "all"}`).join("+");
     const channel = supabase.channel(`changes:${name}:${Math.random().toString(36).slice(2, 8)}`);
     for (const [table, filter] of list) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table, ...(filter ? { filter } : {}) }, fire);
+      channel.on("postgres_changes", { event: "*", schema: "public", table, ...(filter ? { filter } : {}) }, () => fire(table));
+      if (filter) channel.on("postgres_changes", { event: "DELETE", schema: "public", table }, () => fire(table));
     }
     channel.subscribe();
 
+    // Back in view: anything could have moved while it was hidden.
     const onVisible = () => {
-      if (document.visibilityState === "visible") fire();
+      if (document.visibilityState === "visible") fire(null);
     };
     document.addEventListener("visibilitychange", onVisible);
 

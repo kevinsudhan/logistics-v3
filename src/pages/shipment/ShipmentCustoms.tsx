@@ -19,6 +19,8 @@ import { fileUrl, listFiles, uploadFile, type EnquiryFile } from "../../services
 import { customsFor, removeCustoms, startCustoms, updateCustoms } from "../../services/customs";
 import { listPartners, type Partner } from "../../services/partners";
 import { SectionSkeleton } from "../../components/Loading";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * Customs: the export clearance at origin, the import clearance at
@@ -73,6 +75,12 @@ export default function ShipmentCustoms() {
       .then((ps) => setBrokers(ps.filter((p) => p.role === "cha_customs")))
       .catch(() => setBrokers([]));
   }, [load]);
+
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("shipment_customs", "enquiry_files");
+  useEffect(() => {
+    if (live) void load();
+  }, [live, load]);
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -396,7 +404,7 @@ function CustomsDocuments({ files, enquiryRef, onFiled }: { files: EnquiryFile[]
                 {f.name}
               </button>
               <span className="shrink-0 text-[11.5px] text-text-muted">
-                {f.document_type} · {new Date(f.filed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                {f.document_type} · {formatDate(f.filed_at, { day: "numeric", month: "short" })}
               </span>
             </li>
           ))}

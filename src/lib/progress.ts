@@ -1,3 +1,4 @@
+import { formatDate } from "./dates";
 /**
  * How late a step is, in the words the desk uses.
  *
@@ -38,8 +39,7 @@ export function dueText(dueOn: string | null, done: boolean, today: string): str
   if (d === -1) return "1 day overdue";
   if (d === 0) return "due today";
   if (d === 1) return "due tomorrow";
-  const date = new Date(`${dueOn.slice(0, 10)}T00:00:00`);
-  return `due ${date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+  return `due ${formatDate(dueOn.slice(0, 10), { day: "numeric", month: "short" })}`;
 }
 
 /** The colour class a due state reads in. */

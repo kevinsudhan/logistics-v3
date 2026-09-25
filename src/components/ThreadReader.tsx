@@ -14,6 +14,7 @@ import { groupIntoThreads, type Thread } from "../lib/threads";
 import { getMessage, messagesInConversation } from "../services/graphMail";
 import type { ThreadRef } from "../services/threadRefs";
 import type { MailMessage } from "../services/mockMail";
+import { formatDate } from "../lib/dates";
 
 /**
  * Mail, read and answered in place.
@@ -341,7 +342,7 @@ function ThreadList({
                     )}
                     {t.unread && <StatusPill tone="accent">New</StatusPill>}
                     <span className="text-[11px] tabular-nums text-text-muted">
-                      {new Date(t.lastAt).toLocaleDateString("en-IN", {
+                      {formatDate(t.lastAt, {
                         day: "numeric",
                         month: "short",
                       })}

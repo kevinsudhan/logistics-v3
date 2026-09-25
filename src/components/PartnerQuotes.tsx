@@ -27,6 +27,8 @@ import {
 } from "../services/rfq";
 import type { Enquiry } from "../services/enquiries";
 import { SectionSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * What the partners came back with.
@@ -81,9 +83,11 @@ export default function PartnerQuotes({ enquiry }: { enquiry: Enquiry }) {
     }
   }, [enquiry.ref]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("partner_quotes");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   /**
    * Looks for replies, and reads a rate out of each one it finds.
@@ -216,12 +220,12 @@ export default function PartnerQuotes({ enquiry }: { enquiry: Enquiry }) {
 
                 <p className="mt-0.5 text-[11.5px] text-text-muted">
                   {q.partner_label ? `${q.partner_email} · ` : ""}
-                  asked {new Date(q.sent_at).toLocaleDateString("en-IN", {
+                  asked {formatDate(q.sent_at, {
                     day: "numeric",
                     month: "short",
                   })}
                   {q.replied_at &&
-                    ` · replied ${new Date(q.replied_at).toLocaleDateString("en-IN", {
+                    ` · replied ${formatDate(q.replied_at, {
                       day: "numeric",
                       month: "short",
                     })}`}
@@ -241,7 +245,7 @@ export default function PartnerQuotes({ enquiry }: { enquiry: Enquiry }) {
                     {q.valid_until && (
                       <span className="text-text-muted">
                         valid to{" "}
-                        {new Date(q.valid_until + "T00:00:00").toLocaleDateString("en-IN", {
+                        {formatDate(q.valid_until, {
                           day: "numeric",
                           month: "short",
                         })}

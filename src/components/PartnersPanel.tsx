@@ -16,6 +16,7 @@ import {
 import type { Enquiry } from "../services/enquiries";
 import PartnerForm from "./PartnerForm";
 import { SectionSkeleton } from "./Loading";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * Who is working this shipment with us.
@@ -66,9 +67,11 @@ export default function PartnersPanel({
     }
   }, [enquiry.ref]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("partner_assignments");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   const assignedIds = useMemo(() => new Set(assigned.map((a) => a.partner_id)), [assigned]);
 

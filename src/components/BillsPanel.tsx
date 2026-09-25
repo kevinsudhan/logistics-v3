@@ -20,6 +20,7 @@ import {
   type BillKind,
 } from "../services/bills";
 import { SectionSkeleton } from "./Loading";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * What this job cost — the bills other people sent us.
@@ -123,9 +124,11 @@ export default function BillsPanel({
     }
   }, [shipmentId, consoleId]);
 
+  // A bill recorded or paid by anybody, read again (the job file's subscription, 084).
+  const live = useLiveVersion("bills");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setError(null);

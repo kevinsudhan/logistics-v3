@@ -4,6 +4,7 @@ import { CalendarDays, ChevronDown, Ship } from "lucide-react";
 import EnquiryLink from "./EnquiryLink";
 import { STATUS_LABEL, enquiriesOn, routeOf, sailsIn, updateContainer, type Container, type ContainerStatus } from "../services/containers";
 import type { Enquiry } from "../services/enquiries";
+import { formatDate } from "../lib/dates";
 
 /**
  * Containers the desk holds space on, as the sailing schedule shows them
@@ -87,7 +88,7 @@ export default function ContainerList({
                     <span className="font-medium text-text-primary">{routeOf(c)}</span>
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarDays size={11} className="text-text-muted" />
-                      {new Date(c.sailing_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {formatDate(c.sailing_date, { day: "numeric", month: "short", year: "numeric" })}
                       <span className={when.past ? "text-text-muted" : when.urgent ? "font-medium text-text-warning" : "text-text-muted"}>· {when.text}</span>
                     </span>
                     {(c.partner_name || c.partner_org) && (

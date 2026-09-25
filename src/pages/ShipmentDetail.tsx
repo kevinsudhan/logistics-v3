@@ -7,7 +7,10 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import StatusPill from "../components/StatusPill";
 import { supabase } from "../lib/supabase";
-import { useTablesChanges } from "../lib/useTableChanges";
+import { enquiryWatches, LiveVersions, shipmentWatches, useLiveVersions } from "../lib/liveVersions";
+
+/** What the header shows: the stage, the money, the free time and the cargo lines. */
+const HEADER_TABLES = ["shipments", "enquiries", "invoices", "bills", "shipment_containers", "enquiry_dimensions"];
 import { todayIST } from "../lib/progress";
 import { appliesTo, clocksFor, NO_FREE_TIME, sideOf, summarise } from "../lib/freeTime";
 import { FreeTimePill } from "../components/FreeTime";
@@ -204,15 +207,25 @@ export default function ShipmentDetail() {
     void load();
   }, [load]);
 
-  // A colleague moving the job on, or editing the enquiry behind it, redraws
-  // the header and the open tab. The tabs keep their own drafts, so a change
-  // landing mid-edit does not wipe what somebody is typing.
-  useTablesChanges(
+  /*
+    Everything on this job, as it changes, for whoever has it open (084).
+
+    One subscription for the shell and every tab: the job, the enquiry behind
+    it, and each table a tab reads, filtered to this job. The header re-reads
+    for what it shows — the stage, the money, the free time, the cargo lines —
+    and each tab re-reads for its own tables through useLiveVersion. The tabs
+    keep their own drafts, so a change landing mid-edit does not wipe what
+    somebody is typing.
+  */
+  const live = useLiveVersions(
     [
       ["shipments", `id=eq.${id}`],
-      ...(shipment ? ([["enquiries", `ref=eq.${shipment.enquiry_ref}`]] as const) : []),
+      ...shipmentWatches(id ?? ""),
+      ...(shipment ? ([["enquiries", `ref=eq.${shipment.enquiry_ref}`], ...enquiryWatches(shipment.enquiry_ref)] as const) : []),
     ],
-    () => void load(),
+    (tables) => {
+      if (HEADER_TABLES.some((t) => tables.has(t))) void load();
+    },
     Boolean(id)
   );
 
@@ -281,6 +294,7 @@ export default function ShipmentDetail() {
   const pct = marginPct(revenue, cost);
 
   return (
+    <LiveVersions value={live}>
     <div>
       <Link
         to={delivered ? "/shipments/completed" : "/shipments/in-process"}
@@ -482,5 +496,6 @@ export default function ShipmentDetail() {
         <Outlet context={{ shipment: s, enquiry, lines, reload: load } satisfies ShipmentContext} />
       </Suspense>
     </div>
+    </LiveVersions>
   );
 }

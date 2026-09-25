@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { awbTotals, chargeAmount, finalDestination, lineTotal, money, type HawbData } from "../hawb";
+import { formatDate } from "../dates";
 
 /**
  * The house air waybill, printed box for box like the IATA form.
@@ -40,7 +41,7 @@ const W = 210 - M * 2;
 const d8 = (iso: string | null | undefined) => {
   if (!iso) return "";
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+  return Number.isNaN(d.getTime()) ? iso : formatDate(d, { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
 };
 
 export function renderHawbPdf(i: HawbPdfInput): jsPDF {

@@ -12,6 +12,7 @@ import { listContainers, type Container } from "../services/containers";
 import { listPartners, type Partner } from "../services/partners";
 import { departureName, importSchedules, listSchedules, removeSchedule, saveSchedule, STATUS_LABEL, type Schedule } from "../services/schedules";
 import { ListSkeleton } from "../components/Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * The sailing schedule: departures the rest of the system is built from.
@@ -195,7 +196,7 @@ export default function SailingSchedules() {
       </button>
     </th>
   );
-  const day = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
+  const day = (d: string | null) => (d ? formatDate(d.slice(0, 10), { day: "2-digit", month: "short", year: "numeric" }) : "");
 
   return (
     <div>

@@ -20,6 +20,7 @@ import { BoxFreeTime, FreeTimeTermsCard } from "../../components/FreeTime";
 import { updateShipment } from "../../services/enquiries";
 import { appliesTo, clocksFor, sideOf, summarise } from "../../lib/freeTime";
 import { todayIST } from "../../lib/progress";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * The boxes this shipment is travelling in.
@@ -133,9 +134,11 @@ export default function ShipmentContainers() {
     }
   }, [shipment.id]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("shipment_containers");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setError(null);

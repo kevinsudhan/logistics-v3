@@ -3,6 +3,7 @@ import { AlertCircle, Check, Loader2, MailCheck, PhoneCall, ShieldCheck } from "
 import { confirmAcceptance, type Enquiry, type FiledMessage, type Quote } from "../services/enquiries";
 import { mailIsLive } from "../services/backend";
 import { acceptanceEvidence, type AcceptanceEvidence } from "../services/publicQuote";
+import { formatDate } from "../lib/dates";
 
 /**
  * The customer's yes, in writing.
@@ -152,7 +153,7 @@ export default function AcceptancePanel({
           <p className="mt-1 text-[12px] text-text-secondary">
             Accepted from the emailed quotation
             {evidence.accepted_name ? ` by ${evidence.accepted_name}` : ""} on{" "}
-            {new Date(evidence.accepted_at).toLocaleString("en-GB", {
+            {formatDate(evidence.accepted_at, {
               day: "2-digit",
               month: "short",
               year: "numeric",

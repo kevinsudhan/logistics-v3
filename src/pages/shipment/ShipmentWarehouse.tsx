@@ -14,6 +14,8 @@ import {
   type Condition,
   type Receipt,
 } from "../../services/warehouse";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * What arrived at the warehouse or CFS, against what was booked.
@@ -43,9 +45,11 @@ export default function ShipmentWarehouse() {
     }
   }, [s.id]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("warehouse_receipts");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   async function run(key: string, fn: () => Promise<unknown>, andShell = false) {
     setBusy(key);
@@ -211,7 +215,7 @@ export default function ShipmentWarehouse() {
                   <tr key={r.id} className="border-t border-border">
                     <td className="px-2 py-2 font-mono text-[12px]">{r.receipt_no}</td>
                     <td className="px-2 py-2 tabular-nums">
-                      {new Date(r.received_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {formatDate(r.received_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </td>
                     <td className="px-2 py-2">{r.location ?? "—"}</td>
                     <td className="px-2 py-2 text-right tabular-nums">{r.pieces ?? "—"}</td>

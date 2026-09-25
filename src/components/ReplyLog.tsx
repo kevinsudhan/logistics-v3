@@ -3,6 +3,7 @@ import { AlertCircle, Clock, Info, RefreshCw } from "lucide-react";
 import { failureText, type FailureText } from "../lib/errorText";
 import { describeDelay, delayTone, listReplies, type ReplyLogRow } from "../services/replyLog";
 import { ListSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * Who answered a partner, and how long they took.
@@ -146,10 +147,11 @@ function toneClass(tone: ReturnType<typeof delayTone>): string {
 /** Date and time, because on this screen the time is the point. */
 function when(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("en-IN", {
+  return formatDate(d, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 }

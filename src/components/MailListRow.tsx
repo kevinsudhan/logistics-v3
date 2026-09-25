@@ -4,6 +4,7 @@ import { initialsFor } from "../lib/initials";
 import { looksLikeWebEnquiry } from "../services/webEnquiry";
 import type { FolderId, MailMessage } from "../services/backend";
 import type { Intake } from "../services/intake";
+import { formatDate } from "../lib/dates";
 
 /**
  * One message in the list.
@@ -169,6 +170,6 @@ function shortTime(iso: string): string {
   return sameDay
     ? d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })
     : d.getFullYear() === now.getFullYear()
-      ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
-      : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" });
+      ? formatDate(d, { day: "numeric", month: "short" })
+      : formatDate(d, { day: "numeric", month: "short", year: "2-digit" });
 }

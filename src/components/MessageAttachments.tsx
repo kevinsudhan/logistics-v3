@@ -3,6 +3,7 @@ import { Check, Download, Loader2, Paperclip, Save } from "lucide-react";
 import type { MailMessage } from "../services/backend";
 import { fileMailAttachment, fileUrl, listFiles } from "../services/attachments";
 import { failureText } from "../lib/errorText";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * The files that arrived on a message, and what can be done with them.
@@ -42,6 +43,8 @@ export default function MessageAttachments({
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A colleague saving one of these to the job shows here as saved (084).
+  const filedElsewhere = useLiveVersion("enquiry_files");
 
   useEffect(() => {
     if (!enquiryRef || !message.attachments.length) return;
@@ -57,7 +60,7 @@ export default function MessageAttachments({
     return () => {
       live = false;
     };
-  }, [enquiryRef, message.id, message.attachments.length]);
+  }, [enquiryRef, message.id, message.attachments.length, filedElsewhere]);
 
   if (!message.attachments.length) return null;
 

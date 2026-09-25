@@ -29,6 +29,8 @@ import { routingsFor } from "../../services/shipmentExtras";
 import { positionsFor, snapshotsFor, trackingEventsFor, type Snapshot, type TrackingEvent } from "../../services/liveTracking";
 import { currentTrackLink, issueTrackLink, revokeTrackLink, trackUrl, type TrackLink } from "../../services/tracking";
 import { receiptsFor } from "../../services/warehouse";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * Where the cargo is, and everything that has happened to it.
@@ -92,9 +94,11 @@ export default function ShipmentTracking() {
     }
   }, [s.id, s.enquiry_ref]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("tracking_events", "tracking_positions", "tracking_snapshots", "shipment_checkpoints", "shipment_movements", "warehouse_receipts", "shipment_routings", "shipment_track_links");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -304,7 +308,7 @@ export default function ShipmentTracking() {
                 />
                 <p className="text-[12.5px] text-text-primary">{e.title}</p>
                 <p className="text-[11px] text-text-muted">
-                  {new Date(e.at).toLocaleString("en-GB", {
+                  {formatDate(e.at, {
                     day: "numeric",
                     month: "short",
                     // A day with no time — a leg's date, a mail that gave none — shows as the day.
@@ -355,4 +359,4 @@ function isMidnight(at: string): boolean {
 }
 
 const stamp = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  formatDate(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });

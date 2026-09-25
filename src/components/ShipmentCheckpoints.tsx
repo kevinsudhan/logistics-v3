@@ -11,8 +11,9 @@ import {
 } from "../services/checkpoints";
 import { listPeople, stageLabel, type Person, type Shipment, type ShipmentStage } from "../services/enquiries";
 import { DUE_TONE, dueState, dueText, todayIST } from "../lib/progress";
-import { useTableChanges } from "../lib/useTableChanges";
+import { useLiveVersion } from "../lib/liveVersions";
 import { SectionSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * The follow-ups on a booking, as a line you read left to right.
@@ -70,12 +71,12 @@ export default function ShipmentCheckpoints({
     }
   }, [shipmentId]);
 
+  // A step ticked, dated or handed over by somebody else shows on this line as
+  // they do it (the job file's subscription, 081/084).
+  const live = useLiveVersion("shipment_checkpoints");
   useEffect(() => {
     void load();
-  }, [load]);
-
-  // A step ticked, dated or handed over by somebody else shows on this line as they do it.
-  useTableChanges("shipment_checkpoints", `shipment_id=eq.${shipmentId}`, () => void load());
+  }, [load, live]);
 
   async function toggle(c: Checkpoint) {
     setBusy(c.id);
@@ -364,5 +365,5 @@ function StepDetail({
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return formatDate(d, { day: "2-digit", month: "short" });
 }

@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { bearing, type LatLon } from "../lib/geo";
 import type { RouteModel } from "../lib/routeModel";
+import { formatDate } from "../lib/dates";
 
 /**
  * The route map: where the cargo has been, where it is, where it is going.
@@ -95,7 +96,7 @@ export default function RouteMap({ model, air, height = 420 }: { model: RouteMod
 
     for (const p of model.pings) {
       L.circleMarker(p.at, { radius: 5, color: LINE, weight: 2.5, fillColor: "#ffffff", fillOpacity: 1 })
-        .bindTooltip(`${new Date(p.when).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${p.source === "aisstream" ? "AIS" : p.source === "adsb" ? "ADS-B" : "AeroDataBox"}`)
+        .bindTooltip(`${formatDate(p.when, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${p.source === "aisstream" ? "AIS" : p.source === "adsb" ? "ADS-B" : "AeroDataBox"}`)
         .addTo(g);
       bounds.push(p.at);
     }
@@ -117,7 +118,7 @@ export default function RouteMap({ model, air, height = 420 }: { model: RouteMod
 
     if (model.current && !model.stops.some((s) => s.at[0] === model.current!.at[0] && s.at[1] === model.current!.at[1])) {
       L.circleMarker(model.current.at, { radius: 9, color: "#ffffff", weight: 3, fillColor: LINE, fillOpacity: 1 })
-        .bindTooltip(model.current.when ? `Last reported ${new Date(model.current.when).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Here now")
+        .bindTooltip(model.current.when ? `Last reported ${formatDate(model.current.when, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Here now")
         .addTo(g);
     }
 

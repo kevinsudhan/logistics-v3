@@ -14,6 +14,8 @@ import {
   type InvoiceKind,
 } from "../services/billing";
 import { SectionSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * Everything billed against one job.
@@ -80,9 +82,11 @@ export default function JobBilling({
     }
   }, [shipmentId]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("invoices");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   async function raise(kind: InvoiceKind) {
     setBusy(true);
@@ -186,7 +190,7 @@ export default function JobBilling({
                   )}
 
                   <span className="text-[12px] text-text-muted">
-                    {new Date(inv.invoice_date + "T00:00:00").toLocaleDateString("en-IN", {
+                    {formatDate(inv.invoice_date, {
                       day: "numeric",
                       month: "short",
                       year: "numeric",

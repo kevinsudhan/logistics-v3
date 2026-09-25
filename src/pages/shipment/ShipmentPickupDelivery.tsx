@@ -42,6 +42,8 @@ import {
 } from "../../services/movements";
 import { listPartners, type Partner } from "../../services/partners";
 import { SectionSkeleton } from "../../components/Loading";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * Collecting the cargo, and handing it over at the other end.
@@ -97,6 +99,12 @@ export default function ShipmentPickupDelivery() {
       .then(setPartners)
       .catch(() => setPartners([]));
   }, [load]);
+
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("shipment_movements", "enquiry_files");
+  useEffect(() => {
+    if (live) void load();
+  }, [live, load]);
 
   const transporters = partners.filter((p) => p.role === "cfs_transport" || p.role === "other");
   const locked = Boolean(shipment.signed_off_at);
@@ -1128,13 +1136,12 @@ function badgeFor(m: Movement): string {
 
 /** "4 Oct" */
 function shortDay(d: string): string {
-  const x = d.length === 10 ? new Date(`${d}T00:00:00`) : new Date(d);
-  return x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return formatDate(d, { day: "numeric", month: "short" });
 }
 
 /** "4 Oct, 10:30" */
 function shortWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+  return formatDate(iso, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -1144,7 +1151,7 @@ function shortWhen(iso: string): string {
 
 /** "4 Oct 2026, 10:30" */
 function longWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+  return formatDate(iso, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -1155,7 +1162,7 @@ function longWhen(iso: string): string {
 
 /** "5 Oct 2026, 23:59" on India's clock — an e-way bill's day is India's day. */
 function istWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+  return formatDate(iso, {
     day: "numeric",
     month: "short",
     year: "numeric",

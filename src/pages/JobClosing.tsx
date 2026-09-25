@@ -11,6 +11,7 @@ import { useAuth } from "../lib/auth";
 import { COMPANY } from "../lib/company";
 import { failureText } from "../lib/errorText";
 import { todayIST } from "../lib/progress";
+import { useTablesChanges } from "../lib/useTableChanges";
 import { MODE_LABEL } from "../lib/worklist";
 import { downloadWorkbook } from "../lib/xlsx";
 import {
@@ -165,6 +166,18 @@ export default function JobClosing() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // An invoice issued, a bill recorded, a quote accepted or a job signed off by
+  // anybody moves these figures as it happens (084).
+  useTablesChanges(
+    [
+      ["invoices", null],
+      ["bills", null],
+      ["quotes", null],
+      ["shipments", null],
+    ],
+    () => void load()
+  );
 
   const range = preset === "custom" ? { from: from || null, to: to || null } : presetRange(preset, todayIST());
   const periodText = range.from || range.to ? `${range.from ? dayLabel(range.from) : "The start"} – ${range.to ? dayLabel(range.to) : "today"}` : "All time";

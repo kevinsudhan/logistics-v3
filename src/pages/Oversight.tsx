@@ -20,6 +20,7 @@ import {
   type Person,
 } from "../services/enquiries";
 import { ListSkeleton } from "../components/Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * What the desk did, and who did it.
@@ -80,11 +81,12 @@ function stamp(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-IN", {
+  return formatDate(d, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 }
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTablesChanges } from "../lib/useTableChanges";
 import { Link } from "react-router-dom";
 import { AlertCircle, ChevronDown, Layers, Loader2, Plus, Ship } from "lucide-react";
 import PageHeader from "../components/PageHeader";
@@ -134,6 +135,22 @@ export default function Consoles() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A console edited, or a job put on or taken off one, by anybody (084): the
+  // list, and the cargo of the console that is open.
+  const openNow = useRef(openId);
+  openNow.current = openId;
+  useTablesChanges(
+    [
+      ["consoles", null],
+      ["shipments", null],
+    ],
+    () => {
+      void load();
+      const id = openNow.current;
+      if (id) void shipmentsOn(id).then((cargo) => setOnBoard((p) => ({ ...p, [id]: cargo }))).catch(() => {});
+    }
+  );
 
   const run = async (fn: () => Promise<unknown>) => {
     setError(null);

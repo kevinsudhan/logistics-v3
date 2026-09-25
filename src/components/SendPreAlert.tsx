@@ -15,6 +15,7 @@ import { getHawb } from "../services/hawb";
 import { listPartners } from "../services/partners";
 import { extraPartiesFor } from "../services/shipmentExtras";
 import { listShipmentContainers } from "../services/shipmentContainers";
+import { formatDate } from "../lib/dates";
 
 /**
  * "Pre-alert" — the mail to the destination agent, from the job (078).
@@ -167,7 +168,7 @@ export default function SendPreAlert({
         type="button"
         onClick={() => void open()}
         disabled={busy}
-        title={lastSent ? `Last sent ${new Date(lastSent).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Draft the pre-alert to the destination agent"}
+        title={lastSent ? `Last sent ${formatDate(lastSent, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Draft the pre-alert to the destination agent"}
         className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 text-[11.5px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
       >
         {busy ? <Loader2 size={11} className="animate-spin" /> : lastSent ? <Check size={11} className="text-text-success" /> : <PlaneTakeoff size={11} />}

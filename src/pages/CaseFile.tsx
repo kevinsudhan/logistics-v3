@@ -62,7 +62,8 @@ import {
 import { mailIsLive } from "../services/backend";
 import { ROLE_LABEL, ROLE_ORDER, type PartyRole } from "../services/caseFile";
 import { PageSkeleton } from "../components/Loading";
-import { useTablesChanges } from "../lib/useTableChanges";
+import { enquiryWatches, LiveVersions, useLiveVersions } from "../lib/liveVersions";
+import { formatDate } from "../lib/dates";
 
 /**
  * Everything a reading of the mail may write on this page, less whatever the
@@ -221,40 +222,50 @@ export default function CaseFile() {
   }, [load]);
 
   /*
+    Everything on this enquiry, as anybody changes it (081, 084).
+
     A quotation's approval is decided on another screen, usually by somebody
-    else, and a colleague may take the enquiry, change its details or book it
-    while it is open here. When any of that lands, the enquiry, its quotes, its
-    booking and the timeline are read again, and only those: the mail and the
-    auto-fill in a full load are the slow part, and nothing about them moved.
+    else; a colleague may take the enquiry, change its details, add a party or
+    a dimension line, file a mail to it, get a partner's rate in or book it
+    while it is open here. What moved is read again, and only that: the mail is
+    fetched from Outlook only when a message was filed or unfiled, and the
+    auto-fill in a full load never runs from here.
+
+    The panels inside (partners, partner rates, billing, attachments) re-read
+    their own tables through useLiveVersion.
   */
-  const refreshCase = useCallback(async () => {
-    try {
-      const [e, ev, q, sh] = await Promise.all([
-        getEnquiry(ref),
-        eventsFor(ref),
-        MAIL_ONLY_CASE_FILE ? Promise.resolve<Quote[]>([]) : quotesFor(ref),
-        MAIL_ONLY_CASE_FILE ? Promise.resolve<Shipment | null>(null) : shipmentFor(ref),
-      ]);
-      if (e) setEnquiry(e);
-      setEvents(ev);
-      setQuotes(q);
-      setShipment(sh);
-    } catch {
-      // The next change, or the next time the tab comes into view, tries again.
-    }
-  }, [ref]);
+  const refreshCase = useCallback(
+    async (moved: Set<string>) => {
+      const any = (...t: string[]) => t.some((x) => moved.has(x));
+      const full = !MAIL_ONLY_CASE_FILE;
+      try {
+        await Promise.all([
+          // Dimension lines rewrite the enquiry's cargo figures (054); a quote
+          // or a booking moves its status.
+          any("enquiries", "enquiry_dimensions", "quotes", "shipments") && getEnquiry(ref).then((e) => e && setEnquiry(e)),
+          any("enquiry_events", "enquiries", "quotes", "shipments") && eventsFor(ref).then(setEvents),
+          full && any("quotes") && quotesFor(ref).then(setQuotes),
+          full && any("shipments") && shipmentFor(ref).then(setShipment),
+          full && any("enquiry_parties") && partiesFor(ref).then(setParties),
+          full && any("enquiry_dimensions") && listDimensions(ref).then(setDims),
+          full && any("partner_quotes") && listQuotes(ref).then(setPartnerQuotes),
+          any("enquiry_messages", "enquiry_threads") && correspondenceFor(ref, mailbox).then(setMail),
+        ]);
+      } catch {
+        // The next change, or the next time the tab comes into view, tries again.
+      }
+    },
+    [ref, mailbox]
+  );
   const REF = ref.toUpperCase();
-  useTablesChanges(
+  const live = useLiveVersions(
     [
       ["enquiries", `ref=eq.${REF}`],
-      ...(MAIL_ONLY_CASE_FILE
-        ? []
-        : ([
-            ["quotes", `enquiry_ref=eq.${REF}`],
-            ["shipments", `enquiry_ref=eq.${REF}`],
-          ] as const)),
+      ["shipments", `enquiry_ref=eq.${REF}`],
+      ["invoices", `enquiry_ref=eq.${REF}`],
+      ...enquiryWatches(REF),
     ],
-    () => void refreshCase(),
+    (moved) => void refreshCase(moved),
     Boolean(ref)
   );
 
@@ -314,6 +325,7 @@ export default function CaseFile() {
   const liveQuote = liveQuoteOf(quotes);
 
   return (
+    <LiveVersions value={live}>
     <div>
       <Back from={cameFrom} />
 
@@ -727,6 +739,7 @@ export default function CaseFile() {
         </>
       )}
     </div>
+    </LiveVersions>
   );
 }
 
@@ -867,5 +880,5 @@ function when(iso: string) {
   const sameDay = new Date().toDateString() === d.toDateString();
   return sameDay
     ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    : formatDate(d, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true });
 }

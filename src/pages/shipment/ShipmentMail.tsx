@@ -21,6 +21,7 @@ import {
 } from "../../services/enquiries";
 import { liveQuoteOf } from "../../lib/attachableDocuments";
 import { money } from "../../services/charges";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * The correspondence, the quotation and the agents — on the booking.
@@ -81,9 +82,11 @@ export default function ShipmentMail() {
     }
   }, [shipment.enquiry_ref, mailbox]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("enquiry_messages", "enquiry_threads", "quotes");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   const agreed = liveQuoteOf(quotes);
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -45,6 +45,8 @@ import { getHawb, hawbHistory, jobForHawb, logHawbPrint, saveHawb, setOriginalIs
 import { linesFor } from "../services/quoteLines";
 import { liveQuoteOf } from "../lib/attachableDocuments";
 import { SectionSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
+import { useLiveVersion } from "../lib/liveVersions";
 
 /**
  * The HAWB tab: the house air waybill, laid out like the form it prints.
@@ -132,6 +134,34 @@ export default function HawbForm({
     void load();
   }, [load]);
 
+  /*
+    Somebody else saving this HAWB (084).
+
+    With nothing unsaved here, the form simply reads it again. With boxes
+    typed and not saved, reading it again would wipe them — so it only looks
+    whether the saved HAWB is newer and somebody else's, and if it is, says so
+    and offers to load theirs. Whoever saves next replaces the other's.
+  */
+  const live = useLiveVersion("house_airwaybills");
+  const [theirs, setTheirs] = useState(false);
+  const dirtyNow = useRef(dirty);
+  dirtyNow.current = dirty;
+  const rowNow = useRef(row);
+  rowNow.current = row;
+  useEffect(() => {
+    if (!live) return;
+    if (!dirtyNow.current) {
+      setTheirs(false);
+      void load();
+      return;
+    }
+    void getHawb(s.id)
+      .then((fresh) => {
+        if (fresh && fresh.updated_at !== rowNow.current?.updated_at && fresh.updated_by !== session?.userId) setTheirs(true);
+      })
+      .catch(() => {});
+  }, [live, load, s.id, session?.userId]);
+
   // Charge names the desk already used on this job's quotation, offered as the
   // other charges are typed.
   useEffect(() => {
@@ -194,6 +224,7 @@ export default function HawbForm({
       setRow(r);
       setD(r.data);
       setSaved(snapshot(r.data, r.hawb_date ?? "", r.awb_kind));
+      setTheirs(false);
       if (history) setHistory(await hawbHistory(s.id));
       onChanged();
       if (numberError) return `Saved. Not numbered yet: ${numberError}`;
@@ -341,7 +372,7 @@ export default function HawbForm({
           ) : dirty ? (
             <span className="text-text-warning">Unsaved changes</span>
           ) : (
-            <span className="text-text-muted">Saved {new Date(row.updated_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+            <span className="text-text-muted">Saved {formatDate(row.updated_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
           )}
         </span>
       </div>
@@ -355,6 +386,24 @@ export default function HawbForm({
         <p className="mb-3 flex items-start gap-2 rounded-lg bg-bg-success px-3 py-2.5 text-[12px] text-text-success">
           <Check size={13} className="mt-px shrink-0" /> {note}
         </p>
+      )}
+      {theirs && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] text-text-warning">
+          <AlertCircle size={13} className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            Somebody else has saved this HAWB while you were editing it. Saving yours replaces theirs.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setTheirs(false);
+              void load();
+            }}
+            className="h-7 shrink-0 rounded-lg border border-current/30 px-2.5 font-medium hover:bg-white/40"
+          >
+            Load theirs, drop my changes
+          </button>
+        </div>
       )}
       {locked && (
         <p className="mb-3 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] text-text-warning">
@@ -925,7 +974,7 @@ function HistoryPanel({ history, people, onClose }: { history: HawbHistory[]; pe
                   {h.note ? ` — ${h.note}` : ""}
                 </p>
                 <p className="text-[11px] text-text-muted">
-                  {new Date(h.at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {formatDate(h.at, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                   {" · "}
                   {nameOf(people, h.actor) ?? "the system"}
                 </p>

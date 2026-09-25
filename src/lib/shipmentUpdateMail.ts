@@ -1,3 +1,4 @@
+import { formatDate } from "./dates";
 /**
  * The mail a party gets when the desk notifies them about a shipment.
  *
@@ -55,7 +56,7 @@ export function when(date: string | null, time?: string | null): string | null {
   if (!date) return null;
   const d = new Date(`${date.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(d.getTime())) return null;
-  const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const day = formatDate(d, { day: "numeric", month: "short", year: "numeric" });
   return time ? `${day}, ${time.slice(0, 5)}` : day;
 }
 

@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (39 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (40 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **083**, so the next one is `084-….sql`.
+  migration filename (§6). The last migration is **084**, so the next one is `085-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 83 migrations
+## 4. Data model — 84 migrations
 
-`supabase-v2/001…083`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…084`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -166,14 +166,27 @@ transaction).
 | `081` | `enquiries`, `shipments`, `intake` and `shipment_checkpoints` added to it too |
 | `082` | the console's master B/L copied to its jobs (`mainline_no`); console and numbering functions closed to `anon` |
 | `083` | free time: the job's free days and D&D rates (`shipments`), six clock dates per box (`shipment_containers`) |
+| `084` | every other table on an enquiry or a job added to the realtime publication (28 tables in all) |
 
-**Realtime covers those five tables.** Overview, Enquiries overview, Inbound enquiries, My
-enquiries, In-process, Completed, the job file (header and steps) and the case file refresh
-when a row they show changes. To make another table live, add it to the publication in a
-migration (copy 081), then call `useTableChanges(table, filter, onChange)`, or
-`useTablesChanges([[table, filter], …], onChange)` for several tables on one channel with one
-refresh, from `src/lib/useTableChanges.ts`. **A page's loader must not write to a table it
-listens to,** or every open copy of the page refreshes itself in a loop.
+**Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
+person's change as it is made.
+
+- **The job file and the case file** each open one channel for the job or enquiry and every
+  table under it, filtered to that record (`useLiveVersions` in `src/lib/liveVersions.tsx`,
+  with `SHIPMENT_TABLES` and `ENQUIRY_TABLES`). The page re-reads its own header for the
+  tables that feed it. Each tab or panel re-reads for its own tables by putting
+  `useLiveVersion("table", …)` in its load effect's dependencies.
+- **A form with unsaved edits must not reload under the user.** `HawbForm` shows the pattern:
+  it reloads only when clean, and otherwise offers "Load theirs".
+- **List pages** (Overview, the boards, In-process, Completed, Job closing, Consoles) call
+  `useTablesChanges([[table, filter], …], onChange)` from `src/lib/useTableChanges.ts`; the
+  callback is told which tables moved.
+- **Deletes:** Realtime cannot filter a delete, so a filtered watch also listens for deletes
+  on the whole table.
+- **To make a new table live:** add it to the publication in a migration (copy 084), then to
+  the lists above or the page's watch list.
+- **A loader must not write to a table it listens to,** or every open copy of the page
+  refreshes itself in a loop. Every loader was checked for this on 25 September.
 
 ---
 
@@ -205,7 +218,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 39 suites, pure logic
+npm test                             # 40 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -222,7 +235,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 39 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 40 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -257,8 +270,11 @@ The UI has no automated tests. It is verified by hand in the way described below
   an UPDATE event with the enquiry filter (080), and a same-value update on `intake` reached
   an unfiltered and a row-filtered subscriber but not one filtered to another row (081). The
   pages were checked in a preview harness with a stubbed channel: each subscribes to the
-  right tables and filters, and a burst of events causes one reload. Two people watching a
-  change land in real sessions has not been observed.
+  right tables and filters, and a burst of events causes one reload. For 084, a same-value
+  update on `enquiry_events` reached the enquiry's own subscriber and not another's, and the
+  job file and case file were each shown to hold one channel and to re-read only the tab or
+  panel whose table moved. Two people watching a change land in real sessions has not been
+  observed.
 - **Microsoft sign-in inside the iPhone home-screen app.** Standalone mode can open the
   OAuth redirect in Safari.
 - **In a real mailbox:** that a reply nests in its Outlook thread, and that the logo
@@ -298,8 +314,11 @@ not in Graph's default fields, and `$select` replaces the defaults rather than a
 `outgoing()` swap `/brand/*.jpg` for an inline attachment when the mail is sent. The preview
 shows the same-origin URL.
 
-**Month names are hard-coded arrays.** `toLocaleDateString("en-IN")` prints "Sept", and so does
-`"en-GB"`, so do not use either for dates (`docDate` in `lib/documents/letterhead.ts` is one). Rupee amounts use `en-IN` grouping. The financial year runs April to March,
+**Month names come from a list, never the locale.** `toLocaleDateString` prints "Sept" in both
+`en-IN` and `en-GB`. Use `formatDate(value, { day, month, year, hour, minute, hour12, timeZone })`
+from `src/lib/dates.ts`: it takes the same options and spells months itself. Every screen, mail
+and PDF was moved onto it on 25 September; a grep for `month: "short"` next to `toLocale`
+should find nothing. Rupee amounts use `en-IN` grouping. The financial year runs April to March,
 so Q1 is April to June. Days are counted in IST.
 
 **`.card` must live in `@layer components`,** or it overrides utility classes. `surface-inset`
@@ -414,6 +433,8 @@ There are 63 commits. Grouped:
 | iPhone app | `24f6104` | Add to Home Screen gives a standalone app with the user's logo as the icon |
 | Realtime desk (081) | `a15f629` | Enquiries, shipments, intake and job steps update live on every list and file page |
 | Printed documents | `763a153` | PDFs numbered `BKG-ALG09004-26` (no `ARX-`), on the navy letterhead with the mail's logo |
+| Live everywhere (084) | see `git log` | Every change on an enquiry or a job, by anybody, shows on everybody's open page: every tab of the job file, every panel of the case file, the boards, Job closing and Consoles |
+| Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 

@@ -44,6 +44,7 @@ import { intakeByMessage, type Intake } from "../services/intake";
 import { refsFor } from "../services/threadRefs";
 import { listPeople, type Person } from "../services/enquiries";
 import { ListSkeleton, SectionSkeleton } from "../components/Loading";
+import { formatDate } from "../lib/dates";
 
 const FOLDER_ICON: Record<FolderId, React.ElementType> = {
   inbox: Inbox,
@@ -747,11 +748,12 @@ function ShipmentLinks({ text }: { text: string }) {
 }
 
 function fullTime(isoDate: string) {
-  return new Date(isoDate).toLocaleString([], {
+  return formatDate(isoDate, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 }
 

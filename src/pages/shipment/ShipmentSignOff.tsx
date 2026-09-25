@@ -5,6 +5,8 @@ import { useAuth } from "../../lib/auth";
 import { failureText } from "../../lib/errorText";
 import { listPeople, type Person, type SignOffItem } from "../../services/enquiries";
 import { reopenSignOff, signOff, signOffChecklist } from "../../services/signoff";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * Operations closing the job.
@@ -37,12 +39,24 @@ export default function ShipmentSignOff() {
     }
   }, [s.id]);
 
+  // The checklist reads most of the job, so any of it changing, by anybody,
+  // reads it again (the page's subscription, 084).
+  const live = useLiveVersion(
+    "shipment_checkpoints",
+    "shipment_customs",
+    "shipment_movements",
+    "shipment_containers",
+    "house_airwaybills",
+    "enquiry_files",
+    "invoices",
+    "bills"
+  );
   useEffect(() => {
     void load();
     void listPeople()
       .then(setPeople)
       .catch(() => setPeople([]));
-  }, [load, s.updated_at]);
+  }, [load, s.updated_at, live]);
 
   const admin = session?.role === "admin";
   const failing = items.filter((i) => i.blocking && !i.ok);
@@ -84,7 +98,7 @@ export default function ShipmentSignOff() {
             <Lock size={15} /> Signed off
           </p>
           <p className="mt-1 text-[12.5px] text-text-success">
-            {new Date(s.signed_off_at!).toLocaleString("en-GB", {
+            {formatDate(s.signed_off_at, {
               day: "numeric",
               month: "short",
               year: "numeric",

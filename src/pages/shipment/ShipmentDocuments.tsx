@@ -28,6 +28,8 @@ import {
   uploadFile,
   type EnquiryFile,
 } from "../../services/attachments";
+import { formatDate } from "../../lib/dates";
+import { useLiveVersion } from "../../lib/liveVersions";
 
 /**
  * The job's paper: what has been filed, and what can be generated.
@@ -62,9 +64,11 @@ export default function ShipmentDocuments() {
     }
   }, [shipment.enquiry_ref]);
 
+  // Changed by anybody, read again (the page's subscription, 084).
+  const live = useLiveVersion("enquiry_files");
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, live]);
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -157,7 +161,7 @@ export default function ShipmentDocuments() {
                     <td className="px-2 py-1.5 text-[11.5px] text-text-muted">
                       {f.source === "mail" ? "Mail" : f.source === "generated" ? "Generated" : "Uploaded"}
                       {" · "}
-                      {new Date(f.filed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      {formatDate(f.filed_at, { day: "numeric", month: "short" })}
                     </td>
                     <td className="px-1 py-1">
                       <button

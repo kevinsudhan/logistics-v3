@@ -25,6 +25,7 @@ import {
   type Payment,
 } from "../services/receipts";
 import { ListSkeleton } from "./Loading";
+import { formatDate } from "../lib/dates";
 
 /**
  * The ledger for one direction of money.
@@ -302,7 +303,7 @@ export default function PaymentsLedger({ direction }: { direction: Direction }) 
 
                   <span className="text-[12px] text-text-muted">{MODE_LABEL[p.mode]}</span>
                   <span className="text-[12px] text-text-muted">
-                    {new Date(p.payment_date + "T00:00:00").toLocaleDateString("en-IN", {
+                    {formatDate(p.payment_date, {
                       day: "numeric",
                       month: "short",
                       year: "numeric",

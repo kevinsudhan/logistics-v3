@@ -1,6 +1,7 @@
 import { Check, Plane } from "lucide-react";
 import type { Enquiry, Quote, Shipment } from "../services/enquiries";
 import type { PartnerQuote } from "../services/rfq";
+import { formatDate } from "../lib/dates";
 
 /**
  * Where this enquiry has got to.
@@ -204,5 +205,5 @@ export default function EnquiryWorkflow({
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return formatDate(d, { day: "2-digit", month: "short" });
 }
