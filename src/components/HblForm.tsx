@@ -12,6 +12,7 @@ import { listPeople, nameOf, type Person, type Shipment } from "../services/enqu
 import { getHbl, hblFromJob, hblHistory, jobForHbl, logHblPrint, mtoPartners, saveHbl, setHblIssued, type HblHistory, type HblRow } from "../services/hbl";
 import type { Partner } from "../services/partners";
 import HblBoxes, { inputBase, Labelled } from "./HblBoxes";
+import HblRelease from "./HblRelease";
 import { SectionSkeleton } from "./Loading";
 
 /**
@@ -385,6 +386,18 @@ export default function HblForm({ shipment: s, onChanged }: { shipment: Shipment
         </p>
       )}
 
+      {/* Once issued, what happens to it next (089). */}
+      {row?.status === "issued" && (
+        <HblRelease
+          shipment={s}
+          row={row}
+          onChanged={async () => {
+            await load();
+            onChanged();
+          }}
+        />
+      )}
+
       <HblBoxes d={d} set={set} ro={ro} variant="ours" express={release === "express"} />
 
       {history && <HistoryPanel history={history} people={people} onClose={() => setHistory(null)} />}
@@ -451,6 +464,7 @@ function HistoryPanel({ history, people, onClose }: { history: HblHistory[]; peo
     issued: "Issued",
     reopened: "Reopened",
     printed: "Printed",
+    released: "Release",
   };
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose} role="dialog" aria-modal="true" aria-label="House B/L history">

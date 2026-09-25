@@ -4,6 +4,7 @@ import { getConsole } from "./consoles";
 import type { Shipment } from "./enquiries";
 import { listPartners, type Partner } from "./partners";
 import { listShipmentContainers } from "./shipmentContainers";
+import { extraPartiesFor } from "./shipmentExtras";
 
 /**
  * The house bill of lading on a shipment (085).
@@ -24,13 +25,38 @@ export interface HblRow {
   issued_at: string | null;
   updated_at: string;
   updated_by: string | null;
+  /* The release, once issued (089). */
+  charges_received_on: string | null;
+  originals_released_on: string | null;
+  originals_released_to: string;
+  originals_returned: number;
+  originals_returned_on: string | null;
+  release_sent_on: string | null;
+  release_sent_to: string;
+  released_on: string | null;
+  release_note: string;
 }
+
+export type HblReleasePatch = Partial<
+  Pick<
+    HblRow,
+    | "charges_received_on"
+    | "originals_released_on"
+    | "originals_released_to"
+    | "originals_returned"
+    | "originals_returned_on"
+    | "release_sent_on"
+    | "release_sent_to"
+    | "released_on"
+    | "release_note"
+  >
+>;
 
 export interface HblHistory {
   id: string;
   at: string;
   actor: string | null;
-  action: "created" | "updated" | "numbered" | "issued" | "reopened" | "printed";
+  action: "created" | "updated" | "numbered" | "issued" | "reopened" | "printed" | "released";
   changes: Array<{ field: string; from: unknown; to: unknown }>;
   note: string;
 }
@@ -80,6 +106,39 @@ export async function setHblIssued(shipmentId: string, issued: boolean): Promise
     .update({ status: issued ? "issued" : "draft" })
     .eq("shipment_id", shipmentId);
   if (error) throw failure(error);
+}
+
+/**
+ * A step of the release (089). The database refuses a release on an unissued
+ * B/L and a telex release before every original is back, in words.
+ */
+export async function patchHblRelease(shipmentId: string, patch: HblReleasePatch): Promise<void> {
+  const { error } = await supabase.from("house_bills").update(patch).eq("shipment_id", shipmentId);
+  if (error) throw failure(error);
+}
+
+/**
+ * Who the release message goes to: the destination agent on the Party tab,
+ * else the console's agent, else the agent the job is routed through.
+ */
+export async function releaseAgent(shipment: Shipment): Promise<{ name: string; email: string } | null> {
+  const [parties, partners, con] = await Promise.all([
+    extraPartiesFor(shipment.id).catch(() => []),
+    listPartners(true).catch(() => [] as Partner[]),
+    shipment.console_id ? getConsole(shipment.console_id).catch(() => null) : Promise.resolve(null),
+  ]);
+  const party = parties.find((p) => p.role === "destination_agent" && p.email);
+  if (party) return { name: party.contact_person || party.name || "", email: party.email! };
+  const partner = partners.find((p) => p.id === con?.agent_id) ?? partners.find((p) => p.id === shipment.routed_agent_id);
+  if (partner?.emails[0]) return { name: partner.organisation || partner.name, email: partner.emails[0] };
+  return partner ? { name: partner.organisation || partner.name, email: "" } : null;
+}
+
+/** Invoices on the job not yet fully paid: a word of warning beside "charges received". */
+export async function unpaidInvoices(shipmentId: string): Promise<number> {
+  const { data, error } = await supabase.from("invoices").select("status").eq("shipment_id", shipmentId).in("status", ["issued", "part_paid"]);
+  if (error) return 0;
+  return (data ?? []).length;
 }
 
 export async function hblHistory(shipmentId: string): Promise<HblHistory[]> {

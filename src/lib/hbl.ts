@@ -561,4 +561,13 @@ export const FIELD_LABEL: Record<string, string> = {
   release_mode: "Release",
   originals: "Originals",
   mto_partner_id: "MTO partner",
+  charges_received_on: "Charges received",
+  originals_released_on: "Originals handed over",
+  originals_released_to: "Handed over to",
+  originals_returned: "Originals back with us",
+  originals_returned_on: "Full set back on",
+  release_sent_on: "Release sent to agent",
+  release_sent_to: "Release sent to",
+  released_on: "Released at destination",
+  release_note: "Release note",
 };

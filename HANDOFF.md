@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (44 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (45 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **088**, so the next one is `089-….sql`.
+  migration filename (§6). The last migration is **089**, so the next one is `090-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -152,9 +152,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 88 migrations
+## 4. Data model — 89 migrations
 
-`supabase-v2/001…088`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…089`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -176,6 +176,7 @@ transaction).
 | `086` | `mail_log` (every mail each mailbox sent: recipients, subject, preview, job, kind) and `mail_log_mailboxes` (when each was last checked); `record_sent_mail`, `mail_log_since`; both live |
 | `087` | the server's copy of every mailbox: `mail_log_upsert` (the one writer), `record_sent_mail_server`, `mail_sync_error`, `mail_sync_targets` (service role only); `server_error` per mailbox; cron `araxys-v2-mail-sync` every 5 minutes |
 | `088` | a house B/L somebody else issued, received on our job (`received_house_bills`: issuer, their number and reference, draft → confirmed → final, corrections, release mode, the boxes, their PDF, release ticks and our DO); their number copied to `shipments.forwarders_bl_no`; `shipment_customs` gets `igm_subline`, `csn_no`, `csn_filed_on`, `cfs_code` |
+| `089` | releasing our own house B/L: `house_bills` gets charges received, originals handed over (to whom), originals back (how many), release sent (to whom), released at destination, a note; `house_bill_write` refuses a release before issue, a telex release before every original is back, and reopening while an original is out; history action `released`; timeline events |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -261,7 +262,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 44 suites, pure logic
+npm test                             # 45 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -278,7 +279,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 44 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 45 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -455,9 +456,26 @@ screen.
       ARRANGED by default, following the freight terms).
     - Cargo insurance: not covered, or covered by the attached policy.
     - Our form and the received one share the boxes, in `components/HblBoxes.tsx`.
-  - **Still to build:** release tracking on *our own* HBL (originals collected, telex released
-    to the agent, surrendered at destination), and the console manifest for the destination
-    agent.
+  - **Release (089).** Once our B/L is issued, `components/HblRelease.tsx` shows the steps
+    for its mode (logic in `lib/hblRelease.ts`):
+    - original: charges received → originals handed over, to whom → released at destination.
+    - telex: charges → (originals out, optional) → the full set back, counted → telex release
+      sent → released.
+    - express: charges → release instructions sent → released.
+
+    "Write the telex release" opens the mail composer, addressed to the destination agent (the
+    Party tab's destination agent, else the console's agent, else the routed agent), with the
+    release text. Sending it ticks the step.
+
+    Unpaid invoices on the job show beside "charges received". Handing over originals or
+    releasing without the charges ticked asks first. "Released" waits for the step that lets
+    the agent release.
+
+    The database refuses:
+    - a release on a draft;
+    - a telex release before all originals are back;
+    - reopening, even by an admin, while an original is out.
+  - **Still to build:** the console manifest for the destination agent.
 - **A B/L somebody else issued, received (088).** On a sea job whose Bill tab says "The origin
   agent's house B/L", the tab shows `components/ReceivedHbl.tsx`. An import job with no
   `bl_type` defaults to this.
@@ -555,6 +573,7 @@ There are 63 commits. Grouped:
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
+| Our B/L's release (089) | see `git log` | After issue: charges received, originals handed over and to whom, the full set back for a telex release, the telex release written to the destination agent and sent, released at destination; each on the history and the timeline, with the rules held by the database |
 | Received house B/L (088) | see `git log` | The origin agent's B/L read in from their PDF, checked against the job, corrections for the agent, the job's blanks filled; the CSN with its ETA − 72h countdown; the release checklist and our DO against their number. Our own B/L gained IEC/GSTIN, said to contain, a freight table and cargo insurance |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
