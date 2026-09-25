@@ -8,7 +8,9 @@ import {
   PenSquare,
   PenLine,
   RefreshCw,
+  Forward,
   Reply,
+  ReplyAll,
   Search,
   Send,
   FileEdit,
@@ -29,6 +31,7 @@ import MessageHeader from "../components/MessageHeader";
 import MailListRow from "../components/MailListRow";
 import { useAuth } from "../lib/auth";
 import { outcomeText } from "../lib/outlookConnect";
+import type { ComposeMode } from "../lib/mailQuote";
 import { clearOutlookNotice, connectOutlook, peekOutlookNotice } from "../services/graphMail";
 import {
   getMailFolders,
@@ -131,7 +134,7 @@ export default function Mail() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [composing, setComposing] = useState<null | { replyTo?: MailMessage }>(null);
+  const [composing, setComposing] = useState<null | { replyTo?: MailMessage; mode?: ComposeMode }>(null);
   /**
    * The reference this conversation is already filed under, if any.
    *
@@ -646,11 +649,25 @@ export default function Mail() {
               */}
               <div className="sticky top-14 z-10 -mx-5 mt-3 flex flex-wrap items-start gap-2 border-b border-transparent bg-surface-1/95 px-5 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface-1/85 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:backdrop-blur-none">
                 <button
-                  onClick={() => setComposing({ replyTo: selected })}
+                  onClick={() => setComposing({ replyTo: selected, mode: "reply" })}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand hover:bg-brand-dark text-white text-[12px] font-medium transition-colors"
                 >
                   <Reply size={13} />
                   Reply
+                </button>
+                <button
+                  onClick={() => setComposing({ replyTo: selected, mode: "replyAll" })}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+                >
+                  <ReplyAll size={13} />
+                  Reply all
+                </button>
+                <button
+                  onClick={() => setComposing({ replyTo: selected, mode: "forward" })}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-[12px] text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+                >
+                  <Forward size={13} />
+                  Forward
                 </button>
 
                 {/*
@@ -755,6 +772,7 @@ export default function Mail() {
           fromName={session?.name ?? ""}
           signature={session?.signature ?? ""}
           replyTo={composing.replyTo}
+          mode={composing.mode}
           reference={replyRef}
           onClose={() => setComposing(null)}
           onSent={() => {

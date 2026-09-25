@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2, Send, Sparkles, X } from "lucide-react";
+import { AlertCircle, Loader2, Maximize2, Minimize2, Send, Sparkles, X } from "lucide-react";
 import { sendMail, mailIsLive, type MailMessage } from "../services/backend";
 import { draftReply } from "../services/classify";
 import { recordReply } from "../services/replyLog";
@@ -9,20 +9,27 @@ import Drafting from "./Drafting";
 import { greetingHtml } from "../lib/greeting";
 import MailAttachments, { type Attachable, type Attached } from "./MailAttachments";
 import { bytesToBase64 } from "../lib/base64";
+import { composeSubject, quoteHeaderHtml, quotedBodyHtml, replyRecipients, type ComposeMode } from "../lib/mailQuote";
+import { inlineForeign } from "../lib/mailHtml";
 
 /**
- * Compose, and reply.
+ * Compose, reply, reply all and forward.
  *
- * One component for both: a reply is a compose with the recipient, subject and
- * quoted body already filled, and the conversation id carried across so the
- * sent copy threads with what it answers. Splitting them would duplicate the
+ * One component for all four: a reply is a compose with the recipients,
+ * subject and quoted body already filled, and the message it answers carried
+ * across so the sent copy threads with it. Splitting them would duplicate the
  * validation and the send path for no gain.
+ *
+ * The quoted message sits under Outlook's own header (lib/mailQuote.ts), with
+ * its styling kept (lib/mailHtml.ts, inlineForeign), so a thread reads in the
+ * customer's Outlook as if it had been answered from Outlook.
  */
 export default function ComposeMail({
   mailbox,
   fromName,
   signature = "",
   replyTo,
+  mode,
   initial,
   onClose,
   onSent,
@@ -38,6 +45,11 @@ export default function ComposeMail({
   /** The sender's saved signature, pre-filled into the body. */
   signature?: string;
   replyTo?: MailMessage;
+  /**
+   * What is being done with `replyTo`: reply (the default), reply all, or
+   * forward — which goes through Graph's forward so its attachments go too.
+   */
+  mode?: ComposeMode;
   /**
    * A message the CRM has drafted -- a quotation, a booking confirmation.
    *
@@ -100,8 +112,15 @@ export default function ComposeMail({
    * see that it is doubled when they have also typed their name.
    */
   const sig = signature.trim() ? `<br><br>${signature.trim()}` : "";
-  const [to, setTo] = useState(initial?.to ?? (replyTo ? replyTo.from.emailAddress.address : ""));
-  const [cc, setCc] = useState("");
+  const kind: ComposeMode | null = replyTo ? (mode ?? "reply") : null;
+  const answering = kind === "reply" || kind === "replyAll";
+  const [who] = useState(() => (replyTo && kind ? replyRecipients(replyTo, kind, mailbox) : { to: [], cc: [] }));
+  const [to, setTo] = useState(initial?.to ?? who.to.join(", "));
+  const [cc, setCc] = useState(who.cc.join(", "));
+  const [bcc, setBcc] = useState("");
+  const [showBcc, setShowBcc] = useState(false);
+  /** Outlook's "pop out": the whole window for a long mail. */
+  const [big, setBig] = useState(false);
   /*
     The token goes on here rather than at send time, so it is visible in the
     box before the message leaves. Somebody editing the subject can see what
@@ -112,9 +131,7 @@ export default function ComposeMail({
     reference keeps the one it has rather than gaining a second.
   */
   const [subject, setSubject] = useState(() => {
-    const base =
-      initial?.subject ??
-      (replyTo ? (/^re:/i.test(replyTo.subject) ? replyTo.subject : `Re: ${replyTo.subject}`) : "");
+    const base = initial?.subject ?? (replyTo && kind ? composeSubject(replyTo.subject, kind) : "");
     return reference ? withToken(base, reference) : base;
   });
   /**
@@ -126,19 +143,14 @@ export default function ComposeMail({
    * land ABOVE it — and the model writes its own salutation, so the reader
    * would get two.
    */
-  const tail =
+  // Worked out once: folding a long thread's stylesheet in is not free.
+  const [tail] = useState(() =>
     initial?.body !== undefined
       ? sig
       : replyTo
-        ? `${sig}<br><br><hr><div>On ${new Date(replyTo.receivedDateTime).toLocaleString()}, ` +
-          `${escapeHtml(replyTo.from.emailAddress.name || replyTo.from.emailAddress.address)} ` +
-          `wrote:</div>` +
-          `<blockquote style="margin:0 0 0 12px;padding-left:10px;border-left:2px solid #ccc">` +
-          (replyTo.body.contentType === "html"
-            ? replyTo.body.content
-            : escapeHtml(replyTo.body.content).replace(/\r?\n/g, "<br>")) +
-          `</blockquote>`
-        : sig;
+        ? `${sig}<div><br></div>${quoteHeaderHtml(replyTo)}${inlineForeign(quotedBodyHtml(replyTo))}`
+        : sig
+  );
 
   /**
    * What the box opens with.
@@ -151,9 +163,10 @@ export default function ComposeMail({
   const initialBody =
     initial?.body !== undefined
       ? `${initial.body}${tail}`
-      : replyTo
+      : replyTo && answering
         ? greetingHtml(replyTo.from.emailAddress.name, replyTo.from.emailAddress.address) + tail
-        : tail;
+        : // A forward opens on a blank line above the header, as in Outlook.
+          `<div><br></div>${tail}`;
 
   const [content, setContent] = useState(initialBody);
   const [busy, setBusy] = useState(false);
@@ -239,7 +252,7 @@ export default function ComposeMail({
     const recipients = addresses(to);
     if (!recipients.length) return setError("Add at least one recipient.");
 
-    const bad = recipients.find((a) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
+    const bad = [...recipients, ...addresses(cc), ...addresses(bcc)].find((a) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
     if (bad) return setError(`"${bad}" is not a valid email address.`);
 
     if (!subject.trim()) return setError("Add a subject.");
@@ -251,6 +264,7 @@ export default function ComposeMail({
         fromName,
         to: recipients,
         cc: addresses(cc),
+        bcc: addresses(bcc),
         subject: subject.trim(),
         content,
         conversationId: replyTo?.conversationId,
@@ -259,7 +273,8 @@ export default function ComposeMail({
           is ignored by the live send path — Graph threads a reply from the
           message being replied TO, not from the conversation it sits in.
         */
-        replyToId: replyTo?.id,
+        replyToId: answering ? replyTo?.id : undefined,
+        forwardOfId: kind === "forward" ? replyTo?.id : undefined,
         // Stripped of the display-only fields the picker carries around.
         attachments: attachments.length
           ? attachments.map((a) => ({
@@ -278,7 +293,7 @@ export default function ComposeMail({
         failure reported here would read as a send failure and invite a second
         copy of the same reply.
       */
-      if (replyTo) await recordReply({ repliedTo: replyTo, partnerId });
+      if (replyTo && answering) await recordReply({ repliedTo: replyTo, partnerId });
 
       onSent();
     } catch (err) {
@@ -293,22 +308,31 @@ export default function ComposeMail({
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-2xl rounded-t-card sm:card shadow-xl max-h-[92vh] flex flex-col"
+        className={`w-full rounded-t-card sm:card shadow-xl flex flex-col ${big ? "h-[100dvh] sm:h-[calc(100dvh-3rem)] sm:max-w-6xl" : "max-h-[92vh] sm:max-w-3xl"}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={replyTo ? "Reply" : "New message"}
+        aria-label={TITLE[kind ?? "new"]}
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <h2 className="text-[14px] font-medium text-text-primary">
-            {replyTo ? "Reply" : "New message"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text-primary"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
+          <h2 className="text-[14px] font-medium text-text-primary">{TITLE[kind ?? "new"]}</h2>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setBig((b) => !b)}
+              className="hidden sm:block text-text-muted hover:text-text-primary"
+              aria-label={big ? "Smaller window" : "Bigger window"}
+              title={big ? "Smaller window" : "Bigger window"}
+            >
+              {big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-text-muted hover:text-text-primary"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </header>
 
         <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-4" noValidate>
@@ -339,14 +363,34 @@ export default function ComposeMail({
           </Row>
 
           <Row label="Cc">
-            <input
-              value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              placeholder="Optional, comma separated"
-              className="w-full"
-              autoComplete="off"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                value={cc}
+                onChange={(e) => setCc(e.target.value)}
+                placeholder="Optional, comma separated"
+                className="w-full"
+                autoComplete="off"
+              />
+              {!showBcc && (
+                <button type="button" onClick={() => setShowBcc(true)} className="shrink-0 text-[12px] text-text-accent hover:underline">
+                  Bcc
+                </button>
+              )}
+            </div>
           </Row>
+
+          {showBcc && (
+            <Row label="Bcc">
+              <input
+                value={bcc}
+                onChange={(e) => setBcc(e.target.value)}
+                placeholder="Not seen by the other recipients"
+                className="w-full"
+                autoComplete="off"
+                autoFocus
+              />
+            </Row>
+          )}
 
           <Row label="Subject">
             <input
@@ -361,7 +405,7 @@ export default function ComposeMail({
             Offered on replies only. A new message has no thread to answer, and
             a model given nothing to work from writes filler.
           */}
-          {replyTo && (
+          {replyTo && answering && (
             <div className="mt-3 overflow-hidden rounded-card border border-border bg-surface-2">
               <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
                 <span
@@ -438,7 +482,8 @@ export default function ComposeMail({
               <RichTextEditor
                 value={content}
                 onChange={setContent}
-                minHeight={220}
+                minHeight={big ? 420 : 240}
+                keepCid={kind === "forward"}
                 placeholder="Write your message…"
               />
             )}
@@ -491,6 +536,13 @@ export default function ComposeMail({
     </div>
   );
 }
+
+const TITLE: Record<ComposeMode | "new", string> = {
+  new: "New message",
+  reply: "Reply",
+  replyAll: "Reply all",
+  forward: "Forward",
+};
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (

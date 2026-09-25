@@ -551,6 +551,36 @@ screen.
     cannot be probed from outside.
   - "Sign in with Microsoft" on the sign-in page is unchanged: the CRM account there *is* the
     Microsoft account (linked by email), so its mailbox always matches.
+- **The mail editor: Outlook's formatting, what-you-see-is-what-they-get (26 Sep).**
+  `components/RichTextEditor.tsx` (+ `editor/EditorMenus.tsx`), used by compose, the signature
+  and Ask partners.
+  - **Toolbar:** undo/redo, font, size (pt), B/I/U/S, sub/superscript, highlight, font colour
+    (+ any colour), bullets, numbering, indent, alignment, link (Ctrl+K), pictures, a table grid
+    (with row/column actions while in a cell), a rule, clear formatting.
+  - **Shortcuts:** Ctrl+] / Ctrl+[ size, Ctrl+Shift+L bullets, Ctrl+Space clear, Tab in lists
+    and tables.
+  - **Still the browser's own contentEditable, on purpose:** designed mails (the quotation) are
+    table layouts that a schema editor would rebuild and break.
+  - **The page is the mail.** It is white and set in `lib/mailStyle.ts`'s font, size and colour,
+    which are the values `asOutgoingHtml` wraps the send in. `index.css` puts back the mail-client
+    defaults that Tailwind's preflight strips inside `.rich-editor` (bullets, p/heading spacing,
+    inline images); without them the editor showed a different mail.
+  - **Paste and quotes keep their look.** `lib/mailHtml.ts` `inlineForeign` folds a pasted or
+    quoted `<style>` (Word's MsoNormal, Excel's .xl65 borders) into the elements before cleaning.
+  - **Trap: Chrome's insertHTML rewrites `border:` shorthands and drops the line style,** so the
+    cleaner writes every border as four per-side shorthands, which it keeps (`sideBorders`).
+    Inserted tables draw right/bottom lines per cell (plus top/left on the edges) because
+    insertHTML also strips `border-collapse`.
+  - **Pictures** (inserted, pasted or dropped) are uploaded to the public `signatures` bucket.
+    At send, `outgoing()` carries every picture of ours (logo and bucket) as an inline `cid:`
+    attachment while it fits the 3MB, and gives any picture without one a `width`: Outlook
+    ignores max-width.
+  - **For Outlook, `forOutlook`** writes the inherited font, size and colour onto every table cell
+    (Word does not inherit into tables) and gives links Outlook's blue.
+  - **Reply, Reply all, Forward** (`lib/mailQuote.ts`) quote under Outlook's
+    From/Sent/To/Cc/Subject header. Forward goes through Graph `createForward` (`forwardTracked`),
+    so the original's attachments and inline pictures travel. Bcc is on every send path, and the
+    compose window can be made bigger.
 - **Backups (093).** Nightly at 03:00 IST: every public table, the accounts (no passwords)
   and the stored-file list, as `db/YYYY-MM-DD.json.gz` in the private `backups` bucket, 30
   days kept. The admin console shows whether last night's ran (red after 26 hours or a
@@ -701,6 +731,7 @@ There are 63 commits. Grouped:
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
+| Mail editor with Outlook's formatting | see `git log` | Font, size, colours, highlight, lists, alignment, links, pictures, tables; the editor shows exactly what the recipient's Outlook shows; paste from Word/Excel/Outlook keeps its look; Reply all, Forward (with the attachments) and Bcc |
 | Connect Outlook to your own mailbox (095) | see `git log` | Password logins connect Outlook from the Mail page without signing in again, and only to their own mailbox: info@ cannot connect aashish@ |
 | Outlook stays connected (094) | see `git log` | No more "sign in again" an hour after signing in: the server renews the Microsoft token silently for as long as the person stays signed in |
 | Quote self-approval (091) | see `git log` | Approve a quotation yourself with a reason; the reason goes to the admins' review list with a sidebar count; admins accept or withdraw while unsent |

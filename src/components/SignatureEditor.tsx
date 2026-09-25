@@ -73,6 +73,7 @@ export default function SignatureEditor({
           <RichTextEditor
             value={text}
             onChange={setText}
+            imageMax={220}
             autoFocus
             minHeight={200}
             placeholder="Regards, your name, company, phone…"

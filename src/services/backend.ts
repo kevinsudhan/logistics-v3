@@ -426,13 +426,30 @@ export const sendMail = async (body: {
   fromName: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   content: string;
   conversationId?: string;
   replyToId?: string;
+  /** A forward: through Graph's own, so the original's attachments go too. */
+  forwardOfId?: string;
   attachments?: graph.OutgoingAttachment[];
 }) => {
   if (live()) {
+    if (body.forwardOfId) {
+      await graph.forwardTracked({
+        forwardOfId: body.forwardOfId,
+        to: body.to,
+        cc: body.cc,
+        bcc: body.bcc,
+        subject: body.subject,
+        content: body.content,
+        attachments: body.attachments,
+      });
+      syncSentSoon();
+      return;
+    }
+
     /*
       A reply goes through the reply path, not the send path.
       --------------------------------------------------------------------
@@ -446,6 +463,7 @@ export const sendMail = async (body: {
         replyToId: body.replyToId,
         to: body.to,
         cc: body.cc,
+        bcc: body.bcc,
         subject: body.subject,
         content: body.content,
         attachments: body.attachments,
@@ -457,6 +475,7 @@ export const sendMail = async (body: {
     await graph.sendMessage({
       to: body.to,
       cc: body.cc,
+      bcc: body.bcc,
       subject: body.subject,
       content: body.content,
       attachments: body.attachments,

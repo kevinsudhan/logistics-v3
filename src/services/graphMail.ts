@@ -1,7 +1,9 @@
 import { supabase } from "../lib/supabase";
 import { bytesToBase64 } from "../lib/base64";
-import { brandImages, imageType, withContentIds } from "../lib/inlineBrand";
+import { brandImages, imageType } from "../lib/inlineBrand";
 import { readOutcome, type ConnectOutcome } from "../lib/outlookConnect";
+import { forOutlook } from "../lib/mailHtml";
+import { MAIL_COLOR, MAIL_FONT, MAIL_IMAGE_MAX, MAIL_SIZE } from "../lib/mailStyle";
 import type { FolderId, MailMessage, Recipient } from "./mockMail";
 import {
   isEmbeddedImage,
@@ -409,16 +411,14 @@ function adapt(m: GraphMessage, mailbox: string, folder: FolderId): MailMessage 
  * it unpredictably. An inline font-family on a wrapping div is the only thing
  * that survives every client — which is the same reason the whole editor emits
  * inline styles rather than classes.
+ *
+ * The values are lib/mailStyle.ts's, the same ones the editor's page is drawn
+ * with, and `forOutlook` writes them into every table cell, which Outlook
+ * would otherwise set in Times New Roman (lib/mailHtml.ts).
  * ---------------------------------------------------------------------------
  */
-const SEND_FONT = "'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-
 function asOutgoingHtml(content: string): string {
-  return (
-    `<div style="font-family:${SEND_FONT};font-size:10.5pt;color:#14150f">` +
-    content +
-    `</div>`
-  );
+  return `<div style="font-family:${MAIL_FONT};font-size:${MAIL_SIZE};color:${MAIL_COLOR}">` + forOutlook(content) + `</div>`;
 }
 
 export async function listFolders(mailbox: string): Promise<MailFolder[]> {
@@ -760,33 +760,106 @@ function attachmentPayload(list: OutgoingAttachment[] | undefined) {
 }
 
 /**
- * The body and attachments as they go: our logo carried inside the message.
+ * The body and attachments as they go: our pictures carried inside the message.
  *
- * See lib/inlineBrand.ts. An image that cannot be fetched is left as the link
- * it was — a logo the reader has to click to see is still better than a send
- * that fails over it.
+ * ---------------------------------------------------------------------------
+ * A picture that is only a link shows as a blank box in Outlook until the
+ * reader chooses "download pictures". So every picture of ours — the logo
+ * (/brand/…, lib/inlineBrand.ts) and anything put into a mail or signature
+ * from the editor (the project's public storage) — goes as an inline
+ * attachment and is referred to as cid:. Anything else is left as it is:
+ * this does not reach out to fetch arbitrary addresses.
+ *
+ * Inline pictures count towards the 3MB a mail can carry. They are taken in
+ * order while they fit beside the files attached; one that would not fit is
+ * left as its link, which still shows once pictures are allowed, rather than
+ * failing the send.
+ *
+ * And each picture gets a width attribute if it has none: Outlook ignores
+ * max-width and draws a picture at its own pixel size, so a screenshot shown
+ * at 640 in the editor would arrive at 1920.
+ * ---------------------------------------------------------------------------
  */
 async function outgoing(content: string, attachments: OutgoingAttachment[] | undefined): Promise<{ content: string; attachments: OutgoingAttachment[] }> {
-  const found = brandImages(content, window.location.origin);
+  const origin = window.location.origin;
+  const storage = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/`;
+  const brand = new Map(brandImages(content, origin).map((b) => [b.src, b]));
+  const doc = new DOMParser().parseFromString(`<body>${content}</body>`, "text/html");
+
+  let budget = ATTACHMENT_CAP - (attachments ?? []).reduce((n, a) => n + a.contentBytes.length, 0);
   const inline: OutgoingAttachment[] = [];
-  const embedded = [];
-  for (const img of found) {
+  const cids = new Map<string, string>();
+  let n = 0;
+
+  for (const img of Array.from(doc.body.querySelectorAll("img"))) {
+    const src = img.getAttribute("src") ?? "";
+    let url: URL;
     try {
-      const r = await fetch(new URL(img.src, window.location.origin).toString());
-      if (!r.ok) continue;
-      inline.push({
-        name: img.file,
-        contentType: imageType(img.file),
-        contentBytes: bytesToBase64(new Uint8Array(await r.arrayBuffer())),
-        isInline: true,
-        contentId: img.contentId,
-      });
-      embedded.push(img);
+      url = new URL(src, origin);
     } catch {
-      // Left as a link.
+      continue;
+    }
+    const logo = brand.get(src);
+    const ours = !!logo || url.href.startsWith(storage);
+    let bytes: Uint8Array | null = null;
+
+    if (ours && !cids.has(src)) {
+      try {
+        const r = await fetch(url.toString());
+        if (r.ok) {
+          bytes = new Uint8Array(await r.arrayBuffer());
+          const b64 = bytesToBase64(bytes);
+          if (b64.length <= budget) {
+            budget -= b64.length;
+            const file = logo?.file ?? `image${++n}.${(url.pathname.split(".").pop() || "png").toLowerCase()}`;
+            const contentId = logo?.contentId ?? `${file.replace(/\.[^.]+$/, "")}.${Date.now().toString(36)}@aashish-logistics`;
+            inline.push({ name: file, contentType: r.headers.get("content-type")?.split(";")[0] || imageType(file), contentBytes: b64, isInline: true, contentId });
+            cids.set(src, contentId);
+          }
+        }
+      } catch {
+        // Left as a link.
+      }
+    }
+
+    if (!img.getAttribute("width")) {
+      const own = await pixelWidth(bytes, url.toString());
+      const cap = Number((img.getAttribute("style") ?? "").match(/max-width\s*:\s*([\d.]+)px/i)?.[1]) || MAIL_IMAGE_MAX;
+      if (own) img.setAttribute("width", String(Math.min(own, cap)));
     }
   }
-  return { content: withContentIds(content, embedded), attachments: [...(attachments ?? []), ...inline] };
+  doc.body.querySelectorAll("img").forEach((img) => {
+    const cid = cids.get(img.getAttribute("src") ?? "");
+    if (cid) img.setAttribute("src", `cid:${cid}`);
+  });
+  return { content: doc.body.innerHTML, attachments: [...(attachments ?? []), ...inline] };
+}
+
+/** A picture's own width, from its bytes or failing that by loading it; null if neither works in 5s. */
+async function pixelWidth(bytes: Uint8Array | null, url: string): Promise<number | null> {
+  if (bytes) {
+    try {
+      const bmp = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>]));
+      const w = bmp.width;
+      bmp.close();
+      return w;
+    } catch {
+      /* fall through to loading it */
+    }
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    const t = window.setTimeout(() => resolve(null), 5000);
+    img.onload = () => {
+      window.clearTimeout(t);
+      resolve(img.naturalWidth || null);
+    };
+    img.onerror = () => {
+      window.clearTimeout(t);
+      resolve(null);
+    };
+    img.src = url;
+  });
 }
 
 /**
@@ -821,6 +894,7 @@ export async function getAttachmentBytes(
 export async function sendTracked(input: {
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   content: string;
   attachments?: OutgoingAttachment[];
@@ -835,6 +909,7 @@ export async function sendTracked(input: {
       body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
+      ...(input.bcc?.length ? { bccRecipients: recipients(input.bcc) } : {}),
       ...attachmentPayload(out.attachments),
     }),
   });
@@ -965,6 +1040,7 @@ export async function replyTracked(input: {
   replyToId: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   content: string;
   attachments?: OutgoingAttachment[];
@@ -988,12 +1064,56 @@ export async function replyTracked(input: {
       body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
       toRecipients: recipients(input.to),
       ccRecipients: recipients(input.cc ?? []),
+      bccRecipients: recipients(input.bcc ?? []),
       ...files,
     }),
   });
 
   await graph(`/me/messages/${encodeURIComponent(draft.id)}/send`, { method: "POST" });
 
+  return { conversationId: draft.conversationId };
+}
+
+/**
+ * A forward, through Graph's own forward so the original's attachments go
+ * with it — and its inline pictures, which the quoted copy in the body
+ * refers to by cid:.
+ *
+ * The draft Graph makes already holds those files; anything added in the CRM
+ * is posted onto it one by one rather than written over its attachment list.
+ */
+export async function forwardTracked(input: {
+  forwardOfId: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  content: string;
+  attachments?: OutgoingAttachment[];
+}): Promise<{ conversationId: string }> {
+  const recipients = (list: string[]) => list.map((address) => ({ emailAddress: { address } }));
+  const out = await outgoing(input.content, input.attachments);
+  const files = attachmentPayload(out.attachments).attachments ?? [];
+
+  const draft = await graph<{ id: string; conversationId: string }>(
+    `/me/messages/${encodeURIComponent(input.forwardOfId)}/createForward`,
+    { method: "POST" }
+  );
+  const at = `/me/messages/${encodeURIComponent(draft.id)}`;
+  await graph(at, {
+    method: "PATCH",
+    body: JSON.stringify({
+      subject: input.subject,
+      body: { contentType: "HTML", content: asOutgoingHtml(out.content) },
+      toRecipients: recipients(input.to),
+      ccRecipients: recipients(input.cc ?? []),
+      bccRecipients: recipients(input.bcc ?? []),
+    }),
+  });
+  for (const f of files) {
+    await graph(`${at}/attachments`, { method: "POST", body: JSON.stringify(f) });
+  }
+  await graph(`${at}/send`, { method: "POST" });
   return { conversationId: draft.conversationId };
 }
 
@@ -1009,6 +1129,7 @@ export async function replyTracked(input: {
 export async function sendMessage(input: {
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   content: string;
   attachments?: OutgoingAttachment[];
@@ -1031,6 +1152,7 @@ export async function sendMessage(input: {
         // Omitted entirely when empty. An explicit empty array is legal but
         // there is no reason to send a header nobody asked for.
         ...(input.cc?.length ? { ccRecipients: recipients(input.cc) } : {}),
+        ...(input.bcc?.length ? { bccRecipients: recipients(input.bcc) } : {}),
         ...attachmentPayload(out.attachments),
       },
       saveToSentItems: true,

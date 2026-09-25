@@ -682,6 +682,12 @@ pre {
 /* ---------------------------------------------------------------------------
  * Rich text editor
  *
+ * The page is the mail: white, in the mail's own font, size and colour (set
+ * inline from lib/mailStyle.ts), so nothing here may restyle what is written —
+ * a link is Outlook's blue, a quote is the colour it was sent in. Only the
+ * placeholder, and a frame for pictures that live inside a forwarded message,
+ * are the editor's own.
+ *
  * The placeholder is drawn with a pseudo-element because contentEditable has no
  * placeholder attribute, and :empty alone is not enough — the browser leaves a
  * stray <br> behind after the last character is deleted, so the element is not
@@ -690,12 +696,12 @@ pre {
 .rich-editor:empty::before,
 .rich-editor:has(> br:only-child)::before {
   content: attr(data-placeholder);
-  color: var(--text-muted);
+  color: #8a8a85;
   pointer-events: none;
 }
 
 .rich-editor a {
-  color: var(--text-accent);
+  color: #0563c1;
   text-decoration: underline;
 }
 
@@ -704,6 +710,44 @@ pre {
   height: auto;
 }
 
-.rich-editor blockquote {
-  color: var(--text-secondary);
+/*
+ * What a mail client draws by default, back inside the page. The app's reset
+ * (Tailwind's preflight) takes bullets off lists, spacing off paragraphs, size
+ * off headings, and makes pictures blocks — none of which happens in Outlook,
+ * so without these the editor would show a mail the recipient never sees.
+ */
+.rich-editor p { margin: 1em 0; }
+.rich-editor blockquote { margin: 1em 40px; }
+.rich-editor h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+.rich-editor h2 { font-size: 1.5em; font-weight: bold; margin: 0.83em 0; }
+.rich-editor h3 { font-size: 1.17em; font-weight: bold; margin: 1em 0; }
+.rich-editor h4 { font-weight: bold; margin: 1.33em 0; }
+.rich-editor h5 { font-size: 0.83em; font-weight: bold; margin: 1.67em 0; }
+.rich-editor h6 { font-size: 0.67em; font-weight: bold; margin: 2.33em 0; }
+.rich-editor pre { margin: 1em 0; font-family: 'Courier New', monospace; white-space: pre-wrap; }
+.rich-editor hr { margin: 0.5em 0; border: 0; border-top: 1px solid #a0a0a0; height: 0; }
+.rich-editor img { display: inline; vertical-align: baseline; }
+.rich-editor table { border-collapse: separate; text-indent: initial; }
+.rich-editor ul { list-style: disc; padding-left: 40px; }
+.rich-editor ol { list-style: decimal; padding-left: 40px; }
+.rich-editor ul ul { list-style: circle; }
+.rich-editor ul ul ul { list-style: square; }
+.rich-editor ol ol { list-style: lower-alpha; }
+.rich-editor ol ol ol { list-style: lower-roman; }
+/* As Outlook writes a list, and as the cleaner writes it into the mail. */
+.rich-editor ul,
+.rich-editor ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* A picture from the original message, carried as an attachment when forwarded. */
+.rich-editor img[src^="cid:"] {
+  min-width: 48px;
+  min-height: 32px;
+  outline: 1px dashed #bdbdb8;
+}
+
+.rich-editor ::selection {
+  background: #b4d5fe;
 }
