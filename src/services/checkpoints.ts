@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { all } from "./paging";
 
 /**
  * The follow-ups a booking is worked through.
@@ -67,6 +68,14 @@ export async function openStepsFor(shipmentIds: string[]): Promise<Checkpoint[]>
     .order("position");
   if (error) throw new Error(error.message);
   return (data ?? []) as Checkpoint[];
+}
+
+/** Every step ticked since a moment, newest first — for Team oversight's feed. */
+export async function stepsDoneSince(fromIso: string): Promise<Checkpoint[]> {
+  const rows = await all((from, to) =>
+    supabase.from("shipment_checkpoints").select("*").gte("done_at", fromIso).order("done_at", { ascending: false }).order("id").range(from, to)
+  );
+  return rows as unknown as Checkpoint[];
 }
 
 export async function checkpointsFor(shipmentId: string): Promise<Checkpoint[]> {

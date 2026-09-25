@@ -305,6 +305,7 @@ export interface MailFolder {
 }
 
 import * as graph from "./graphMail";
+import { syncSentSoon } from "./mailLog";
 
 export { GraphAuthError, hasGraphToken, clearGraphToken, whoami } from "./graphMail";
 
@@ -386,6 +387,8 @@ export const sendTrackedMail = async (input: {
 }): Promise<{ conversationId: string | null }> => {
   if (!live()) return { conversationId: null };
   const { conversationId } = await graph.sendTracked(input);
+  // Into the desk's mail log for oversight once Outlook has filed it (086).
+  syncSentSoon();
   return { conversationId };
 };
 
@@ -433,6 +436,7 @@ export const sendMail = async (body: {
         content: body.content,
         attachments: body.attachments,
       });
+      syncSentSoon();
       return;
     }
 
@@ -443,6 +447,7 @@ export const sendMail = async (body: {
       content: body.content,
       attachments: body.attachments,
     });
+    syncSentSoon();
     return;
   }
   return post<{ message: MailMessage }>("/api/mail/send", body);

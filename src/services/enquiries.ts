@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { all } from "./paging";
 import { refFromSubject, subjectToken, type PartyRole } from "./caseFile";
 import {
   conversationMessages,
@@ -636,6 +637,14 @@ export async function allEvents(limit = 200): Promise<EnquiryEvent[]> {
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as EnquiryEvent[];
+}
+
+/** Every event since a moment, newest first, however many — for Team oversight's feed. */
+export async function eventsSince(fromIso: string): Promise<EnquiryEvent[]> {
+  const rows = await all((from, to) =>
+    supabase.from("enquiry_events").select("*").gte("at", fromIso).order("at", { ascending: false }).order("id").range(from, to)
+  );
+  return rows as unknown as EnquiryEvent[];
 }
 
 export async function listEnquiries(): Promise<Array<Enquiry & { customer: Customer | null }>> {

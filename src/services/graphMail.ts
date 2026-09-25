@@ -78,7 +78,9 @@ async function graph<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = sessionStorage.getItem(TOKEN_KEY);
   if (!token) throw new GraphAuthError("Outlook is not connected on this session.");
 
-  const r = await fetch(`${GRAPH}${path}`, {
+  // A path, or a next-page link Graph itself handed back (and only Graph's).
+  const url = path.startsWith("https://graph.microsoft.com/") ? path : `${GRAPH}${path}`;
+  const r = await fetch(url, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -849,6 +851,60 @@ export async function sendMessage(input: {
       saveToSentItems: true,
     }),
   });
+}
+
+/** One sent message, as the mail log keeps it (086). */
+export interface SentItem {
+  graph_id: string;
+  internet_message_id: string;
+  conversation_id: string;
+  sent_at: string;
+  subject: string;
+  preview: string;
+  to: Array<{ name: string; address: string }>;
+  cc: Array<{ name: string; address: string }>;
+  has_attachments: boolean;
+}
+
+/**
+ * Everything this mailbox has sent since a moment, newest first, from Sent
+ * Items — so mail sent from Outlook itself is included, not only mail sent
+ * from the CRM. Stops after `maxPages` of fifty; the next copy picks up where
+ * this one ended.
+ */
+export async function sentSince(sinceIso: string, maxPages = 10): Promise<SentItem[]> {
+  const select = "id,internetMessageId,conversationId,subject,bodyPreview,toRecipients,ccRecipients,sentDateTime,hasAttachments";
+  const since = sinceIso.replace(/\.\d{3}Z$/, "Z");
+  let path: string | undefined =
+    `/me/mailFolders/sentitems/messages?$top=50&$select=${select}` +
+    `&$filter=${encodeURIComponent(`sentDateTime ge ${since}`)}&$orderby=${encodeURIComponent("sentDateTime desc")}`;
+  const who = (r?: { emailAddress: { name?: string; address?: string } }) => ({
+    name: r?.emailAddress?.name ?? "",
+    address: (r?.emailAddress?.address ?? "").toLowerCase(),
+  });
+  const out: SentItem[] = [];
+  for (let page = 0; path && page < maxPages; page++) {
+    const data: {
+      value: Array<GraphMessage & { internetMessageId?: string; sentDateTime?: string }>;
+      "@odata.nextLink"?: string;
+    } = await graph(path);
+    for (const m of data.value) {
+      if (!m.internetMessageId || !m.sentDateTime) continue;
+      out.push({
+        graph_id: m.id,
+        internet_message_id: m.internetMessageId,
+        conversation_id: m.conversationId,
+        sent_at: m.sentDateTime,
+        subject: m.subject ?? "",
+        preview: m.bodyPreview ?? "",
+        to: (m.toRecipients ?? []).map(who),
+        cc: (m.ccRecipients ?? []).map(who),
+        has_attachments: m.hasAttachments,
+      });
+    }
+    path = data["@odata.nextLink"];
+  }
+  return out;
 }
 
 /** The address Microsoft says this token belongs to — used to label the mailbox. */

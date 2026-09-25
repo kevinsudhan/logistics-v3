@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (41 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (43 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **085**, so the next one is `086-….sql`.
+  migration filename (§6). The last migration is **086**, so the next one is `087-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 85 migrations
+## 4. Data model — 86 migrations
 
-`supabase-v2/001…085`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…086`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -168,6 +168,7 @@ transaction).
 | `083` | free time: the job's free days and D&D rates (`shipments`), six clock dates per box (`shipment_containers`) |
 | `084` | every other table on an enquiry or a job added to the realtime publication (28 tables in all) |
 | `085` | the house B/L as a document (`house_bills`, history, `number_hbl`, lock); partners get `mto_registration` and `address` |
+| `086` | `mail_log` (every mail each mailbox sent: recipients, subject, preview, job, kind) and `mail_log_mailboxes` (when each was last checked); `record_sent_mail`, `mail_log_since`; both live |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -189,11 +190,36 @@ person's change as it is made.
 - **A loader must not write to a table it listens to,** or every open copy of the page
   refreshes itself in a loop. Every loader was checked for this on 25 September.
 
+**Team oversight (`/oversight`, 086)** is the admin's live view of the desk, behind the
+admin role and the oversight password.
+
+- **Tabs:** Activity (one feed of mail sent, enquiry events and job steps ticked, grouped by
+  day), Mail sent (per mailbox, with the recipients, kind, job and preview), People (counts
+  per person, enquiries held, jobs in process, the companies they wrote to), and Enquiries
+  (the older view: arrival, taken on, timeline).
+- **Filters:** the period (today, yesterday, 7 days, 30 days, this month), the person and a
+  search narrow every tab. The pure logic is `lib/oversight.ts` and `lib/mailLog.ts`.
+- **Where the mail comes from:** each person's own Outlook **Sent Items**, copied into
+  `mail_log` by `services/mailLog.ts` from their browser. It runs 4 s after the app opens,
+  every 5 minutes, when the tab comes back into view, and 8 s after each send from the CRM.
+  It covers mail sent from Outlook itself too, and the first copy goes back 14 days.
+  - **Mail sent while nobody from that mailbox has the CRM open arrives the next time they
+    do.** The Mail sent tab shows when each mailbox was last checked, in amber after a day.
+  - Full coverage without anybody having the CRM open needs app-only Graph
+    (`Mail.ReadBasic.All`, granted by their Azure admin) and a scheduled edge function. That
+    is not built; see §9.
+- **Who owns a mail:** it belongs to the person whose login is that mailbox. A shared
+  mailbox (info@) is credited to whoever's session copied it, and the mailbox is shown
+  beside it.
+- **Only the essentials are kept:** subject, recipients and Outlook's 255-character preview,
+  not the body. RLS lets admins read all rows and anyone else only rows their own session
+  recorded. Rows arrive only through `record_sent_mail`.
+
 ---
 
 ## 5. Services and libraries
 
-`src/services/` holds 45 modules. The ones added since 21 September are:
+`src/services/` holds 47 modules. The ones added since 21 September are:
 
 - `attachments` · `autoFill` · `charges` · `checkpoints` · `customers` · `customs`
 - `enquiryDimensions` · `enquiryRegister` · `geocode` · `hawb` · `jobPnl` · `liveTracking`
@@ -219,7 +245,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 41 suites, pure logic
+npm test                             # 43 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -236,7 +262,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 41 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 43 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -349,6 +375,11 @@ screen.
   (`apimarket`), each with its own key. **The assistant must not sign up for accounts.**
 - **aisstream works but hears almost nothing.** It has no shore receivers near India or the
   Gulf.
+- **Team oversight's mail coverage:** today a mailbox's sent mail is copied only while its
+  owner has the CRM open with Outlook connected. For every mailbox all the time, their Azure
+  admin would grant the app `Mail.ReadBasic.All` (application permission), and an edge
+  function on a cron would read each mailbox's Sent Items into `mail_log`. The user has not
+  decided; do not set it up without them.
 - The orphan functions `kb-sync` and `ingest-calls`, and the `SNAPSERVE_API_KEY` secret:
   delete them or not.
 - The 3D planner (`ContainerPlanView`, `ContainerScene`, `lib/scene3d`) is no longer
@@ -463,6 +494,7 @@ There are 63 commits. Grouped:
 | Live everywhere (084) | see `git log` | Every change on an enquiry or a job, by anybody, shows on everybody's open page: every tab of the job file, every panel of the case file, the boards, Job closing and Consoles |
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
+| Team oversight (086) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)

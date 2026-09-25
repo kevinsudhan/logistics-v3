@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { PageSkeleton } from "../components/Loading";
+import { syncSentMail } from "../services/mailLog";
 
 /**
  * The shell every signed-in page sits inside.
@@ -30,6 +31,28 @@ export default function AppLayout() {
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
+
+  /*
+    The desk's sent mail, copied into the log Team oversight reads (086).
+
+    Here because this is the one component every signed-in page sits inside:
+    a few seconds after the app opens, every five minutes while it stays open,
+    and whenever the tab comes back into view. Quiet on failure; see
+    services/mailLog.ts.
+  */
+  useEffect(() => {
+    const first = window.setTimeout(() => void syncSentMail(), 4_000);
+    const every = window.setInterval(() => void syncSentMail(), 5 * 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void syncSentMail();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(every);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Escape closes it, and the page behind must not scroll while it is over it.
   useEffect(() => {
