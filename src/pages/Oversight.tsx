@@ -36,7 +36,7 @@ import {
   type Person,
   type ShipmentRow,
 } from "../services/enquiries";
-import { listMailLog, mailboxesSeen, syncSentMail, type MailLogRow } from "../services/mailLog";
+import { listMailLog, mailboxesSeen, syncAllMailboxes, syncSentMail, type MailboxSeen, type MailLogRow } from "../services/mailLog";
 import { ListSkeleton } from "../components/Loading";
 
 /**
@@ -130,7 +130,7 @@ export default function Oversight() {
   const [mails, setMails] = useState<MailLogRow[]>([]);
   const [steps, setSteps] = useState<Checkpoint[]>([]);
   const [ships, setShips] = useState<ShipmentRow[]>([]);
-  const [seen, setSeen] = useState<Array<{ mailbox: string; synced_at: string; synced_by: string | null }>>([]);
+  const [seen, setSeen] = useState<MailboxSeen[]>([]);
 
   const [period, setPeriod] = useState<Period>("today");
   const [who, setWho] = useState<string>("all");
@@ -164,7 +164,7 @@ export default function Oversight() {
         listMailLog(r.from.toISOString(), r.to?.toISOString() ?? null).catch(() => [] as MailLogRow[]),
         stepsDoneSince(r.from.toISOString()).catch(() => [] as Checkpoint[]),
         listShipments().catch(() => [] as ShipmentRow[]),
-        mailboxesSeen().catch(() => []),
+        mailboxesSeen().catch(() => [] as MailboxSeen[]),
       ]);
       setRows(list);
       setPeople(team);
@@ -294,15 +294,17 @@ export default function Oversight() {
               type="button"
               onClick={() => {
                 setSyncing(true);
-                void syncSentMail()
+                // The server for every mailbox, and this session for its own.
+                void Promise.all([syncAllMailboxes(), syncSentMail()])
                   .then(() => load())
                   .finally(() => setSyncing(false));
               }}
-              title="Copy the sent mail of the mailbox you are signed in to Outlook with"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+              disabled={syncing}
+              title="Copy every mailbox's sent mail now, rather than wait for the next five-minute run"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
             >
               <Mail size={13} className={syncing ? "animate-pulse" : ""} />
-              Copy my sent mail now
+              {syncing ? "Copying…" : "Copy sent mail now"}
             </button>
             <button
               onClick={() => void load()}
@@ -522,7 +524,7 @@ function MailSent({
   setBox: (b: string) => void;
   kind: string;
   setKind: (k: string) => void;
-  seen: Array<{ mailbox: string; synced_at: string; synced_by: string | null }>;
+  seen: MailboxSeen[];
   personName: (m: MailLogRow) => string;
   seenBy: (id: string | null) => string;
   open: string | null;
@@ -599,25 +601,37 @@ function MailSent({
       <div className="mt-4 rounded-card border border-border bg-surface-1 p-4">
         <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-secondary">Mailboxes being copied in</h3>
         {!seen.length ? (
-          <p className="text-[12px] text-text-muted">None yet. Each mailbox starts appearing the first time its owner opens the CRM with Outlook connected.</p>
+          <p className="text-[12px] text-text-muted">None yet. The server checks every CRM login&rsquo;s mailbox every five minutes.</p>
         ) : (
-          <ul className="space-y-1 text-[12px]">
+          <ul className="space-y-2 text-[12px]">
             {[...lastSeen.values()]
               .sort((a, b) => a.mailbox.localeCompare(b.mailbox))
-              .map((s) => (
-                <li key={s.mailbox} className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium text-text-primary">{s.mailbox}</span>
-                  {/* Not checked for a day: its owner has not had the CRM open, so its mail is missing here. */}
-                  <span className={Date.now() - Date.parse(s.synced_at) > 86_400_000 ? "text-text-warning" : "text-text-muted"}>
-                    last checked {ago(s.synced_at)} from {seenBy(s.synced_by)}&rsquo;s session
-                  </span>
-                </li>
-              ))}
+              .map((s) => {
+                // Not checked for a day: its mail is missing here, whatever the reason.
+                const stale = !s.synced_at || Date.now() - Date.parse(s.synced_at) > 86_400_000;
+                return (
+                  <li key={s.mailbox}>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-medium text-text-primary">{s.mailbox}</span>
+                      <span className={stale ? "text-text-warning" : "text-text-muted"}>
+                        {!s.synced_at ? "never checked" : `last checked ${ago(s.synced_at)} ${s.synced_by ? `from ${seenBy(s.synced_by)}’s session` : "by the server"}`}
+                      </span>
+                    </div>
+                    {s.server_error && (
+                      <p className="mt-0.5 flex items-start gap-1.5 text-[11.5px] text-text-warning">
+                        <AlertCircle size={12} className="mt-px shrink-0" />
+                        <span>Server copy: {s.server_error}</span>
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
           </ul>
         )}
         <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-          Copied from each person&rsquo;s Outlook Sent Items — mail sent from Outlook as well as from the CRM — while they have the CRM open, every few minutes and just
-          after each send. Subject, recipients and Outlook&rsquo;s first lines are kept; the body is not. Only administrators see other people&rsquo;s mail here.
+          Copied from each mailbox&rsquo;s Outlook Sent Items — mail sent from Outlook as well as from the CRM. The server checks every CRM login every five
+          minutes; a person&rsquo;s own CRM session also copies theirs just after each send, with Outlook&rsquo;s first lines. Subject and recipients are kept, the
+          body is not, and only administrators see other people&rsquo;s mail here.
         </p>
       </div>
     </div>

@@ -103,13 +103,35 @@ export async function listMailLog(fromIso: string, toIso?: string | null): Promi
   return rows as unknown as MailLogRow[];
 }
 
+export interface MailboxSeen {
+  mailbox: string;
+  /** Null: never checked. */
+  synced_at: string | null;
+  /** Whose session checked it; null is the server (087). */
+  synced_by: string | null;
+  /** Why the server copy last failed for it, until it next succeeds. */
+  server_error: string | null;
+  server_error_at: string | null;
+}
+
 /** When each mailbox was last checked, and by whom — so a quiet mailbox is not mistaken for an idle person. */
-export async function mailboxesSeen(): Promise<Array<{ mailbox: string; synced_at: string; synced_by: string | null }>> {
-  const { data, error } = await supabase.from("mail_log_mailboxes").select("mailbox, last_synced_at, synced_by").order("mailbox");
+export async function mailboxesSeen(): Promise<MailboxSeen[]> {
+  const { data, error } = await supabase
+    .from("mail_log_mailboxes")
+    .select("mailbox, last_synced_at, synced_by, server_error, server_error_at")
+    .order("mailbox");
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Array<{ mailbox: string; last_synced_at: string; synced_by: string | null }>).map((r) => ({
-    mailbox: r.mailbox,
-    synced_at: r.last_synced_at,
-    synced_by: r.synced_by,
+  return ((data ?? []) as Array<Omit<MailboxSeen, "synced_at"> & { last_synced_at: string | null }>).map(({ last_synced_at, ...r }) => ({
+    ...r,
+    synced_at: last_synced_at,
   }));
+}
+
+/**
+ * Ask the server to copy every mailbox now (087), rather than wait for its
+ * five-minute run. Administrators only; the function checks. Quiet on
+ * failure: each mailbox's own status says what went wrong.
+ */
+export async function syncAllMailboxes(): Promise<void> {
+  await supabase.functions.invoke("mail-sync", { body: { sweep: true } }).catch(() => undefined);
 }

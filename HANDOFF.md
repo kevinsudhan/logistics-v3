@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (43 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **086**, so the next one is `087-….sql`.
+  migration filename (§6). The last migration is **087**, so the next one is `088-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -89,14 +89,18 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
   surface) to `mockBackend.ts`. `netlify.toml` keeps `VITE_MOCK_BACKEND=on` and
   deliberately leaves `VITE_API_BASE` unset, so nothing can reach v1.
 
-### Edge Functions (2)
+### Edge Functions (3)
 
 | Function | What it does | Secrets |
 |---|---|---|
 | `classify-enquiry` | Gemini reads a mail and extracts enquiry fields | `GEMINI_API_KEY`, `GEMINI_FALLBACK_MODELS` |
 | `track-shipment` | Flight, vessel and container positions; hourly cron sweep (073) | `AISSTREAM_API_KEY`, `AERODATABOX_KEY`, `AERODATABOX_VIA=direct`, `TRACK_CRON_SECRET` |
+| `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` (not set yet), `MAIL_SYNC_SECRET` |
 
-Deploy a function with `node supabase-v2/deploy-function.mjs <slug>`.
+Deploy a function with `node supabase-v2/deploy-function.mjs <slug>` (`--verify-jwt` for
+`track-shipment` and `mail-sync`: the cron sends the anon key and the shared secret).
+`node supabase-v2/set-mail-sync-secret.mjs` sets mail-sync's tenant, client id and scheduler
+secret (and `MS_CLIENT_SECRET` from `ms_client_secret` in `server-v2/.keys.json`, if present).
 
 On the Supabase account but not in this repo: `kb-sync` and `ingest-calls` (orphans from
 the voice-agent era) and a `SNAPSERVE_API_KEY` secret. **Whether to delete them is the
@@ -147,9 +151,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 86 migrations
+## 4. Data model — 87 migrations
 
-`supabase-v2/001…086`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…087`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -169,6 +173,7 @@ transaction).
 | `084` | every other table on an enquiry or a job added to the realtime publication (28 tables in all) |
 | `085` | the house B/L as a document (`house_bills`, history, `number_hbl`, lock); partners get `mto_registration` and `address` |
 | `086` | `mail_log` (every mail each mailbox sent: recipients, subject, preview, job, kind) and `mail_log_mailboxes` (when each was last checked); `record_sent_mail`, `mail_log_since`; both live |
+| `087` | the server's copy of every mailbox: `mail_log_upsert` (the one writer), `record_sent_mail_server`, `mail_sync_error`, `mail_sync_targets` (service role only); `server_error` per mailbox; cron `araxys-v2-mail-sync` every 5 minutes |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -199,15 +204,21 @@ admin role and the oversight password.
   (the older view: arrival, taken on, timeline).
 - **Filters:** the period (today, yesterday, 7 days, 30 days, this month), the person and a
   search narrow every tab. The pure logic is `lib/oversight.ts` and `lib/mailLog.ts`.
-- **Where the mail comes from:** each person's own Outlook **Sent Items**, copied into
-  `mail_log` by `services/mailLog.ts` from their browser. It runs 4 s after the app opens,
-  every 5 minutes, when the tab comes back into view, and 8 s after each send from the CRM.
-  It covers mail sent from Outlook itself too, and the first copy goes back 14 days.
-  - **Mail sent while nobody from that mailbox has the CRM open arrives the next time they
-    do.** The Mail sent tab shows when each mailbox was last checked, in amber after a day.
-  - Full coverage without anybody having the CRM open needs app-only Graph
-    (`Mail.ReadBasic.All`, granted by their Azure admin) and a scheduled edge function. That
-    is not built; see §9.
+- **Where the mail comes from:** each mailbox's Outlook **Sent Items**, which covers mail
+  sent from Outlook itself too. Two copiers write to `mail_log`:
+  - **The server (087).** The `mail-sync` edge function signs in as the CRM's Azure app
+    (app-only, client credentials) and copies every CRM login's mailbox
+    (`mail_sync_targets()` = every profile email) every 5 minutes by pg_cron. The first copy
+    goes back 31 days. Its rows have `synced_by` null, so only admins read them.
+    **It needs the Azure admin to act first (§9).** Until then, each mailbox records
+    Microsoft's refusal in `server_error`, and the Mail sent tab shows it.
+  - **Each person's browser (086)**, via `services/mailLog.ts`: 4 s after the app opens,
+    every 5 minutes, when the tab comes back into view, and 8 s after each send from the CRM.
+    The first copy goes back 14 days. It is the only source of Outlook's preview line,
+    because `Mail.ReadBasic.All` excludes it; the server's upsert never blanks a preview.
+  - The Mail sent tab lists each mailbox with when it was last checked and by whom (a
+    session or the server), in amber after a day, and any server error.
+    **Copy sent mail now** runs both copiers.
 - **Who owns a mail:** it belongs to the person whose login is that mailbox. A shared
   mailbox (info@) is credited to whoever's session copied it, and the mailbox is shown
   beside it.
@@ -311,6 +322,13 @@ The UI has no automated tests. It is verified by hand in the way described below
 
 ## 8. Traps that cost real time
 
+- **The Management API returns the Azure sign-in secret as a SHA-256 hash** (64 hex
+  characters), not the secret. Copying it anywhere gives `AADSTS7000215`. A client secret
+  for app-only use has to be created in Azure.
+- **`supabase-v2/functions/mail-sync/mailLog.ts` is a copy of `src/lib/mailLog.ts`**, since
+  the deploy uploads only the function's folder. `test:maillog` fails when they differ.
+  After editing one, copy it over the other and redeploy the function.
+
 **A new function is callable by anyone until PUBLIC is revoked.** Postgres grants EXECUTE to
 PUBLIC by default, so `grant … to authenticated` alone leaves the anonymous key in the bundle
 able to call it. Every migration that creates a function needs
@@ -375,11 +393,17 @@ screen.
   (`apimarket`), each with its own key. **The assistant must not sign up for accounts.**
 - **aisstream works but hears almost nothing.** It has no shore receivers near India or the
   Gulf.
-- **Team oversight's mail coverage:** today a mailbox's sent mail is copied only while its
-  owner has the CRM open with Outlook connected. For every mailbox all the time, their Azure
-  admin would grant the app `Mail.ReadBasic.All` (application permission), and an edge
-  function on a cron would read each mailbox's Sent Items into `mail_log`. The user has not
-  decided; do not set it up without them.
+- **The server's mail copy (087) is built and scheduled, and waits on their Azure admin.**
+  The app is `efb90aa6-9404-40d2-be1b-3b6a3d5f5866` (the CRM's Microsoft sign-in app).
+  1. Under API permissions, add Microsoft Graph **Application** permission
+     `Mail.ReadBasic.All`, then **Grant admin consent**.
+  2. Under Certificates & secrets, add a new client secret and copy its **Value**. Set it
+     as the edge function secret `MS_CLIENT_SECRET`, in the dashboard or through
+     `ms_client_secret` in `.keys.json` plus the script.
+  3. Check with a manual run (the cron secret is in `.keys.json`). Each mailbox's
+     `server_error` should clear.
+
+  Optional: an Exchange `ApplicationAccessPolicy` can limit the app to the desk's mailboxes.
 - The orphan functions `kb-sync` and `ingest-calls`, and the `SNAPSERVE_API_KEY` secret:
   delete them or not.
 - The 3D planner (`ContainerPlanView`, `ContainerScene`, `lib/scene3d`) is no longer
@@ -494,7 +518,7 @@ There are 63 commits. Grouped:
 | Live everywhere (084) | see `git log` | Every change on an enquiry or a job, by anybody, shows on everybody's open page: every tab of the job file, every panel of the case file, the boards, Job closing and Consoles |
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
-| Team oversight (086) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period |
+| Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes, waiting on the Azure admin's consent |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)

@@ -3,6 +3,7 @@ import { confirmationSubject } from "../../src/lib/confirmationMail";
 import { preAlertSubject } from "../../src/lib/preAlertMail";
 import { movementOrderSubject, shipmentUpdateSubject } from "../../src/lib/shipmentUpdateMail";
 import { trackingMailSubject } from "../../src/lib/trackingLinkMail";
+import { readFileSync } from "node:fs";
 
 /**
  * Reading a sent mail back from its subject (086): what kind it was, and which
@@ -54,6 +55,12 @@ is("a domain", domainOf("Ops@GFP.ae"), "gfp.ae");
 is("two named, and the rest counted", recipientsText([{ name: "Omar", address: "ops@gfp.ae" }, { name: "", address: "docs@gfp.ae" }, { name: "Wei", address: "wei@pcs.sg" }]), "Omar <ops@gfp.ae>, docs@gfp.ae +1");
 is("a name that is only the address", recipientsText([{ name: "ops@gfp.ae", address: "ops@gfp.ae" }]), "ops@gfp.ae");
 is("nobody", recipientsText([]), "");
+
+// The server's copy (087) reads subjects the same way, or the two copies of a
+// mail would disagree about what it was.
+console.log("\nthe server's copy");
+const norm = (p: string) => readFileSync(p, "utf-8").replace(/\r\n/g, "\n");
+is("supabase-v2/functions/mail-sync/mailLog.ts is src/lib/mailLog.ts", norm("supabase-v2/functions/mail-sync/mailLog.ts") === norm("src/lib/mailLog.ts"), true);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);
