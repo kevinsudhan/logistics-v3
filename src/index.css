@@ -541,6 +541,24 @@ pre {
   animation: load-breathe 2.2s ease-in-out infinite;
 }
 
+/*
+ * A page the height of the screen. 100vh first for browsers without dvh; on
+ * iPad Safari 100vh counts the space under the toolbars, so a page exactly
+ * that tall scrolled by a toolbar's height, and 100dvh is the visible height.
+ * One rule so the order is certain (Tailwind puts min-h-dvh before min-h-screen).
+ */
+.screen-min {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@media (min-width: 1024px) {
+  .screen-lock-lg {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
+
 /* The sign-in panel's lockup rises into place once, as the page opens. */
 @keyframes login-rise {
   from { opacity: 0; transform: translateY(10px) scale(0.985); }

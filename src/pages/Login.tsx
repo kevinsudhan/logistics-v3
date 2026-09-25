@@ -57,6 +57,20 @@ export default function Login({ role }: { role: Role }) {
     emailRef.current?.focus();
   }, [role]);
 
+  /*
+    Not a page that scrolls. iPad Safari bounces the whole document when it is
+    dragged, even one that fits, so the sign-in feels loose under the finger;
+    the bounce is switched off while this page is up and given back after.
+  */
+  useEffect(() => {
+    const root = document.documentElement;
+    const before = root.style.overscrollBehavior;
+    root.style.overscrollBehavior = "none";
+    return () => {
+      root.style.overscrollBehavior = before;
+    };
+  }, []);
+
   // Switching doors should not carry a failed attempt's error across with it.
   useEffect(() => {
     setError(null);
@@ -91,7 +105,14 @@ export default function Login({ role }: { role: Role }) {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-surface-0">
+    /*
+      The height is the dynamic viewport (dvh), with 100vh before it for older
+      browsers. On iPad Safari 100vh counts the space under the toolbars, so a
+      page exactly that tall was a toolbar's height too tall, and scrolled. From
+      lg the page is held to the screen and the form scrolls inside its own
+      half if a screen is ever too short for it.
+    */
+    <div className="screen-min screen-lock-lg grid bg-surface-0 lg:grid-cols-2">
       {/* ---------------------------------------------------------------- */}
       {/* Left: the video panel.                                            */}
       {/* Hidden below lg -- a background is not worth downloading on a      */}
@@ -180,8 +201,10 @@ export default function Login({ role }: { role: Role }) {
       {/* ---------------------------------------------------------------- */}
       {/* Right: the form.                                                  */}
       {/* ---------------------------------------------------------------- */}
-      <div className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-[380px]">
+      {/* m-auto rather than centring the column: it centres while there is
+          room and lets the top stay reachable when there is not. */}
+      <div className="flex px-6 py-10 lg:overflow-y-auto">
+        <div className="m-auto w-full max-w-[380px]">
           {/* Brand mark for small screens, where the video panel is hidden. */}
           <div className="lg:hidden mb-10">
             <CompanyBrand />

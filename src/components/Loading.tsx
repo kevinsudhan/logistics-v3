@@ -116,7 +116,7 @@ export function InlineLoading({ label = "Loading", className = "py-6" }: { label
 /** The whole window, while the app finds out who is signed in. */
 export function BootScreen() {
   return (
-    <div role="status" aria-live="polite" className="grid min-h-screen place-items-center bg-surface-0 px-6">
+    <div role="status" aria-live="polite" className="screen-min grid place-items-center bg-surface-0 px-6">
       <span className="sr-only">Loading</span>
       <div aria-hidden className="load-appear flex w-48 flex-col items-center">
         <img src="/media/mark-v1.webp" alt="" className="load-breathe h-16 w-16 rounded-[24%] object-cover shadow-[0_10px_24px_-10px_rgba(15,33,58,0.6)]" />
