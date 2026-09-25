@@ -12,6 +12,9 @@ import { addStaff, listStaff, setStaffDisabled, setStaffFlags, setStaffPassword,
  * by the email) or with a password set here. Disabling somebody signs them out
  * of everything and keeps them out, without losing what they did.
  */
+/** The project's password rule (26 Sep 2026); the staff-accounts function checks the same. */
+const weakPassword = (pw: string) => pw.length < 10 || !/[a-z]/i.test(pw) || !/\d/.test(pw);
+
 export default function StaffAccounts() {
   const { session } = useAuth();
   const [people, setPeople] = useState<StaffMember[] | null>(null);
@@ -95,14 +98,14 @@ export default function StaffAccounts() {
               className={input}
               type="password"
               autoComplete="new-password"
-              placeholder="Password (optional, 10+)"
+              placeholder="Password (optional)"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               aria-label="Starting password, optional"
             />
           </div>
           <p className="mt-2 text-[11.5px] text-text-muted">
-            Leave the password blank for someone who will sign in with Microsoft.
+            Leave the password blank for someone who will sign in with Microsoft. A password needs 10 or more characters, with letters and a number.
             {form.email && !/@aashishlogistics\.com$/i.test(form.email.trim()) && (
               <span className="ml-1 text-text-warning">Not a company address: Microsoft sign-in will not work for it, so give it a password.</span>
             )}
@@ -110,7 +113,7 @@ export default function StaffAccounts() {
           <div className="mt-2 flex gap-2">
             <button
               type="button"
-              disabled={busy !== null || !form.full_name.trim() || !form.email.trim() || (form.password !== "" && form.password.length < 10)}
+              disabled={busy !== null || !form.full_name.trim() || !form.email.trim() || (form.password !== "" && weakPassword(form.password))}
               onClick={() =>
                 void run(
                   "add",
@@ -208,7 +211,7 @@ export default function StaffAccounts() {
                             className={`${input} h-7 w-44`}
                             type="password"
                             autoComplete="new-password"
-                            placeholder="New password, 10+"
+                            placeholder="10+, letters and a number"
                             value={pw}
                             onChange={(e) => setPw(e.target.value)}
                             aria-label={`New password for ${p.full_name || p.email}`}
@@ -216,7 +219,7 @@ export default function StaffAccounts() {
                           <button
                             type="button"
                             className={small}
-                            disabled={busy !== null || pw.length < 10}
+                            disabled={busy !== null || weakPassword(pw)}
                             onClick={() =>
                               void run(
                                 `pw-${p.id}`,

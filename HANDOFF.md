@@ -582,6 +582,11 @@ screen.
     From/Sent/To/Cc/Subject header. Forward goes through Graph `createForward` (`forwardTracked`),
     so the original's attachments and inline pictures travel. Bcc is on every send path, and the
     compose window can be made bigger.
+- **Passwords (26 Sep).** Auth settings: at least 10 characters, with letters and a number
+  (`password_min_length` 10, `password_required_characters` letters:digits). The staff-accounts
+  function and the Staff accounts screen check the same rule first, so the admin reads a plain
+  sentence. Existing passwords keep working until changed. Leaked-password checking needs the
+  Pro plan, which the desk has decided against for now.
 - **Views read as the person asking (096).** Every reporting view has `security_invoker = true`.
   **`create or replace view` resets it:** a migration that redefines a view must say
   `create or replace view … with (security_invoker = true) as …`, or the advisor flags it again

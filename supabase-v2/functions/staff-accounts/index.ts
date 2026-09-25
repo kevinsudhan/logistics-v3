@@ -21,7 +21,8 @@
  *                  identity is linked to this account by its email
  *   set_role       employee or admin
  *   set_flags      may approve quotations, may assign enquiries
- *   set_password   one the administrator chooses, at least 10 characters
+ *   set_password   one the administrator chooses: 10 or more characters, letters
+ *                  and at least one number (the project's own rule since 26 Sep)
  *   set_disabled   signed out of everything, Outlook disconnected (094) and
  *                  unable to sign back in, or
  *                  let back in
@@ -43,6 +44,14 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const fail = (message: string, status = 400) => json({ error: message }, status);
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * The project's password rule (Auth settings, 26 Sep 2026): 10 or more
+ * characters, with letters and at least one number. Checked here as well so
+ * the administrator reads this sentence rather than Supabase's refusal.
+ */
+const PASSWORD_RULE = "A password needs at least 10 characters, with letters and at least one number.";
+const weakPassword = (pw: string) => pw.length < 10 || !/[a-z]/i.test(pw) || !/\d/.test(pw);
 const FOREVER = "876000h";
 
 type Role = "admin" | "employee";
@@ -127,7 +136,7 @@ Deno.serve(async (req) => {
         const role: Role = input.role === "admin" ? "admin" : "employee";
         if (!EMAIL.test(email)) return fail("That is not an email address.");
         if (!name) return fail("Give their name.");
-        if (input.password !== undefined && input.password !== "" && input.password.length < 10) return fail("A password needs at least 10 characters.");
+        if (input.password !== undefined && input.password !== "" && weakPassword(input.password)) return fail(PASSWORD_RULE);
         const { data, error } = await admin.auth.admin.createUser({
           email,
           email_confirm: true,
@@ -162,7 +171,7 @@ Deno.serve(async (req) => {
 
       case "set_password": {
         if (!input.id) return fail("Whose password?");
-        if (!input.password || input.password.length < 10) return fail("A password needs at least 10 characters.");
+        if (!input.password || weakPassword(input.password)) return fail(PASSWORD_RULE);
         const { error } = await admin.auth.admin.updateUserById(input.id, { password: input.password });
         if (error) return fail(error.message);
         return json({ people: await everybody() });
