@@ -87,6 +87,12 @@ export interface Console {
   created_at: string;
   updated_at: string;
 
+  /** The cargo manifest sent to the destination agent (090). */
+  manifest_sent_at: string | null;
+  manifest_sent_to: string;
+  manifest_bills: number | null;
+  manifest_provisional: boolean;
+
   /** Joined in by the loaders, not columns. */
   agent_label?: string | null;
   summary?: ConsoleSummary;
