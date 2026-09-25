@@ -98,7 +98,7 @@ export default function PartnerMail() {
           <span>
             Outlook is not connected on this session, so no threads will load.{" "}
             <Link to="/mail" className="underline">
-              Sign in with Microsoft on the Mail screen
+              Connect Outlook on the Mail screen
             </Link>{" "}
             and this works without any further setup — nothing here is stored.
           </span>

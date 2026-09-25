@@ -318,7 +318,7 @@ export default function ComposeMail({
               <span>
                 <strong className="font-medium">This will not be delivered.</strong> Outlook is
                 not connected on this session, so the message is only filed in the demo Sent
-                folder. Sign in with Microsoft to send for real.
+                folder. Connect Outlook on the Mail page to send for real.
               </span>
             </div>
           )}

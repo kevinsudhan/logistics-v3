@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
-import { adoptMicrosoftSession, clearGraphToken } from "../services/graphMail";
+import { adoptMicrosoftSession, clearGraphToken, finishOutlookConnect } from "../services/graphMail";
 
 /**
  * Authentication, for real this time.
@@ -132,6 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // are taken up here rather than fetched later -- there is no later. The
       // refresh token goes to the server, which keeps Outlook connected (094).
       adoptMicrosoftSession(data.session);
+      // Back from connecting Outlook on the Mail page (095): its first token
+      // is fetched before the app shows, so the page opens already connected.
+      if (user) await finishOutlookConnect();
       if (!cancelled) {
         setSession(user ? await loadProfile(user.id, user.email ?? "") : null);
         setLoading(false);

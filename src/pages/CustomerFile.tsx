@@ -603,7 +603,7 @@ function CustomerMail({ customer, mailbox }: { customer: Customer; mailbox: stri
     return (
       <Empty
         title="Outlook is not connected"
-        body="Sign in with Microsoft to read this customer's correspondence here."
+        body="Connect Outlook on the Mail page to read this customer's correspondence here."
       />
     );
 

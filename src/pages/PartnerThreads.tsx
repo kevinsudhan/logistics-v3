@@ -296,7 +296,7 @@ export default function PartnerThreads() {
         <EmptyState
           icon={MailIcon}
           title="Outlook is not connected on this session"
-          hint="Sign in with Microsoft on the Mail screen and this fills itself in — the correspondence is read from the mailbox, not stored here."
+          hint="Connect Outlook on the Mail screen and this fills itself in — the correspondence is read from the mailbox, not stored here."
           action={
             <Link
               to="/mail"

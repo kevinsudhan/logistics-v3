@@ -32,15 +32,11 @@
  * delegated, as before. Nothing here widens what anybody can reach; it only
  * stops it expiring mid-afternoon.
  *
- * SEALING
- *
- * AES-GCM with OUTLOOK_TOKEN_KEY (32 random bytes, base64, in this function's
- * secrets: supabase-v2/set-outlook-key.mjs) and the session id as associated
- * data, so the database alone holds nothing usable and a sealed token copied
- * onto another sign-in's row does not open.
+ * SEALING: seal.ts.
  * ---------------------------------------------------------------------------
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { seal, sealReady, sessionOf, unseal } from "./seal.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -48,7 +44,6 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const TENANT = Deno.env.get("MS_TENANT_ID");
 const CLIENT_ID = Deno.env.get("MS_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("MS_CLIENT_SECRET");
-const SEAL_KEY = Deno.env.get("OUTLOOK_TOKEN_KEY");
 
 /** The same scopes the sign-in asks for (src/lib/auth.tsx). */
 const SCOPES = "offline_access User.Read Mail.Read Mail.ReadWrite Mail.Send";
@@ -59,31 +54,6 @@ let CORS: Record<string, string> = {};
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 const fail = (message: string, status = 400) => json({ error: message }, status);
 const reconnect = (message: string) => json({ error: message, reconnect: true }, 409);
-
-// --- sealing ---------------------------------------------------------------
-
-const b64u = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const unb64u = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-
-let keyP: Promise<CryptoKey> | null = null;
-const sealKey = () => (keyP ??= crypto.subtle.importKey("raw", unb64u(SEAL_KEY!), "AES-GCM", false, ["encrypt", "decrypt"]));
-
-async function seal(plain: string, session: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(session) }, await sealKey(), new TextEncoder().encode(plain));
-  return `${b64u(iv)}.${b64u(new Uint8Array(ct))}`;
-}
-
-async function unseal(sealed: string, session: string): Promise<string | null> {
-  const [iv, ct] = sealed.split(".");
-  try {
-    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(iv), additionalData: new TextEncoder().encode(session) }, await sealKey(), unb64u(ct));
-    return new TextDecoder().decode(pt);
-  } catch {
-    // Another sign-in's row, or a key that has since been replaced.
-    return null;
-  }
-}
 
 // --- Microsoft ---------------------------------------------------------------
 
@@ -126,17 +96,6 @@ async function exchange(refresh: string): Promise<Exchange> {
 
 // --- the request ---------------------------------------------------------------
 
-/** The Supabase session id from a JWT the gateway has already verified. */
-function sessionOf(authorization: string): { sub: string; session: string } | null {
-  try {
-    const part = authorization.replace(/^Bearer\s+/i, "").split(".")[1];
-    const claims = JSON.parse(new TextDecoder().decode(unb64u(part)));
-    return claims.sub && claims.session_id ? { sub: claims.sub, session: claims.session_id } : null;
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (req) => {
   CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -146,7 +105,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return fail("POST.", 405);
 
-  if (!TENANT || !CLIENT_ID || !CLIENT_SECRET || !SEAL_KEY) {
+  if (!TENANT || !CLIENT_ID || !CLIENT_SECRET || !sealReady()) {
     return fail("Keeping Outlook connected is not set up on the server (MS_CLIENT_SECRET, OUTLOOK_TOKEN_KEY).", 503);
   }
 

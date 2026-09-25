@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { bytesToBase64 } from "../lib/base64";
 import { brandImages, imageType, withContentIds } from "../lib/inlineBrand";
+import { readOutcome, type ConnectOutcome } from "../lib/outlookConnect";
 import type { FolderId, MailMessage, Recipient } from "./mockMail";
 import {
   isEmbeddedImage,
@@ -64,6 +65,10 @@ const TOKEN_KEY = "araxys.graphToken";
 const EXPIRES_KEY = "araxys.graphTokenExpires";
 /** Which sign-in's refresh token the server already holds, so a reload does not hand it over again. */
 const LINKED_KEY = "araxys.outlookLinked";
+/** Set while this tab is away at Microsoft connecting Outlook (095). */
+const CONNECTING_KEY = "araxys.outlookConnecting";
+/** How the last connect went, until the Mail page has shown it. */
+const NOTICE_KEY = "araxys.outlookNotice";
 
 export function storeGraphToken(token: string | null, expiresInSeconds?: number) {
   if (!token) return;
@@ -76,6 +81,8 @@ export function clearGraphToken() {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(EXPIRES_KEY);
   sessionStorage.removeItem(LINKED_KEY);
+  sessionStorage.removeItem(CONNECTING_KEY);
+  sessionStorage.removeItem(NOTICE_KEY);
   adopted = null;
 }
 
@@ -151,6 +158,72 @@ export function adoptMicrosoftSession(session: unknown) {
 async function fingerprint(value: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(d).slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Connect Outlook from inside the CRM (095), for whoever is signed in, however
+ * they signed in.
+ *
+ * The outlook-connect function answers with Microsoft's sign-in for this
+ * login's own address, and the browser goes there. Microsoft sends it back to
+ * the function, which connects the mailbox only if it is this login's, and
+ * then back to `returnPath` — where `finishOutlookConnect` picks up the result.
+ * The CRM session is not touched either way.
+ */
+export async function connectOutlook(returnPath: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("outlook-connect", {
+    body: { action: "start", return_to: `${window.location.origin}${returnPath}` },
+  });
+  if (error) {
+    const said = await (error as { context?: Response }).context?.json?.().catch(() => null);
+    throw new Error(said?.error ?? error.message);
+  }
+  sessionStorage.setItem(CONNECTING_KEY, "1");
+  window.location.assign((data as { url: string }).url);
+}
+
+/**
+ * On start-up, signed in: if this tab is just back from connecting, fetch the
+ * mailbox's first token and keep a notice of how it went for the Mail page.
+ *
+ * Only a connect this tab started counts. A link somebody sends with
+ * "#outlook=failed&why=…" on the end shows nothing.
+ */
+export async function finishOutlookConnect(): Promise<void> {
+  const outcome = readOutcome(window.location.hash);
+  if (!outcome) return;
+  window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+  if (!sessionStorage.getItem(CONNECTING_KEY)) return;
+  sessionStorage.removeItem(CONNECTING_KEY);
+
+  let notice: ConnectOutcome = outcome;
+  if (outcome.kind === "connected") {
+    try {
+      await renew();
+    } catch (e) {
+      notice = { kind: "failed", why: e instanceof Error ? e.message : "The first token could not be fetched." };
+    }
+  }
+  sessionStorage.setItem(NOTICE_KEY, JSON.stringify(notice));
+}
+
+/** How the last connect went, if the Mail page has not shown it yet. */
+export function peekOutlookNotice(): ConnectOutcome | null {
+  try {
+    return readOutcomeJson(sessionStorage.getItem(NOTICE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function clearOutlookNotice() {
+  sessionStorage.removeItem(NOTICE_KEY);
+}
+
+function readOutcomeJson(raw: string | null): ConnectOutcome | null {
+  if (!raw) return null;
+  const o = JSON.parse(raw) as ConnectOutcome;
+  return o && (o.kind === "connected" || o.kind === "refused" || o.kind === "failed") ? o : null;
 }
 
 /** One renewal at a time: a folder load fires several Graph calls at once. */

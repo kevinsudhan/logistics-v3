@@ -387,7 +387,7 @@ export const moveMailMessage = async (mailbox: string, id: string, folder: Folde
  * with a password never left, and a rate request was recorded as asked when
  * nobody had been. The demo mailbox is for running the app locally only.
  */
-const NOT_CONNECTED = "Outlook is not connected, so nothing was sent. Sign out and sign in with Microsoft, then send it again.";
+const NOT_CONNECTED = "Outlook is not connected, so nothing was sent. Connect Outlook on the Mail page, then send it again.";
 const demoMail = import.meta.env.DEV;
 
 export const sendTrackedMail = async (input: {

@@ -13,8 +13,10 @@ import {
   Send,
   FileEdit,
   AlertCircle,
+  Check,
   Loader2,
   Package,
+  X,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ComposeMail from "../components/ComposeMail";
@@ -26,6 +28,8 @@ import MailBody from "../components/MailBody";
 import MessageHeader from "../components/MessageHeader";
 import MailListRow from "../components/MailListRow";
 import { useAuth } from "../lib/auth";
+import { outcomeText } from "../lib/outlookConnect";
+import { clearOutlookNotice, connectOutlook, peekOutlookNotice } from "../services/graphMail";
 import {
   getMailFolders,
   getMailMessage,
@@ -64,7 +68,7 @@ const FOLDER_ICON: Record<FolderId, React.ElementType> = {
  * aarathy@ -- and a picker is how that ends up happening by accident.
  */
 export default function Mail() {
-  const { session, signInWithMicrosoft, saveSignature } = useAuth();
+  const { session, saveSignature } = useAuth();
   const mailbox = session?.email ?? "";
 
   const [folders, setFolders] = useState<MailFolder[]>([]);
@@ -139,6 +143,26 @@ export default function Mail() {
   const [replyRef, setReplyRef] = useState<string | null>(null);
   const [editingSignature, setEditingSignature] = useState(false);
   const live = mailIsLive();
+
+  /**
+   * Connecting Outlook (095): how the last attempt went, shown once, and the
+   * button's own state while the browser is on its way to Microsoft.
+   */
+  const [notice, setNotice] = useState(() => peekOutlookNotice());
+  useEffect(() => {
+    if (notice) clearOutlookNotice();
+  }, [notice]);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const connect = () => {
+    setConnecting(true);
+    setConnectError(null);
+    setNotice(null);
+    connectOutlook("/mail").catch((e: unknown) => {
+      setConnectError(e instanceof Error ? e.message : "Could not start connecting Outlook.");
+      setConnecting(false);
+    });
+  };
 
   /**
    * The address Microsoft says the token belongs to.
@@ -415,21 +439,49 @@ export default function Mail() {
         signed in with a password has no way back to Microsoft short of signing
         out, and "sign out to fix your mail" is not an instruction worth giving.
       */}
+      {notice &&
+        (() => {
+          const said = outcomeText(notice, mailbox);
+          const tone =
+            said.tone === "success"
+              ? "bg-bg-success text-text-success"
+              : said.tone === "warning"
+                ? "bg-bg-warning text-text-warning"
+                : "bg-bg-danger text-text-danger";
+          return (
+            <div role="status" className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2.5 text-[12px] ${tone}`}>
+              {said.tone === "success" ? <Check size={13} className="mt-px shrink-0" /> : <AlertCircle size={13} className="mt-px shrink-0" />}
+              <span className="flex-1">{said.text}</span>
+              <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
+                <X size={13} />
+              </button>
+            </div>
+          );
+        })()}
+
+      {/*
+        Connecting adds the login's own mailbox to the session already open —
+        it does not sign in again, and a Microsoft account other than this
+        login's is refused on the server (095).
+      */}
       {!live && (
         <div className="mb-3 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] text-text-warning">
           <AlertCircle size={13} className="mt-px shrink-0" />
           <div className="flex-1">
             <p>
               <strong className="font-medium">Outlook is not connected.</strong> These are sample
-              messages, not your mailbox, and nothing can be sent until you connect it.
+              messages, not your mailbox, and nothing can be sent until you connect it. Sign in to
+              Microsoft as {mailbox}; another account will not be accepted.
             </p>
             <button
-              onClick={() => void signInWithMicrosoft()}
-              className="mt-2 inline-flex items-center gap-2 h-7 px-2.5 rounded-lg border border-border-strong bg-surface-1 text-[12px] font-medium text-text-primary hover:bg-surface-2"
+              onClick={connect}
+              disabled={connecting}
+              className="mt-2 inline-flex items-center gap-2 h-7 px-2.5 rounded-lg border border-border-strong bg-surface-1 text-[12px] font-medium text-text-primary hover:bg-surface-2 disabled:opacity-60"
             >
-              <MicrosoftMark />
+              {connecting ? <Loader2 size={13} className="animate-spin" /> : <MicrosoftMark />}
               Connect Outlook for {mailbox}
             </button>
+            {connectError && <p className="mt-2 text-text-danger">{connectError}</p>}
           </div>
         </div>
       )}
