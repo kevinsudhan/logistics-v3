@@ -8,6 +8,8 @@ import {
 import { useAuth } from "../lib/auth";
 import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
 import ReplyLog from "../components/ReplyLog";
+import StaffAccounts from "../components/StaffAccounts";
+import BackupsPanel from "../components/BackupsPanel";
 
 /**
  * The administrator's landing page.
@@ -95,6 +97,16 @@ export default function AdminControl() {
           shorter screen that does something, because the reader cannot tell
           which half is real. They are gone; what is here reads a table.
         */}
+        {/* Who can sign in. Public sign-up is off (25 Sep 2026): this is the door. */}
+        <div className="mt-6">
+          <StaffAccounts />
+        </div>
+
+        {/* The nightly backups (093): whether last night's ran, and the files. */}
+        <div className="mt-6">
+          <BackupsPanel />
+        </div>
+
         <div className="mt-6">
           <ReplyLog />
         </div>

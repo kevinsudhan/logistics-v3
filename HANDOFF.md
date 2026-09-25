@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **092**, so the next one is `093-….sql`.
+  migration filename (§6). The last migration is **093**, so the next one is `094-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -90,12 +90,14 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
   surface) to `mockBackend.ts`. `netlify.toml` keeps `VITE_MOCK_BACKEND=on` and
   deliberately leaves `VITE_API_BASE` unset, so nothing can reach v1.
 
-### Edge Functions (3)
+### Edge Functions (5)
 
 | Function | What it does | Secrets |
 |---|---|---|
 | `classify-enquiry` | Gemini reads a mail and extracts enquiry fields; mode `hbl` reads a B/L PDF or scan into boxes (088, high media resolution) | `GEMINI_API_KEY`, `GEMINI_FALLBACK_MODELS` |
 | `track-shipment` | Flight, vessel and container positions; hourly cron sweep (073) | `AISSTREAM_API_KEY`, `AERODATABOX_KEY`, `AERODATABOX_VIA=direct`, `TRACK_CRON_SECRET` |
+| `staff-accounts` | The admin console's Staff accounts: list, add (email confirmed, role in app_metadata), role, may-approve and may-assign flags, password, disable and enable. Admin callers only; refuses to disable or demote yourself or the last admin | none beyond the defaults |
+| `db-backup` | The nightly backup into the `backups` bucket, 30 days kept, each run in `backup_runs`; for an admin, the run list with download links and "Back up now" | `BACKUP_SECRET` (`set-backup-secret.mjs`) |
 | `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SYNC_SECRET` |
 
 Deploy a function with `node supabase-v2/deploy-function.mjs <slug>` (`--verify-jwt` for
@@ -152,9 +154,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 92 migrations
+## 4. Data model — 93 migrations
 
-`supabase-v2/001…092`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…093`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -180,6 +182,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `093` | nightly backups: `backup_export()` / `backup_export_text()` (service role only) write every public table, the accounts without passwords and the file list; the private bucket `backups`; `backup_runs` (admins read); cron `araxys-v2-db-backup` at 21:30 UTC (03:00 IST) |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -330,6 +333,10 @@ The UI has no automated tests. It is verified by hand in the way described below
 ---
 
 ## 8. Traps that cost real time
+
+- **Both GitHub repositories are public.** Never commit customer data, keys or passwords.
+  `backups/` and `server-v2/.keys.json` are gitignored for that reason. Check with
+  `git check-ignore` before adding any new local data folder.
 
 - **Supabase grants `anon` every new table, view and function by default.** 092 changed the
   default privileges. Still, check anything new with `has_function_privilege('anon', …)`.
@@ -507,6 +514,25 @@ screen.
   - The rule in `require_approval_to_send` still refuses a direct `approval_status` change by
     a non-approver. Only `self_approve_quote` passes, by setting `app.self_approving` for its
     own transaction; a PostgREST request cannot set it.
+- **Backups (093).** Nightly at 03:00 IST: every public table, the accounts (no passwords)
+  and the stored-file list, as `db/YYYY-MM-DD.json.gz` in the private `backups` bucket, 30
+  days kept. The admin console shows whether last night's ran (red after 26 hours or a
+  failure), the files, and "Back up now".
+  - **Tested restore:** `node supabase-v2/restore-backup.mjs --test` rebuilds every table
+    from today's file in a scratch schema with all 135 foreign keys and compares each with
+    live. On 25 Sep, 60 tables loaded and all matched except `backup_runs`, which gains its
+    own row after the export.
+  - **To restore for real:** a project with the migrations applied and no data, then
+    `--restore <file>`. It recreates the accounts with their ids and no password, loads
+    parents before children, generated columns computed, identity kept, user triggers off
+    during the load, sequences moved past, all in one transaction.
+  - **A copy off Supabase:** `node supabase-v2/backup-download.mjs` pulls the backups and
+    every stored file into `backups/` on the machine it runs on (gitignored). Run it
+    regularly: a lost project takes its bucket with it.
+  - The export used to be parsed into JavaScript numbers on the way (48500.00 became
+    48500). The function now files Postgres's own text.
+  - **The Free plan has no managed backups.** Pro (about $25/month) adds daily snapshots of
+    the whole database with schema, as a second line. The user's action in the dashboard.
 - **Console cargo manifest (090).** On Consoles, an open console has a manifest section
   (`components/ConsoleManifest.tsx`; logic in `lib/consoleManifest.ts`; PDF in
   `lib/documents/manifestPdf.ts`).
@@ -557,9 +583,18 @@ screen.
     balances, margins) and call 88 `SECURITY DEFINER` functions, 24 of them with no caller
     check. 092 closed all of it. Checked from outside: 401 on the views and on
     `create_customer`, while the customer pages still answer.
-  - **Still open (the user's decision):** sign-ups are enabled (`disable_signup: false`), and
-    `handle_new_user` makes any new account an `employee` with full access. Switch sign-ups
-    off; admins then create staff accounts.
+  - **Sign-ups are closed (25 Sep):** `disable_signup: true`. Before that, anyone could
+    create an account, and `handle_new_user` made it an employee with full access. Staff are
+    now added on the admin console (**Staff accounts**, the `staff-accounts` function).
+  - **The starter password was public (25 Sep).** Both GitHub repositories
+    (`logistics-v3`, `araxys-crm`) are **public**. `seed-users.mjs` had set all five
+    accounts to the same starter password, and all five, admin included, still had it.
+    - It was replaced with a random one nobody holds, and removed from the script. It
+      remains in the git history, where it no longer works.
+    - Aashish, Parasu and info@ sign in with Microsoft. Imports@ and Aarathy need Microsoft
+      sign-in or a password set on Staff accounts.
+    - **Make the repositories private** (the user's action on GitHub). No other secret is
+      in the history; the history was scanned on 25 Sep.
   - Also: minimum password length 6, leaked-password protection off, 13 functions without
     a fixed `search_path`, and the 14 views are still security definer (staff-only now).
 - Shipment row ids are still `ARX-SHP-0004`. Nothing printed or mailed shows them any more
@@ -628,6 +663,7 @@ There are 63 commits. Grouped:
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
+| Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
 | Quote self-approval (091) | see `git log` | Approve a quotation yourself with a reason; the reason goes to the admins' review list with a sidebar count; admins accept or withdraw while unsent |
 | iPad sign-in | see `git log` | The sign-in no longer scrolls or bounces on iPad (dvh) |
 | Console manifest (090) | see `git log` | Every house B/L under a console on one PDF and Excel sheet, mailed to the destination agent; provisional until every B/L is final; flags house bills added since it was sent |

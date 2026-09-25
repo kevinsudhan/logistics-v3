@@ -28,3 +28,6 @@ server-v2/.vaishnavi-glitch-backup.json
 # recreates it, and the linked-project file it writes was once committed pinned
 # to v1, the project shared with the live voice agents.
 supabase/.temp/
+
+# Local database backups: customer data, never committed.
+backups/

@@ -25,8 +25,13 @@ const H = {
   "Content-Type": "application/json",
 };
 
-/** Starter password. Every one of these must be changed before real use. */
-const STARTER = "Junior@123";
+/*
+ * No starter password. The one this used to set was published with the public
+ * repository's history, and on 25 Sep 2026 every account still had it; it was
+ * replaced with a random one nobody holds. Accounts are made on the admin
+ * console's Staff accounts now (staff-accounts function) and sign in with
+ * Microsoft, or with a password an administrator sets there.
+ */
 
 const USERS = [
   { email: "aashish@aashishlogistics.com", name: "Aashish", role: "admin" },
@@ -42,7 +47,6 @@ for (const u of USERS) {
     headers: H,
     body: JSON.stringify({
       email: u.email,
-      password: STARTER,
       email_confirm: true,
       user_metadata: { full_name: u.name },
       app_metadata: { role: u.role },
