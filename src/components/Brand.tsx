@@ -84,22 +84,17 @@ export function CompanyBrand({
   descriptor,
   tone = "light",
 }: {
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg";
   descriptor?: string;
   tone?: "light" | "dark";
 }) {
-  const box =
-    size === "xl" ? "w-16 h-16 xl:w-20 xl:h-20" : size === "lg" ? "w-10 h-10" : size === "sm" ? "w-8 h-8" : "w-9 h-9";
-  // The sign-in panel's size wraps rather than truncating: it is the whole of the panel's message.
-  const name =
-    size === "xl"
-      ? "text-[30px] xl:text-[38px] leading-[1.1]"
-      : `${size === "lg" ? "text-[16px]" : size === "sm" ? "text-[13px]" : "text-[14px]"} leading-tight truncate`;
+  const box = size === "lg" ? "w-10 h-10" : size === "sm" ? "w-8 h-8" : "w-9 h-9";
+  const name = size === "lg" ? "text-[16px]" : size === "sm" ? "text-[13px]" : "text-[14px]";
   const nameColor = tone === "dark" ? "text-white" : "text-text-primary";
   const descColor = tone === "dark" ? "text-white/50" : "text-text-muted";
 
   return (
-    <div className={`flex items-center ${size === "xl" ? "gap-4 xl:gap-5" : "gap-2.5"}`}>
+    <div className="flex items-center gap-2.5">
       {/*
         No tinted tile behind it any more. The mark is a full-colour rendered
         sphere that brings its own shape and its own light; boxing it in a flat
@@ -114,7 +109,7 @@ export function CompanyBrand({
         draggable={false}
       />
       <div className="min-w-0">
-        <p className={`${name} ${nameColor} font-semibold tracking-tight`}>
+        <p className={`${name} ${nameColor} font-semibold tracking-tight leading-tight truncate`}>
           Aashish Logistics Global
         </p>
         {descriptor && <p className={`text-[11px] ${descColor} leading-tight`}>{descriptor}</p>}

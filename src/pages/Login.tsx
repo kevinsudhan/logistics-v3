@@ -103,7 +103,7 @@ export default function Login({ role }: { role: Role }) {
       {/* poster so the panel is never blank. Versioned names: cached for a */}
       {/* year (netlify.toml); a new clip gets a new name.                   */}
       {/* ---------------------------------------------------------------- */}
-      <div className="relative hidden lg:block overflow-hidden bg-[#0b1a17]">
+      <div className="relative hidden lg:block overflow-hidden bg-[#0a1628]">
         <video
           className="absolute inset-0 w-full h-full object-cover"
           poster="/media/login-poster-v2.webp"
@@ -117,25 +117,56 @@ export default function Login({ role }: { role: Role }) {
           src="/media/login-v2.mp4"
         />
 
-        {/* Darkened so white type stays legible over any frame of the footage. */}
+        {/*
+          Tinted the navy of the mark rather than a neutral black, so the
+          footage and the logo read as one piece; deeper at the edges and
+          under the lockup, so white type holds over any frame.
+        */}
         <div
           className="absolute inset-0"
           style={{
-            background:
-              "linear-gradient(180deg, rgba(6,20,17,0.72) 0%, rgba(6,20,17,0.45) 40%, rgba(6,20,17,0.88) 100%)",
+            background: [
+              "radial-gradient(ellipse 60% 42% at 50% 50%, rgba(8,18,36,0.55) 0%, rgba(8,18,36,0) 100%)",
+              "linear-gradient(180deg, rgba(10,22,40,0.62) 0%, rgba(10,22,40,0.50) 45%, rgba(10,22,40,0.92) 100%)",
+            ].join(", "),
           }}
         />
 
         {/*
-          Just the company: the mark and the name, large, where a slogan used
-          to sit, and the platform's credit in the corner. The footage says
-          what the business does.
+          Just the company: the mark above the name, centred, and the
+          platform's credit at the foot. The footage says what the business
+          does.
         */}
-        <div className="relative h-full flex flex-col p-12 text-white">
-          <div className="my-auto">
-            <CompanyBrand size="xl" tone="dark" />
+        <div className="relative h-full flex flex-col items-center justify-center px-12 pb-16 text-center text-white">
+          <div className="login-lockup flex flex-col items-center">
+            <div className="relative">
+              {/* A soft light behind the sphere, picking up its blue. */}
+              <div
+                aria-hidden="true"
+                className="absolute -inset-12 rounded-full blur-2xl"
+                style={{ background: "radial-gradient(closest-side, rgba(96,165,250,0.5), rgba(96,165,250,0))" }}
+              />
+              <img
+                src="/icons/icon-512.png"
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="relative w-24 h-24 xl:w-28 xl:h-28 rounded-[26%] ring-1 ring-white/15 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)]"
+              />
+            </div>
+
+            <h1 className="mt-8 flex flex-col items-center">
+              <span className="text-[36px] xl:text-[46px] font-semibold leading-none tracking-tight">Aashish Logistics</span>
+              <span className="mt-4 flex items-center gap-4">
+                <span aria-hidden="true" className="h-px w-10 xl:w-14 bg-gradient-to-r from-white/0 to-white/50" />
+                {/* The left padding balances the tracking after the last letter, so the word sits centred. */}
+                <span className="text-[12px] xl:text-[13px] font-medium uppercase tracking-[0.5em] pl-[0.5em] text-white/80"> Global</span>
+                <span aria-hidden="true" className="h-px w-10 xl:w-14 bg-gradient-to-l from-white/0 to-white/50" />
+              </span>
+            </h1>
           </div>
-          <div className="flex justify-end">
+
+          <div className="login-lockup-late absolute inset-x-0 bottom-10 flex justify-center">
             <PoweredByAraxys tone="dark" />
           </div>
         </div>
