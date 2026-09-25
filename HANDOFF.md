@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **095**, so the next one is `096-….sql`.
+  migration filename (§6). The last migration is **096**, so the next one is `097-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -158,7 +158,7 @@ flag on, it also has invoices and costs.
 
 ## 4. Data model — 93 migrations
 
-`supabase-v2/001…095`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…096`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -184,6 +184,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `096` | the last security-advisor findings: the 13 functions without a fixed `search_path` get `''` (each read first: built-ins and `public.`-qualified names only); the 14 reporting views get **`security_invoker = true`**, so they read as the person asking and the tables' RLS holds. Only `partner_reply_log` changed in effect: employees now see their own replies, as 045 and replyLog.ts intended (through the owner-rights view they saw everyone's). Verified by snapshotting every view as each of the 5 staff before and after: no other difference |
 | `095` | Connect Outlook from inside the CRM: `private.outlook_pending` (a one-time note per connect: state hash, sign-in, PKCE verifier, page to return to; deleted with its sign-in, refused after 15 minutes, taken once); `outlook_pending_put / _take`, service role only |
 | `094` | Outlook stays connected: `private.outlook_links` (one row per Supabase sign-in, keyed by `auth.sessions.id` **on delete cascade**, so a sign-out deletes it; the refresh token sealed by the function); `outlook_link_put / _get / _drop`, service role only; cron `araxys-v2-outlook-links-prune` (22:30 UTC) drops rows unused for 3 days (tabs closed without signing out). The `private` schema is outside the API and the backup |
 | `093` | nightly backups: `backup_export()` / `backup_export_text()` (service role only) write every public table, the accounts without passwords and the file list; the private bucket `backups`; `backup_runs` (admins read); cron `araxys-v2-db-backup` at 21:30 UTC (03:00 IST) |
@@ -581,6 +582,11 @@ screen.
     From/Sent/To/Cc/Subject header. Forward goes through Graph `createForward` (`forwardTracked`),
     so the original's attachments and inline pictures travel. Bcc is on every send path, and the
     compose window can be made bigger.
+- **Views read as the person asking (096).** Every reporting view has `security_invoker = true`.
+  **`create or replace view` resets it:** a migration that redefines a view must say
+  `create or replace view … with (security_invoker = true) as …`, or the advisor flags it again
+  and the view silently ignores RLS. New functions get `set search_path = ''` and write names as
+  `public.…`.
 - **Backups (093).** Nightly at 03:00 IST: every public table, the accounts (no passwords)
   and the stored-file list, as `db/YYYY-MM-DD.json.gz` in the private `backups` bucket, 30
   days kept. The admin console shows whether last night's ran (red after 26 hours or a
