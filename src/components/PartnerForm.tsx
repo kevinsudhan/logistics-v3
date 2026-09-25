@@ -51,6 +51,8 @@ export default function PartnerForm({
   const [tags, setTags] = useState<string[]>(partner?.tags ?? []);
   const [draftTag, setDraftTag] = useState("");
   const [notes, setNotes] = useState(partner?.notes ?? "");
+  const [address, setAddress] = useState(partner?.address ?? "");
+  const [mto, setMto] = useState(partner?.mto_registration ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +71,8 @@ export default function PartnerForm({
     emails.trim() !== "" ||
     phones.trim() !== "" ||
     notes.trim() !== "" ||
+    address.trim() !== "" ||
+    mto.trim() !== "" ||
     draftTag.trim() !== "" ||
     tags.length > 0;
 
@@ -122,6 +126,8 @@ export default function PartnerForm({
         phones: list(phones),
         tags: finalTags,
         notes: notes.trim(),
+        address: address.trim(),
+        mto_registration: mto.trim().toUpperCase(),
       };
       if (partner) await updatePartner(partner.id, body);
       else await createPartner(body);
@@ -219,6 +225,26 @@ export default function PartnerForm({
           <p className="text-[11px] text-text-muted -mt-1">
             More than one? Separate them with commas.
           </p>
+
+          <Field label="Address">
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              placeholder="Printed in the delivery agent box of a house B/L"
+              className="w-full"
+            />
+          </Field>
+
+          <Field label="MTO registration">
+            <input
+              value={mto}
+              onChange={(e) => setMto(e.target.value)}
+              placeholder="MTO/DGS/1234/2025 — only if we issue house B/Ls under theirs"
+              className="w-full h-8 font-mono"
+              autoComplete="off"
+            />
+          </Field>
 
           {/* ---- tags ---- */}
           <Field label="Tags">

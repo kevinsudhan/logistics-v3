@@ -45,6 +45,10 @@ export interface Partner {
   id: string;
   name: string;
   organisation: string;
+  /** Printed where the partner is named on a document: the agent box on a house B/L (085). */
+  address: string;
+  /** Their multimodal transport operator registration, where we issue house B/Ls under it (085). */
+  mto_registration: string;
   role: PartnerRole;
   emails: string[];
   phones: string[];
@@ -84,6 +88,8 @@ export async function createPartner(input: {
   phones: string[];
   tags: string[];
   notes: string;
+  address?: string;
+  mto_registration?: string;
 }): Promise<Partner> {
   const { data, error } = await supabase
     .from("partners")

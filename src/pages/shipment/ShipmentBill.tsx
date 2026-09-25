@@ -4,6 +4,7 @@ import { AlertCircle, Info, Layers, Ship } from "lucide-react";
 import Select from "../../components/Select";
 import { useShipment } from "../ShipmentDetail";
 import HawbForm from "../../components/HawbForm";
+import HblForm from "../../components/HblForm";
 import { updateShipment } from "../../services/enquiries";
 import {
   attachToConsole,
@@ -51,6 +52,8 @@ export default function ShipmentBill() {
   const master = air ? "MAWB" : "master B/L";
   const blType = shipment.bl_type ?? "house";
   const hawbShown = air && blType === "house" && !shipment.direct;
+  // The sea equivalent (085): our own house B/L, when we issue one.
+  const hblShown = !air && blType === "house" && !shipment.direct;
 
   async function write(patch: Record<string, unknown>) {
     setError(null);
@@ -163,6 +166,8 @@ export default function ShipmentBill() {
               </span>
             ) : air ? (
               <span className="block py-1 text-[12px] text-text-muted">Numbered when the HAWB below is first saved</span>
+            ) : hblShown ? (
+              <span className="block py-1 text-[12px] text-text-muted">Numbered when the house B/L below is first saved</span>
             ) : (
               <button
                 onClick={() =>
@@ -181,7 +186,7 @@ export default function ShipmentBill() {
             {!air && (
               <span className="mt-0.5 block text-[11px] text-text-muted">
                 {shipment.bl_number
-                  ? "Issued — changing it is a correction, not an edit"
+                  ? "On our own series — the house B/L below carries it"
                   : "Ours, on our own series. Needs a consignee first."}
               </span>
             )}
@@ -232,6 +237,10 @@ export default function ShipmentBill() {
       {hawbShown ? (
         <div className="mt-3">
           <HawbForm shipment={shipment} enquiry={enquiry} onChanged={() => void reload()} prevTab="cargo" nextTab="pickup-delivery" />
+        </div>
+      ) : hblShown ? (
+        <div className="mt-3">
+          <HblForm shipment={shipment} onChanged={() => void reload()} />
         </div>
       ) : (
         <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-text-muted">

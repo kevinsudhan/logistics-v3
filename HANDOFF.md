@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (40 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (41 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **084**, so the next one is `085-….sql`.
+  migration filename (§6). The last migration is **085**, so the next one is `086-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -147,9 +147,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 84 migrations
+## 4. Data model — 85 migrations
 
-`supabase-v2/001…084`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…085`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -167,6 +167,7 @@ transaction).
 | `082` | the console's master B/L copied to its jobs (`mainline_no`); console and numbering functions closed to `anon` |
 | `083` | free time: the job's free days and D&D rates (`shipments`), six clock dates per box (`shipment_containers`) |
 | `084` | every other table on an enquiry or a job added to the realtime publication (28 tables in all) |
+| `085` | the house B/L as a document (`house_bills`, history, `number_hbl`, lock); partners get `mto_registration` and `address` |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -218,7 +219,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 40 suites, pure logic
+npm test                             # 41 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -235,7 +236,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 40 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 41 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -288,6 +289,11 @@ The UI has no automated tests. It is verified by hand in the way described below
 PUBLIC by default, so `grant … to authenticated` alone leaves the anonymous key in the bundle
 able to call it. Every migration that creates a function needs
 `revoke execute on function … from public, anon;` (075 and 070 do it; 035 did not, see 082).
+
+**Never pass SQL as a PowerShell argument.** PowerShell 5.1 cuts a native argument at an
+embedded double quote, so `node run-sql.mjs "$(Get-Content x.sql -Raw)"` sent half of 085 and
+committed it (harmless, as it was additive and re-runnable, but not what was meant). Put the
+migration in `supabase-v2/` and pass its file name, or send a file's text from Node.
 
 **Heredocs mangle backslashes.** Writing code through a bash heredoc turns `\n` into a real
 newline. Use the Edit/Write tools, or write a Python script to the scratchpad and run it.
@@ -363,10 +369,30 @@ screen.
 - **Sea bills (082).** The master B/L is entered once on the console and the database copies it
   to every job on it (`shipments.mainline_no`). A job not on a console has its master typed on
   the Bill tab. The pre-alert, tracking, the worklist search and the arrival notice, delivery
-  order and B/L particulars read it. The house B/L is issued from the Bill tab or the console
-  (`issue_house_bl`, 035) as `HBL/26-27/0001`, the FY series. **The user chose to keep that
-  format on 25 September** over a port-based one like the HAWB's (`MAA/JEA/HBL0000001`); do
-  not change it. There is no HBL form, lock or history like the HAWB's (075).
+  order and B/L particulars read it. The house B/L is numbered `HBL/26-27/0001`, the FY series.
+  **The user chose to keep that format on 25 September** over a port-based one like the HAWB's
+  (`MAA/JEA/HBL0000001`); do not change it.
+- **House B/L document (085)** — the sea twin of the HAWB (075).
+  - The Bill tab of a sea job that issues our own HBL shows `HblForm`, with Fetch details,
+    Save (numbers it on the first save that names a consignee), Print, History, release mode,
+    originals and Issued, which locks it; only an admin can reopen it.
+  - Release modes are original B/Ls (1–3), telex release, and express release. Express is a
+    non-negotiable sea waybill with 0 originals, named consignee only; the database enforces it.
+  - The PDF is `lib/documents/hblPdf.ts`: a draft, the originals ("ORIGINAL 1 OF 3"), or a
+    copy.
+  - **It is issued under a partner's MTO registration** (user, 25 Sep): the partner record has
+    `mto_registration` and `address`, the form picks the partner, and the name and number are
+    copied onto the B/L. When Aashish gets its own MTO number, add it as a partner-like source
+    or a company setting.
+  - **Decided with the user (25 Sep):** they will file CSN themselves as the console agent for
+    Indian imports; they use all three release modes; they will send their own HBL design
+    later, and until then it is the standard layout.
+  - **Still to build:**
+    - Phase 2, release tracking: originals collected, telex released to the agent, surrendered
+      at destination, and our delivery order.
+    - The console manifest for the destination agent.
+    - Phase 3, the CSN data per HBL, with the ETA − 72h countdown and the IGM line and
+      sub-line, the consignee's IEC, GSTIN and PAN, and the CFS code.
 - On air, the HAWB form's MAWB boxes do not write `shipments.mainline_no`, so an air pre-alert
   has no MAWB unless one is recorded some other way.
 - **Security audit (flagged 24 Sep, a separate task).** 62 `SECURITY DEFINER` functions were
@@ -433,6 +459,7 @@ There are 63 commits. Grouped:
 | iPhone app | `24f6104` | Add to Home Screen gives a standalone app with the user's logo as the icon |
 | Realtime desk (081) | `a15f629` | Enquiries, shipments, intake and job steps update live on every list and file page |
 | Printed documents | `763a153` | PDFs numbered `BKG-ALG09004-26` (no `ARX-`), on the navy letterhead with the mail's logo |
+| House B/L (085) | see `git log` | The house B/L as a form on the Bill tab: release mode, originals, issued under a partner's MTO, numbered, locked when issued, history, and a printed draft, originals or copy |
 | Live everywhere (084) | see `git log` | Every change on an enquiry or a job, by anybody, shows on everybody's open page: every tab of the job file, every panel of the case file, the boards, Job closing and Consoles |
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
