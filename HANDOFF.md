@@ -445,9 +445,13 @@ screen.
   - Optional: an Exchange `ApplicationAccessPolicy` can limit the app to the desk's
     mailboxes. That is the user's call.
 - The voice-era secrets above: remove them in the dashboard.
-- `server/` is the first version's Express backend (with the voice-agent import code). The
-  live app does not use it (`VITE_MOCK_BACKEND` on, no `VITE_API_BASE`) and nothing in `src`
-  imports it. Only `test:space` runs anything from it. Delete it or not.
+- (Done 26 Sep: `server/`, the first version's Express backend with the voice-agent import
+  code, was removed with `scripts/seed-space.ts` and the packages only it used: express, cors,
+  dotenv, cloudflared. The live app never called it. It is in git history.)
+- (Done 26 Sep: the test quotation on ALG09004-26, ₹3 against ₹24.6 lakh, was deleted after a
+  backup, with its 2 lines and customer link. The rest of that test chain is still there: the
+  "TEST EMAIL" enquiry ALG09004-26, its booked shipment ARX-SHP-0004, and the customer
+  "kevin imports" (C0004), which is the user's own test address.)
 - The old v1 project (`wremiarcmppuncgfzrqb`), which the live voice agents still share: keep it,
   or retire it together with the agents. That is the user's call. Do not touch it until then.
 - (Done 26 Sep: the unused 3D planner, `ContainerPlanView`, `ContainerScene`, `lib/scene3d`,

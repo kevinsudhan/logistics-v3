@@ -1,8 +1,10 @@
 /**
- * Client for the Araxys backend (server/index.ts).
+ * The mail and demo-data client: the in-memory mock (./mockBackend), or Outlook
+ * through Graph once it is connected.
  *
- * Everything SnapServe-related goes through here rather than the browser talking to
- * SnapServe directly — the API key stays server-side and never ships in the bundle.
+ * It was once the client for an Express backend (server/, inherited from v1, with
+ * the voice desk's SnapServe calls). Nothing live used it and it was removed on
+ * 26 Sep 2026; VITE_MOCK_BACKEND=off now points at whatever VITE_API_BASE names.
  *
  * ---------------------------------------------------------------------------
  * V2 WORKSPACE: THIS TALKS TO NOTHING BY DEFAULT.
