@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import { COMPANY } from "../company";
 import { formatDate } from "../dates";
-import { consigneeText, originalsInWords, titleOf, totalInWords, type HblData, type ReleaseMode } from "../hbl";
+import { consigneeText, INSURANCE_LABEL, originalsInWords, partyLines, titleOf, totalInWords, type HblData, type ReleaseMode } from "../hbl";
 
 /**
  * The house bill of lading, printed box for box the way a B/L is laid out
@@ -15,8 +15,10 @@ import { consigneeText, originalsInWords, titleOf, totalInWords, type HblData, t
  * agent releasing the cargo, customs — know where each box is: the parties
  * down the left; the B/L number, references and delivery agent on the right;
  * the routing strip; the particulars the shipper furnished; the total in
- * words; freight, originals, place and date of issue; shipped on board; and
- * the signature for the operator it is issued under.
+ * words; the freight table; freight payable at, originals, place and date of
+ * issue; cargo insurance; shipped on board; and the signature for the
+ * operator it is issued under. A consignee or notify party in India carries
+ * its IEC and GSTIN under its address.
  *
  * WHAT IT PRINTS AS
  *
@@ -152,13 +154,13 @@ function drawPage(doc: jsPDF, i: HblPdfInput, copyLabel: string) {
   y += 26;
 
   const c = consigneeText(d);
-  party(y, 26, i.release === "express" ? "Consignee (named; not to order)" : "Consignee (or order)", c.name, c.address);
-  box(R, y, RW, 26, "For delivery of goods please apply to", d.delivery_agent, { size: 7 });
-  y += 26;
+  party(y, 28, i.release === "express" ? "Consignee (named; not to order)" : "Consignee (or order)", c.name, partyLines(c.address, d.consignee_contact, d.consignee_iec, d.consignee_gstin));
+  box(R, y, RW, 28, "For delivery of goods please apply to", d.delivery_agent, { size: 7 });
+  y += 28;
 
-  party(y, 20, "Notify party", d.notify_name, d.notify_address);
-  box(R, y, RW, 20, "Also notify", d.also_notify, { size: 7 });
-  y += 20;
+  party(y, 22, "Notify party", d.notify_name, partyLines(d.notify_address, "", d.notify_iec, d.notify_gstin));
+  box(R, y, RW, 22, "Also notify", d.also_notify, { size: 7 });
+  y += 22;
 
   // ---- routing ----
   const cw = W / 3;
@@ -192,7 +194,7 @@ function drawPage(doc: jsPDF, i: HblPdfInput, copyLabel: string) {
   }
   y += headH;
 
-  const bodyH = 72;
+  const bodyH = 58;
   x = M;
   for (const col of cols) {
     stroke();
@@ -206,8 +208,9 @@ function drawPage(doc: jsPDF, i: HblPdfInput, copyLabel: string) {
   // Column 2: the count.
   value(M + cols[0].w + 1.4, y + 4, [d.packages, d.package_type].filter(Boolean).join("\n"), { size: 7.4, bold: true, width: cols[1].w - 2.8, maxLines: 4 });
   // Column 3: the goods, the HS code, the clauses.
-  const clauses = d.shippers_load ? ["SHIPPER'S LOAD, STOW, COUNT AND SEAL", "SAID TO CONTAIN"] : [];
+  const clauses = d.shippers_load ? ["SHIPPER'S LOAD, STOW, COUNT AND SEAL"] : [];
   const col3 = [
+    d.said_to_contain ? "SAID TO CONTAIN" : null,
     d.description,
     d.hs_code ? `HS CODE: ${d.hs_code}` : null,
     clauses.length ? "" : null,
@@ -227,13 +230,47 @@ function drawPage(doc: jsPDF, i: HblPdfInput, copyLabel: string) {
   box(M, y, W, 8, "Total number of containers or packages (in words)", totalInWords(d), { bold: true, size: 7.6 });
   y += 8;
 
-  // ---- freight, originals, issue ----
-  const q = W / 4;
-  box(M, y, q, 10, "Freight and charges", d.freight_terms === "collect" ? "FREIGHT COLLECT" : "FREIGHT PREPAID", { bold: true });
-  box(M + q, y, q, 10, "Freight payable at", d.freight_payable_at);
-  box(M + 2 * q, y, q, 10, "Number of original B/Ls", i.release === "express" ? "NIL — SEA WAYBILL" : originalsInWords(i.originals), { bold: true });
-  box(M + 3 * q, y, q, 10, "Place and date of issue", [d.place_of_issue, day(d.date_of_issue)].filter(Boolean).join(", "));
+  // ---- the freight table ----
+  const fc = [
+    { w: W - 26 * 4, lab: `Freight and charges — ${d.freight_terms === "collect" ? "FREIGHT COLLECT" : "FREIGHT PREPAID"}`, key: "charge" as const, align: "left" as const },
+    { w: 26, lab: "Revenue tons", key: "revenue_tons" as const, align: "right" as const },
+    { w: 26, lab: "Rate", key: "rate" as const, align: "right" as const },
+    { w: 26, lab: "Prepaid", key: "prepaid" as const, align: "right" as const },
+    { w: 26, lab: "Collect", key: "collect" as const, align: "right" as const },
+  ];
+  const lines = d.charges.filter((l) => Object.values(l).some((v) => String(v).trim())).slice(0, 4);
+  const rowH = 3.8;
+  const tableH = 5 + Math.max(1, lines.length) * rowH + 1;
+  x = M;
+  for (const col of fc) {
+    stroke();
+    doc.rect(x, y, col.w, tableH);
+    label(x + 1.2, y + 2.8, col.lab);
+    lines.forEach((l, n) => value(col.align === "right" ? x + col.w - 1.4 : x + 1.4, y + 5 + rowH * n + 2.6, l[col.key], { size: 7, align: col.align, bold: col.key !== "charge" && col.key !== "revenue_tons" }));
+    x += col.w;
+  }
+  y += tableH;
+
+  // ---- payable at, originals, issue ----
+  const q = W / 3;
+  box(M, y, q, 10, "Freight payable at", d.freight_payable_at);
+  box(M + q, y, q, 10, "Number of original B/Ls", i.release === "express" ? "NIL — SEA WAYBILL" : originalsInWords(i.originals), { bold: true });
+  box(M + 2 * q, y, q, 10, "Place and date of issue", [d.place_of_issue, day(d.date_of_issue)].filter(Boolean).join(", "));
   y += 10;
+
+  // ---- cargo insurance: a tick in the box it is ----
+  stroke();
+  doc.rect(M, y, W, 6.5);
+  label(M + 1.2, y + 4.2, "Cargo insurance through the undersigned:");
+  let ix = M + 48;
+  for (const k of ["not_covered", "covered"] as const) {
+    stroke();
+    doc.rect(ix, y + 1.8, 3, 3);
+    if (d.insurance === k) value(ix + 0.55, y + 4.3, "X", { size: 7, bold: true });
+    label(ix + 4.2, y + 4.2, INSURANCE_LABEL[k].toLowerCase(), 6);
+    ix += 4.2 + doc.getTextWidth(INSURANCE_LABEL[k].toLowerCase()) + 8;
+  }
+  y += 6.5;
 
   const half = W / 2;
   stroke();

@@ -15,10 +15,10 @@ new session should read this whole file before changing anything. §0 is the sho
   enquiries and shipments created by the desk. Treat the database as production.
 - **Deploy:** `git push logistics-v3 v2:main`. Netlify builds `main` of
   `github.com/kevinsudhan/logistics-v3` on every push. There is no other deploy step.
-- **Before every push:** `npm test` (43 suites) and `npm run build` (typecheck, bundle and
+- **Before every push:** `npm test` (44 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **087**, so the next one is `088-….sql`.
+  migration filename (§6). The last migration is **088**, so the next one is `089-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -94,7 +94,7 @@ v2 has its own Supabase project, `izgbrdeybhbepftloxgk`. v1's project is
 
 | Function | What it does | Secrets |
 |---|---|---|
-| `classify-enquiry` | Gemini reads a mail and extracts enquiry fields | `GEMINI_API_KEY`, `GEMINI_FALLBACK_MODELS` |
+| `classify-enquiry` | Gemini reads a mail and extracts enquiry fields; mode `hbl` reads a B/L PDF or scan into boxes (088, high media resolution) | `GEMINI_API_KEY`, `GEMINI_FALLBACK_MODELS` |
 | `track-shipment` | Flight, vessel and container positions; hourly cron sweep (073) | `AISSTREAM_API_KEY`, `AERODATABOX_KEY`, `AERODATABOX_VIA=direct`, `TRACK_CRON_SECRET` |
 | `mail-sync` | Every CRM login's Sent Items into `mail_log`, app-only Graph; cron every 5 minutes (087), or an admin's button | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SYNC_SECRET` |
 
@@ -152,9 +152,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 87 migrations
+## 4. Data model — 88 migrations
 
-`supabase-v2/001…087`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…088`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -175,6 +175,7 @@ transaction).
 | `085` | the house B/L as a document (`house_bills`, history, `number_hbl`, lock); partners get `mto_registration` and `address` |
 | `086` | `mail_log` (every mail each mailbox sent: recipients, subject, preview, job, kind) and `mail_log_mailboxes` (when each was last checked); `record_sent_mail`, `mail_log_since`; both live |
 | `087` | the server's copy of every mailbox: `mail_log_upsert` (the one writer), `record_sent_mail_server`, `mail_sync_error`, `mail_sync_targets` (service role only); `server_error` per mailbox; cron `araxys-v2-mail-sync` every 5 minutes |
+| `088` | a house B/L somebody else issued, received on our job (`received_house_bills`: issuer, their number and reference, draft → confirmed → final, corrections, release mode, the boxes, their PDF, release ticks and our DO); their number copied to `shipments.forwarders_bl_no`; `shipment_customs` gets `igm_subline`, `csn_no`, `csn_filed_on`, `cfs_code` |
 
 **Everything on an enquiry or a job is live (084).** Whoever has a page open sees another
 person's change as it is made.
@@ -260,7 +261,7 @@ Pure logic lives in `src/lib/` so that it can be tested under Node:
 ```bash
 npm run dev                          # :5174
 npm run build                        # tsc -b && vite build && check-bundle-secrets
-npm test                             # 43 suites, pure logic
+npm test                             # 44 suites, pure logic
 npm run preview -- --port 4173       # the built app, service worker included
 node supabase-v2/run-sql.mjs 081-something.sql      # apply a migration
 node supabase-v2/run-sql.mjs "select count(*) from public.enquiries"   # quick query
@@ -277,7 +278,7 @@ The workspace root `.claude/launch.json` (one level up, outside this repo) has
 
 ### Unit tests
 
-There are 43 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
+There are 44 suites in `scripts/tests/*.test.ts`, run with tsx. Each is registered as its
 own script and chained into `npm test`. When you add a suite, add it to both.
 
 The UI has no automated tests. It is verified by hand in the way described below.
@@ -325,6 +326,10 @@ The UI has no automated tests. It is verified by hand in the way described below
 ---
 
 ## 8. Traps that cost real time
+
+- **The Browser pane downloads a PDF instead of showing it** (the user gets a save dialog),
+  and headless Chrome renders PDFs blank. To check a PDF's layout, read its text positions
+  with pypdf's `visitor_text`.
 
 - **The Management API returns the Azure sign-in secret as a SHA-256 hash** (64 hex
   characters), not the secret. Copying it anywhere gives `AADSTS7000215`. A client secret
@@ -442,12 +447,43 @@ screen.
   - **Decided with the user (25 Sep):** they will file CSN themselves as the console agent for
     Indian imports; they use all three release modes; they will send their own HBL design
     later, and until then it is the standard layout.
-  - **Still to build:**
-    - Phase 2, release tracking: originals collected, telex released to the agent, surrendered
-      at destination, and our delivery order.
-    - The console manifest for the destination agent.
-    - Phase 3, the CSN data per HBL, with the ETA − 72h countdown and the IGM line and
-      sub-line, the consignee's IEC, GSTIN and PAN, and the CFS code.
+  - **Added on 25 Sep, from the user's sample B/L (World Jaguar's QDWJ26093202):**
+    - Consignee and notify IEC and GSTIN, and the consignee's contact, printed under the
+      address.
+    - "Said to contain" as its own tick.
+    - A freight table (charge, revenue tons, rate, prepaid, collect; OCEAN FREIGHT / AS
+      ARRANGED by default, following the freight terms).
+    - Cargo insurance: not covered, or covered by the attached policy.
+    - Our form and the received one share the boxes, in `components/HblBoxes.tsx`.
+  - **Still to build:** release tracking on *our own* HBL (originals collected, telex released
+    to the agent, surrendered at destination), and the console manifest for the destination
+    agent.
+- **A B/L somebody else issued, received (088).** On a sea job whose Bill tab says "The origin
+  agent's house B/L", the tab shows `components/ReceivedHbl.tsx`. An import job with no
+  `bl_type` defaults to this.
+  1. **Read their B/L.** It files the PDF on the Documents tab ("House B/L (agent's)") and
+     reads the boxes through `classify-enquiry` mode `hbl`. On the sample it read every box
+     right at high media resolution, in about 10 s. Nothing is saved until Save.
+  2. **Check against the job** (`lib/receivedHbl.ts`, `checkAgainstJob`). Names are compared
+     without Pvt Ltd, ports by the words they share, weights within a kilo or 0.5%, and CBM
+     within 2%.
+     - "Copy the corrections for the agent" writes the list and puts it on the clipboard.
+     - "Fill the job's blanks from it" writes only empty job fields.
+  3. **The stages** are draft → confirmed → final. Each one saves, and confirm and final leave
+     a line on the case-file timeline (`hbl_received`, `hbl_confirmed`, `hbl_final`,
+     `do_issued`).
+  4. **Manifest (CSN), imports only.**
+     - The fields: IGM number and date, the master's line, this B/L's sub-line, CFS code, CSN
+       number and filed-on date.
+     - They are saved on the import customs record, started if there is none. The Customs tab
+       shows the same IGM fields.
+     - The countdown runs to ETA − 72 hours, IST. **72 hours is the desk's rule as agreed, not
+       a quoted regulation.**
+  5. **Release, imports only.** The checklist is: the final B/L in; one original surrendered,
+     or the telex received, or nothing for express; freight collect and local charges paid.
+     When all are done, "Issue the DO" dates it with a validity period. The DO and the arrival
+     notice print their number (`documentDataFromBooking` reads `forwarders_bl_no` when
+     `bl_type` is `forwarder`).
 - On air, the HAWB form's MAWB boxes do not write `shipments.mainline_no`, so an air pre-alert
   has no MAWB unless one is recorded some other way.
 - **Security audit (flagged 24 Sep, a separate task).** 62 `SECURITY DEFINER` functions were
@@ -519,6 +555,7 @@ There are 63 commits. Grouped:
 | Dates | see `git log` | "Sep", never "Sept", on every screen, mail and PDF (`lib/dates.ts`) |
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
+| Received house B/L (088) | see `git log` | The origin agent's B/L read in from their PDF, checked against the job, corrections for the agent, the job's blanks filled; the CSN with its ETA − 72h countdown; the release checklist and our DO against their number. Our own B/L gained IEC/GSTIN, said to contain, a freight table and cargo insurance |
 | Sea master bill (082) | see `git log` | The console's MBL reaches its jobs; master typed on the Bill tab off a console; printed on the arrival notice, DO and B/L particulars |
 
 ### Details of the iPhone app (`24f6104`)

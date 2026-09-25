@@ -52,6 +52,22 @@ export interface HblContainer {
   cbm: string;
 }
 
+/** One line of the freight table: OCEAN FREIGHT … AS ARRANGED. Text, as typed. */
+export interface HblCharge {
+  charge: string;
+  revenue_tons: string;
+  rate: string;
+  prepaid: string;
+  collect: string;
+}
+
+export type Insurance = "" | "not_covered" | "covered";
+
+export const INSURANCE_LABEL: Record<Exclude<Insurance, "">, string> = {
+  not_covered: "Not covered",
+  covered: "Covered according to attached policy",
+};
+
 export interface HblData {
   booking_ref: string;
   export_refs: string;
@@ -61,8 +77,18 @@ export interface HblData {
   consignee_mode: ConsigneeMode;
   consignee_name: string;
   consignee_address: string;
+  /**
+   * India's importer identifiers, printed under the consignee: customs and the
+   * line want the IEC and GSTIN on any B/L for cargo into India, and the
+   * person to call with their number.
+   */
+  consignee_iec: string;
+  consignee_gstin: string;
+  consignee_contact: string;
   notify_name: string;
   notify_address: string;
+  notify_iec: string;
+  notify_gstin: string;
   also_notify: string;
   /** "For delivery please apply to": our agent at destination, with how to reach them. */
   delivery_agent: string;
@@ -88,9 +114,15 @@ export interface HblData {
   measurement_cbm: string;
   /** "Shipper's load, stow, count and seal": the carrier did not see a full box packed. */
   shippers_load: boolean;
+  /** "SAID TO CONTAIN" above the goods: they are described as declared, not as seen. */
+  said_to_contain: boolean;
 
   freight_terms: "prepaid" | "collect";
   freight_payable_at: string;
+  /** The freight table; usually one line, OCEAN FREIGHT … AS ARRANGED. */
+  charges: HblCharge[];
+  /** "Cargo insurance through the undersigned": blank prints neither box ticked. */
+  insurance: Insurance;
 
   place_of_issue: string;
   date_of_issue: string;
@@ -113,6 +145,13 @@ export const emptyContainer = (): HblContainer => ({
   cbm: "",
 });
 
+export const emptyCharge = (): HblCharge => ({ charge: "", revenue_tons: "", rate: "", prepaid: "", collect: "" });
+
+/** The usual table: ocean freight, "as arranged", in the column the terms say. */
+export function defaultCharges(terms: "prepaid" | "collect"): HblCharge[] {
+  return [{ ...emptyCharge(), charge: "OCEAN FREIGHT", [terms]: "AS ARRANGED" }];
+}
+
 export function emptyHbl(): HblData {
   return {
     booking_ref: "",
@@ -122,8 +161,13 @@ export function emptyHbl(): HblData {
     consignee_mode: "named",
     consignee_name: "",
     consignee_address: "",
+    consignee_iec: "",
+    consignee_gstin: "",
+    consignee_contact: "",
     notify_name: "",
     notify_address: "",
+    notify_iec: "",
+    notify_gstin: "",
     also_notify: "",
     delivery_agent: "",
     pre_carriage_by: "",
@@ -144,8 +188,11 @@ export function emptyHbl(): HblData {
     gross_weight_kg: "",
     measurement_cbm: "",
     shippers_load: false,
+    said_to_contain: true,
     freight_terms: "prepaid",
     freight_payable_at: "",
+    charges: defaultCharges("prepaid"),
+    insurance: "",
     place_of_issue: "",
     date_of_issue: "",
     on_board_date: "",
@@ -159,6 +206,8 @@ export function emptyHbl(): HblData {
 export function normaliseHbl(raw: Partial<HblData> | null | undefined): HblData {
   const d = { ...emptyHbl(), ...(raw ?? {}) } as HblData;
   d.containers = (raw?.containers ?? []).map((c) => ({ ...emptyContainer(), ...c }));
+  // Saved before the freight table existed: the line its terms imply.
+  d.charges = raw?.charges ? raw.charges.map((c) => ({ ...emptyCharge(), ...c })) : defaultCharges(d.freight_terms);
   return d;
 }
 
@@ -182,10 +231,15 @@ export interface JobForHbl {
     consignee_state: string | null;
     consignee_pincode: string | null;
     consignee_country: string | null;
+    consignee_iec?: string | null;
+    consignee_gstin?: string | null;
+    consignee_email?: string | null;
     notify_name: string | null;
     notify_address: string | null;
     notify_city: string | null;
     notify_country: string | null;
+    notify_iec?: string | null;
+    notify_gstin?: string | null;
     vessel: string | null;
     voyage: string | null;
     port_of_loading: string | null;
@@ -250,9 +304,14 @@ export function hblFromJob(j: JobForHbl): HblData {
     [s.consignee_city, s.consignee_state, s.consignee_pincode].filter(Boolean).join(", "),
     s.consignee_country
   ).toUpperCase();
+  d.consignee_iec = upper(s.consignee_iec);
+  d.consignee_gstin = upper(s.consignee_gstin);
+  d.consignee_contact = (s.consignee_email ?? "").trim().toUpperCase();
   // With no notify party of its own, a B/L notifies the consignee.
   d.notify_name = s.notify_name ? upper(s.notify_name) : "SAME AS CONSIGNEE";
   d.notify_address = s.notify_name ? lines(s.notify_address, [s.notify_city, s.notify_country].filter(Boolean).join(", ")).toUpperCase() : "";
+  d.notify_iec = s.notify_name ? upper(s.notify_iec) : "";
+  d.notify_gstin = s.notify_name ? upper(s.notify_gstin) : "";
   d.delivery_agent = j.agent ? lines(j.agent.name, j.agent.address, j.agent.contact).toUpperCase() : "";
 
   d.vessel = upper(s.vessel);
@@ -291,6 +350,7 @@ export function hblFromJob(j: JobForHbl): HblData {
   const collect = s.freight_terms === "collect";
   d.freight_terms = collect ? "collect" : "prepaid";
   d.freight_payable_at = collect ? d.port_of_discharge : j.place.toUpperCase();
+  d.charges = defaultCharges(d.freight_terms);
 
   d.place_of_issue = j.place.toUpperCase();
   d.date_of_issue = j.today;
@@ -310,8 +370,12 @@ export const JOB_KEYS: Array<keyof HblData> = [
   "shipper_address",
   "consignee_name",
   "consignee_address",
+  "consignee_iec",
+  "consignee_gstin",
   "notify_name",
   "notify_address",
+  "notify_iec",
+  "notify_gstin",
   "delivery_agent",
   "vessel",
   "voyage",
@@ -405,6 +469,15 @@ export function titleOf(release: ReleaseMode): { title: string; subtitle: string
     : { title: "BILL OF LADING", subtitle: "MULTIMODAL TRANSPORT DOCUMENT" };
 }
 
+/**
+ * A party's address as printed, with the contact and India's identifiers
+ * under it: "IEC CODE: 0409012564  GSTIN: 33AALFA7975R1ZJ".
+ */
+export function partyLines(address: string, contact: string, iec: string, gstin: string): string {
+  const ids = [iec.trim() && `IEC CODE: ${iec.trim()}`, gstin.trim() && `GSTIN: ${gstin.trim()}`].filter(Boolean).join("   ");
+  return [address.trim(), contact.trim(), ids].filter(Boolean).join("\n");
+}
+
 /** The consignee box as printed: a named party, or the order clause. */
 export function consigneeText(d: HblData): { name: string; address: string } {
   if (d.consignee_mode === "to_order") {
@@ -447,8 +520,13 @@ export const FIELD_LABEL: Record<string, string> = {
   consignee_mode: "Consignee: named or to order",
   consignee_name: "Consignee",
   consignee_address: "Consignee's address",
+  consignee_iec: "Consignee's IEC",
+  consignee_gstin: "Consignee's GSTIN",
+  consignee_contact: "Consignee's contact",
   notify_name: "Notify party",
   notify_address: "Notify party's address",
+  notify_iec: "Notify party's IEC",
+  notify_gstin: "Notify party's GSTIN",
   also_notify: "Also notify",
   delivery_agent: "Delivery agent",
   pre_carriage_by: "Pre-carriage by",
@@ -469,6 +547,9 @@ export const FIELD_LABEL: Record<string, string> = {
   gross_weight_kg: "Gross weight",
   measurement_cbm: "Measurement",
   shippers_load: "Shipper's load, stow, count and seal",
+  said_to_contain: "Said to contain",
+  charges: "Freight table",
+  insurance: "Cargo insurance",
   freight_terms: "Freight",
   freight_payable_at: "Freight payable at",
   place_of_issue: "Place of issue",

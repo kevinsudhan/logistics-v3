@@ -5,6 +5,7 @@ import Select from "../../components/Select";
 import { useShipment } from "../ShipmentDetail";
 import HawbForm from "../../components/HawbForm";
 import HblForm from "../../components/HblForm";
+import ReceivedHbl from "../../components/ReceivedHbl";
 import { updateShipment } from "../../services/enquiries";
 import {
   attachToConsole,
@@ -30,6 +31,10 @@ import {
  * On an air job the tab is the HAWB itself (075): the form laid out like the
  * air waybill, numbered on its first save, printed from here. The console and
  * who issues the bill stay above it.
+ *
+ * At sea, when somebody else issues the house bill — the origin agent, on an
+ * import — the tab is theirs, received (088): read in from their PDF, checked
+ * against the job, filed on the manifest, and released with our DO.
  * ---------------------------------------------------------------------------
  */
 export default function ShipmentBill() {
@@ -50,10 +55,13 @@ export default function ShipmentBill() {
   const air = mode === "air";
   const house = air ? "HAWB" : "house B/L";
   const master = air ? "MAWB" : "master B/L";
-  const blType = shipment.bl_type ?? "house";
+  const importJob = shipment.trade_direction === "import";
+  // Unset on an import means theirs: the origin agent issues the house bill.
+  const blType = shipment.bl_type ?? (importJob && !air ? "forwarder" : "house");
   const hawbShown = air && blType === "house" && !shipment.direct;
   // The sea equivalent (085): our own house B/L, when we issue one.
   const hblShown = !air && blType === "house" && !shipment.direct;
+  const receivedShown = !air && blType === "forwarder";
 
   async function write(patch: Record<string, unknown>) {
     setError(null);
@@ -160,7 +168,11 @@ export default function ShipmentBill() {
 
           <div className="min-w-0">
             <span className="block text-[11px] capitalize text-text-secondary">{house}</span>
-            {shipment.bl_number ? (
+            {receivedShown ? (
+              <span className={`block py-1 font-mono text-[13px] ${shipment.forwarders_bl_no ? "text-text-primary" : "text-text-muted"}`}>
+                {shipment.forwarders_bl_no || "—"}
+              </span>
+            ) : shipment.bl_number ? (
               <span className="block py-1 font-mono text-[13px] text-text-primary">
                 {shipment.bl_number}
               </span>
@@ -183,7 +195,9 @@ export default function ShipmentBill() {
                 Issue a {house}
               </button>
             )}
-            {!air && (
+            {receivedShown ? (
+              <span className="mt-0.5 block text-[11px] text-text-muted">Theirs, from their B/L below</span>
+            ) : !air && (
               <span className="mt-0.5 block text-[11px] text-text-muted">
                 {shipment.bl_number
                   ? "On our own series — the house B/L below carries it"
@@ -199,7 +213,7 @@ export default function ShipmentBill() {
             {(
               [
                 { v: "house", label: `Our ${house}` },
-                { v: "forwarder", label: `Another forwarder's ${house}` },
+                { v: "forwarder", label: importJob && !air ? `The origin agent's ${house}` : `Another forwarder's ${house}` },
               ] as const
             ).map((o) => (
               <button
@@ -224,7 +238,7 @@ export default function ShipmentBill() {
             ))}
           </div>
 
-          {blType === "forwarder" && (
+          {blType === "forwarder" && air && (
             <NumberField
               value={shipment.forwarders_bl_no ?? ""}
               label={`Their ${house} number`}
@@ -241,6 +255,10 @@ export default function ShipmentBill() {
       ) : hblShown ? (
         <div className="mt-3">
           <HblForm shipment={shipment} onChanged={() => void reload()} />
+        </div>
+      ) : receivedShown ? (
+        <div className="mt-3">
+          <ReceivedHbl shipment={shipment} onChanged={() => void reload()} />
         </div>
       ) : (
         <p className="mt-3 max-w-prose text-[11px] leading-relaxed text-text-muted">

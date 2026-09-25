@@ -41,6 +41,12 @@ export interface CustomsRecord {
   igm_number: string | null;
   igm_date: string | null;
   igm_item: string | null;
+  /** The house bill's sub-line under the master's IGM line, from our CSN (088). */
+  igm_subline: string | null;
+  /** The house-level manifest we file as consol agent (088). */
+  csn_no: string | null;
+  csn_filed_on: string | null;
+  cfs_code: string | null;
   be_number: string | null;
   be_date: string | null;
   be_type: "home" | "warehouse" | "ex_bond" | null;

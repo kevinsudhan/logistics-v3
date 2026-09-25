@@ -67,6 +67,10 @@ const EVENT_STYLE: Record<string, { label: string; className: string }> = {
   promoted: { label: "In process", className: "bg-bg-success text-text-success" },
   promoted_from_intake: { label: "From queue", className: "bg-bg-accent text-text-accent" },
   partner_assigned: { label: "Partner", className: "bg-surface-2 text-text-secondary" },
+  hbl_received: { label: "B/L received", className: "bg-bg-accent text-text-accent" },
+  hbl_confirmed: { label: "B/L confirmed", className: "bg-bg-success text-text-success" },
+  hbl_final: { label: "Final B/L", className: "bg-bg-success text-text-success" },
+  do_issued: { label: "DO issued", className: "bg-bg-success text-text-success" },
 };
 
 function when(iso: string | null): string {

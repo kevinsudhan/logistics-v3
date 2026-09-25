@@ -72,6 +72,7 @@ export const SHIPMENT_TABLES = [
   "house_airwaybill_history",
   "house_bills",
   "house_bill_history",
+  "received_house_bills",
   "tracking_events",
   "tracking_positions",
   "tracking_snapshots",

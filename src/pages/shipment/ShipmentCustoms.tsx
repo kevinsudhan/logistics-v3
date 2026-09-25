@@ -315,6 +315,10 @@ function CustomsCard({
             <Field label="IGM line / item">
               <TextSave value={r.igm_item ?? ""} onSave={(v) => save({ igm_item: v || null })} />
             </Field>
+            {/* The house bill's line under the master's, from the CSN we file (088). */}
+            <Field label="Sub-line">
+              <TextSave value={r.igm_subline ?? ""} onSave={(v) => save({ igm_subline: v || null })} />
+            </Field>
             <Field label="Bill of entry no.">
               <TextSave value={r.be_number ?? ""} onSave={number("be_number", "bill of entry")} placeholder="7 digits" />
             </Field>

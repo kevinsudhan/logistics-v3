@@ -221,6 +221,9 @@ export function documentDataFromBooking(
     container_number: string | null;
     bl_number: string | null;
     mainline_no?: string | null;
+    /** Whose house bill it travels under: ours (bl_number), or another's, received (088). */
+    bl_type?: "house" | "forwarder" | null;
+    forwarders_bl_no?: string | null;
     vessel: string | null;
     etd: string | null;
     eta: string | null;
@@ -243,6 +246,9 @@ export function documentDataFromBooking(
   customer?: { name?: string | null; company?: string | null; phone?: string | null } | null
 ): DocumentData {
   const un = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
+  // The house bill the cargo is released against: the origin agent's on an
+  // import that travels under theirs, ours otherwise.
+  const house = s.bl_type === "forwarder" && s.forwarders_bl_no ? s.forwarders_bl_no : s.bl_number;
 
   return {
     // The job's reference, not the booking's row id: ARX-SHP-0004 is how the
@@ -250,11 +256,11 @@ export function documentDataFromBooking(
     // number is the B/L number once there is one, and the job reference until
     // then — a document has to be numbered even while it is a draft.
     reference: s.enquiry_ref,
-    documentNumber: s.bl_number || s.enquiry_ref,
-    blNumber: un(s.bl_number),
+    documentNumber: house || s.enquiry_ref,
+    blNumber: un(house),
     // The same number twice says nothing: on a direct job the carrier's bill is
     // both, and the second line would only look like a second document.
-    masterBlNumber: s.mainline_no && s.mainline_no !== s.bl_number ? s.mainline_no : undefined,
+    masterBlNumber: s.mainline_no && s.mainline_no !== house ? s.mainline_no : undefined,
     // Only a full container load has a box on the line's clock.
     freeTimeText: appliesTo(s.transport_mode)
       ? termsText({

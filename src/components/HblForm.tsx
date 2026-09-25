@@ -1,27 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, AlertTriangle, Check, Download, Eye, FileUp, History, Loader2, Lock, Plus, Printer, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, Download, Eye, FileUp, History, Loader2, Lock, Printer, RefreshCw, Save, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { failureText } from "../lib/errorText";
 import { formatDate } from "../lib/dates";
 import { useLiveVersion } from "../lib/liveVersions";
-import {
-  emptyContainer,
-  FIELD_LABEL,
-  missingForIssue,
-  refetch,
-  RELEASE_HINT,
-  RELEASE_LABEL,
-  totalInWords,
-  type HblContainer,
-  type HblData,
-  type ReleaseMode,
-} from "../lib/hbl";
+import { FIELD_LABEL, missingForIssue, refetch, RELEASE_HINT, RELEASE_LABEL, type HblData, type ReleaseMode } from "../lib/hbl";
 import { hblFileName, hblPdfBytes, renderHblPdf, type HblPrint } from "../lib/documents/hblPdf";
 import { uploadFile } from "../services/attachments";
 import { listPeople, nameOf, type Person, type Shipment } from "../services/enquiries";
 import { getHbl, hblFromJob, hblHistory, jobForHbl, logHblPrint, mtoPartners, saveHbl, setHblIssued, type HblHistory, type HblRow } from "../services/hbl";
 import type { Partner } from "../services/partners";
+import HblBoxes, { inputBase, Labelled } from "./HblBoxes";
 import { SectionSkeleton } from "./Loading";
 
 /**
@@ -150,8 +140,6 @@ export default function HblForm({ shipment: s, onChanged }: { shipment: Shipment
   }
 
   const set = <K extends keyof HblData>(k: K, v: HblData[K]) => setD((x) => (x ? { ...x, [k]: v } : x));
-  const setBox = (n: number, patch: Partial<HblContainer>) =>
-    setD((x) => (x ? { ...x, containers: x.containers.map((c, i) => (i === n ? { ...c, ...patch } : c)) } : x));
 
   async function run(key: string, fn: () => Promise<string | void>) {
     setBusy(key);
@@ -257,30 +245,7 @@ export default function HblForm({ shipment: s, onChanged }: { shipment: Shipment
     });
 
   const ro = locked;
-  const base =
-    "rounded-lg border border-border bg-surface-1 px-2 py-1 text-[12.5px] text-text-primary hover:border-border-strong focus:border-border-strong focus:outline-none disabled:bg-surface-2 disabled:text-text-secondary";
-  const T = (k: keyof HblData, placeholder = "") => (
-    <input
-      value={d[k] as string}
-      disabled={ro}
-      placeholder={placeholder}
-      onChange={(e) => set(k, e.target.value.toUpperCase() as never)}
-      className={`${base} h-8 w-full`}
-    />
-  );
-  const A = (k: keyof HblData, rows = 3, placeholder = "") => (
-    <textarea
-      value={d[k] as string}
-      disabled={ro}
-      rows={rows}
-      placeholder={placeholder}
-      onChange={(e) => set(k, e.target.value.toUpperCase() as never)}
-      className={`${base} w-full resize-y leading-snug`}
-    />
-  );
-  const D = (k: "date_of_issue" | "on_board_date") => (
-    <input type="date" value={d[k]} disabled={ro} onChange={(e) => set(k, e.target.value)} className={`${base} h-8 w-full tabular-nums`} />
-  );
+  const base = inputBase;
 
   return (
     <div>
@@ -420,197 +385,10 @@ export default function HblForm({ shipment: s, onChanged }: { shipment: Shipment
         </p>
       )}
 
-      {/* ---- parties ---- */}
-      <Section title="Parties">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-2">
-            <Labelled label="Shipper / exporter">{T("shipper_name")}</Labelled>
-            {A("shipper_address", 3)}
-          </div>
-          <div className="space-y-2">
-            <Labelled label="Consignee">
-              <div className="mb-1 flex gap-1" role="group" aria-label="Consignee">
-                {(
-                  [
-                    { v: "named", label: "Named" },
-                    { v: "to_order", label: "To order" },
-                  ] as const
-                ).map((o) => (
-                  <button
-                    key={o.v}
-                    type="button"
-                    disabled={ro || (o.v === "to_order" && release === "express")}
-                    title={o.v === "to_order" && release === "express" ? "A sea waybill is made out to a named consignee" : undefined}
-                    onClick={() => set("consignee_mode", o.v)}
-                    aria-pressed={d.consignee_mode === o.v}
-                    className={`h-7 rounded-lg border px-2.5 text-[12px] transition-colors disabled:opacity-50 ${
-                      d.consignee_mode === o.v ? "border-brand bg-brand font-medium text-white" : "border-border bg-surface-1 text-text-secondary hover:text-text-primary"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              {T("consignee_name", d.consignee_mode === "to_order" ? "TO ORDER OF — the bank or shipper, or leave blank" : "")}
-            </Labelled>
-            {A("consignee_address", 3)}
-          </div>
-          <div className="space-y-2">
-            <Labelled label="Notify party">{T("notify_name")}</Labelled>
-            {A("notify_address", 2)}
-          </div>
-          <Labelled label="Also notify">{A("also_notify", 3)}</Labelled>
-          <div className="md:col-span-2">
-            <Labelled label="For delivery of goods please apply to (our agent at destination)">{A("delivery_agent", 3)}</Labelled>
-          </div>
-        </div>
-      </Section>
-
-      {/* ---- routing ---- */}
-      <Section title="Routing">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Labelled label="Pre-carriage by">{T("pre_carriage_by")}</Labelled>
-          <Labelled label="Place of receipt">{T("place_of_receipt")}</Labelled>
-          <Labelled label="Ocean vessel">{T("vessel")}</Labelled>
-          <Labelled label="Voyage">{T("voyage")}</Labelled>
-          <Labelled label="Port of loading">{T("port_of_loading")}</Labelled>
-          <Labelled label="Port of discharge">{T("port_of_discharge")}</Labelled>
-          <Labelled label="Place of delivery">{T("place_of_delivery")}</Labelled>
-          <Labelled label="Final destination">{T("final_destination")}</Labelled>
-          <Labelled label="Service">
-            <input list="hbl-service" value={d.service_type} disabled={ro} onChange={(e) => set("service_type", e.target.value.toUpperCase())} className={`${base} h-8 w-full`} />
-            <datalist id="hbl-service">
-              {["FCL/FCL", "LCL/LCL", "FCL/LCL", "LCL/FCL", "CY/CY", "CFS/CFS"].map((v) => (
-                <option key={v} value={v} />
-              ))}
-            </datalist>
-          </Labelled>
-        </div>
-      </Section>
-
-      {/* ---- containers ---- */}
-      <Section
-        title="Containers"
-        action={
-          !ro && (
-            <button type="button" onClick={() => set("containers", [...d.containers, emptyContainer()])} className="inline-flex items-center gap-1 text-[12px] text-text-accent hover:underline">
-              <Plus size={12} /> Add a box
-            </button>
-          )
-        }
-      >
-        {d.containers.length === 0 ? (
-          <p className="text-[12px] text-text-muted">None yet. Fetch details brings in the boxes and seals from the Containers tab.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-[12px]">
-              <thead>
-                <tr className="text-left text-[11px] text-text-secondary">
-                  {["Container no.", "Seal no.", "Size / type", "Packages", "Kind", "Gross kg", "CBM", ""].map((h) => (
-                    <th key={h} className="px-1 pb-1 font-medium">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {d.containers.map((c, n) => (
-                  <tr key={n}>
-                    {(["container_no", "seal_no", "size_type", "packages", "package_type", "gross_kg", "cbm"] as Array<keyof HblContainer>).map((k) => (
-                      <td key={k} className="px-1 py-0.5">
-                        <input
-                          value={c[k]}
-                          disabled={ro}
-                          onChange={(e) => setBox(n, { [k]: e.target.value.toUpperCase() })}
-                          className={`${base} h-8 w-full ${["packages", "gross_kg", "cbm"].includes(k) ? "text-right tabular-nums" : ""} ${k === "container_no" || k === "seal_no" ? "font-mono" : ""}`}
-                        />
-                      </td>
-                    ))}
-                    <td className="px-1">
-                      {!ro && (
-                        <button
-                          type="button"
-                          onClick={() => set("containers", d.containers.filter((_, i) => i !== n))}
-                          aria-label={`Remove ${c.container_no || "this box"}`}
-                          className="grid size-8 place-items-center rounded-lg text-text-muted hover:bg-bg-danger hover:text-text-danger"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
-
-      {/* ---- the particulars ---- */}
-      <Section title="Particulars furnished by the shipper">
-        <div className="grid gap-3 md:grid-cols-2">
-          <Labelled label="Marks and numbers">{A("marks_numbers", 3)}</Labelled>
-          <Labelled label="Description of goods">{A("description", 3)}</Labelled>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Labelled label="Packages">{T("packages")}</Labelled>
-          <Labelled label="Kind of packages">{T("package_type")}</Labelled>
-          <Labelled label="HS code">{T("hs_code")}</Labelled>
-          <Labelled label="Gross weight (kg)">{T("gross_weight_kg")}</Labelled>
-          <Labelled label="Measurement (CBM)">{T("measurement_cbm")}</Labelled>
-        </div>
-        <label className="mt-3 flex items-center gap-2 text-[12px] text-text-secondary">
-          <input type="checkbox" checked={d.shippers_load} disabled={ro} onChange={(e) => set("shippers_load", e.target.checked)} />
-          Shipper&rsquo;s load, stow, count and seal — said to contain (a full box we did not see packed)
-        </label>
-        <p className="mt-2 text-[12px]">
-          <span className="text-text-muted">Printed as: </span>
-          <span className="font-medium text-text-primary">{totalInWords(d) || "—"}</span>
-        </p>
-        <div className="mt-3">
-          <Labelled label="Remarks">{A("remarks", 2)}</Labelled>
-        </div>
-      </Section>
-
-      {/* ---- freight and issue ---- */}
-      <Section title="Freight and issue">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Labelled label="Freight">
-            <select value={d.freight_terms} disabled={ro} onChange={(e) => set("freight_terms", e.target.value as "prepaid" | "collect")} className={`${base} h-8 w-full`}>
-              <option value="prepaid">Prepaid</option>
-              <option value="collect">Collect</option>
-            </select>
-          </Labelled>
-          <Labelled label="Freight payable at">{T("freight_payable_at")}</Labelled>
-          <Labelled label="Place of issue">{T("place_of_issue")}</Labelled>
-          <Labelled label="Date of issue">{D("date_of_issue")}</Labelled>
-          <Labelled label="Shipped on board">{D("on_board_date")}</Labelled>
-          <Labelled label="Booking reference">{T("booking_ref")}</Labelled>
-          <div className="sm:col-span-2">
-            <Labelled label="Export references (shipping bill, invoice)">{T("export_refs")}</Labelled>
-          </div>
-        </div>
-        <p className="mt-3 text-[11.5px] text-text-muted">
-          {d.mto_registration
-            ? `Issued under MTO registration ${d.mto_registration}${d.mto_name ? ` of ${d.mto_name}` : ""}, with Aashish Logistics signing as agent.`
-            : "Pick the partner whose MTO registration it is issued under, above."}
-        </p>
-      </Section>
+      <HblBoxes d={d} set={set} ro={ro} variant="ours" express={release === "express"} />
 
       {history && <HistoryPanel history={history} people={people} onClose={() => setHistory(null)} />}
     </div>
-  );
-}
-
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="card mb-3 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">{title}</h3>
-        {action}
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -657,15 +435,6 @@ function MenuItem({ icon, onClick, children }: { icon: ReactNode; onClick: () =>
       {icon}
       {children}
     </button>
-  );
-}
-
-function Labelled({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block min-w-0">
-      <span className="mb-0.5 block text-[11px] text-text-secondary">{label}</span>
-      {children}
-    </label>
   );
 }
 

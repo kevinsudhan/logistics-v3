@@ -614,6 +614,110 @@ const TRACK_SCHEMA = {
   required: ["events"],
 };
 
+
+/**
+ * Reading a bill of lading someone else issued (088).
+ *
+ * The origin agent's house B/L arrives as a PDF — often a scan with no text
+ * in it at all, like World Jaguar's QDWJ26093202 — and every box of it has to
+ * go into the CRM before it can be checked against the job and filed on the
+ * manifest. The model is shown the file and returns the boxes as printed. A
+ * person checks them before anything is saved, so a blank beats a guess.
+ */
+const HBL_SYSTEM = [
+  "You read a bill of lading (a house B/L, combined transport B/L, sea waybill or a draft or copy",
+  "of one) for a freight forwarder in Chennai, and copy its boxes out exactly as printed.",
+  "",
+  "Rules:",
+  "- Copy, do not correct: keep the spelling, punctuation and line breaks of each box. Addresses",
+  "  keep their lines, joined with a newline.",
+  "- A box that is empty or not on the document is null. Never fill one from general knowledge.",
+  "- issuer is the company whose letterhead or logo heads the B/L, not the shipper.",
+  "- bl_no is the B/L number. other_reference is any other document or file number printed near",
+  "  it (DOC No., booking no., file no.).",
+  "- draft_or_copy is true when the page is marked COPY, DRAFT, NON-NEGOTIABLE or for",
+  "  confirmation.",
+  "- Split the vessel and voyage: 'TS SINGAPORE 2607W' is vessel 'TS SINGAPORE', voyage '2607W'.",
+  "- consignee_contact is the person and phone or email printed with the consignee.",
+  "  consignee_iec and consignee_gstin are the IEC code and GSTIN printed with the consignee",
+  "  (the same for the notify party); the address is the address without those lines.",
+  "- delivery_agent is the whole 'for delivery of goods please apply to' box.",
+  "- packages is the number only ('1' for '1CASE'); package_type the kind ('CASE').",
+  "- gross_weight_kg and measurement_cbm are the figures as printed, with their units if shown.",
+  "- description is the goods as printed, including 'SAID TO CONTAIN' if it is there. Leave out",
+  "  the service (CFS-CFS), the freight term and the 'SAY TOTAL' line: they have their own boxes.",
+  "- service_type is the service printed (CFS-CFS, CY/CY, FCL/FCL). freight_terms is PREPAID or",
+  "  COLLECT as printed.",
+  "- Dates are YYYY-MM-DD. originals is the number of original B/Ls stated, as a digit.",
+  "- containers lists each container and seal printed, if any.",
+  "- is_bill_of_lading is false when the document is not a bill of lading at all.",
+].join("\n");
+
+const HBL_TEXT = { type: "string", nullable: true };
+const HBL_SCHEMA = {
+  type: "object",
+  properties: {
+    is_bill_of_lading: { type: "boolean" },
+    issuer: HBL_TEXT,
+    bl_no: HBL_TEXT,
+    other_reference: HBL_TEXT,
+    draft_or_copy: { type: "boolean", nullable: true },
+    shipper_name: HBL_TEXT,
+    shipper_address: HBL_TEXT,
+    consignee_name: HBL_TEXT,
+    consignee_address: HBL_TEXT,
+    consignee_contact: HBL_TEXT,
+    consignee_iec: HBL_TEXT,
+    consignee_gstin: HBL_TEXT,
+    notify_name: HBL_TEXT,
+    notify_address: HBL_TEXT,
+    notify_iec: HBL_TEXT,
+    notify_gstin: HBL_TEXT,
+    delivery_agent: HBL_TEXT,
+    place_of_receipt: HBL_TEXT,
+    vessel: HBL_TEXT,
+    voyage: HBL_TEXT,
+    port_of_loading: HBL_TEXT,
+    port_of_discharge: HBL_TEXT,
+    place_of_delivery: HBL_TEXT,
+    service_type: HBL_TEXT,
+    containers: {
+      type: "array",
+      nullable: true,
+      items: {
+        type: "object",
+        properties: {
+          container_no: HBL_TEXT,
+          seal_no: HBL_TEXT,
+          size_type: HBL_TEXT,
+          packages: HBL_TEXT,
+          package_type: HBL_TEXT,
+          gross_kg: HBL_TEXT,
+          cbm: HBL_TEXT,
+        },
+      },
+    },
+    marks_numbers: HBL_TEXT,
+    packages: HBL_TEXT,
+    package_type: HBL_TEXT,
+    description: HBL_TEXT,
+    hs_code: HBL_TEXT,
+    gross_weight_kg: HBL_TEXT,
+    measurement_cbm: HBL_TEXT,
+    freight_terms: HBL_TEXT,
+    freight_payable_at: HBL_TEXT,
+    place_of_issue: HBL_TEXT,
+    date_of_issue: HBL_TEXT,
+    on_board_date: HBL_TEXT,
+    originals: HBL_TEXT,
+  },
+  required: ["is_bill_of_lading"],
+};
+
+/** The file types a B/L arrives as, and the most the request should carry (about 7 MB of file). */
+const HBL_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const HBL_MAX_BASE64 = 10_000_000;
+
 const SYSTEM = [
   "You read email for a freight forwarder in Chennai that handles LCL and FCL ocean freight,",
   "air freight and customs clearance. Lanes are mostly India to and from Colombo, Jebel Ali,",
@@ -679,12 +783,15 @@ Deno.serve(async (req) => {
      * "classify" reads a message, "draft" answers one, "quote" reads a rate out
      * of a reply, "rfq" writes a rate request from shipment details.
      */
-    mode?: "classify" | "draft" | "quote" | "rfq" | "tracking";
+    mode?: "classify" | "draft" | "quote" | "rfq" | "tracking" | "hbl";
     /** Draft only: what the operator wants said, in their own words. */
     instruction?: string;
     /** Tracking only: the shipment's own details, and when the message was sent. */
     context?: string;
     sent_at?: string;
+    /** hbl only: the bill itself, base64, and its type. */
+    file_base64?: string;
+    file_mime?: string;
   };
   try {
     input = await req.json();
@@ -696,8 +803,14 @@ Deno.serve(async (req) => {
   const quoting = input.mode === "quote";
   const writingRfq = input.mode === "rfq";
   const tracking = input.mode === "tracking";
+  const readingBill = input.mode === "hbl";
   const text = (input.body ?? "").trim();
-  if (!text && !input.subject) return json({ error: "Nothing to read." }, 400);
+  if (readingBill) {
+    if (!input.file_base64 || !HBL_TYPES.has(input.file_mime ?? "")) {
+      return json({ error: "Send the B/L as a PDF, JPG, PNG or WebP." }, 400);
+    }
+    if (input.file_base64.length > HBL_MAX_BASE64) return json({ error: "That file is too large to read (over about 7 MB)." }, 413);
+  } else if (!text && !input.subject) return json({ error: "Nothing to read." }, 400);
 
   /**
    * Trimmed before it is sent.
@@ -749,19 +862,31 @@ Deno.serve(async (req) => {
                 ? RFQ_SYSTEM
                 : tracking
                   ? TRACK_SYSTEM
-                  : SYSTEM,
+                  : readingBill
+                    ? HBL_SYSTEM
+                    : SYSTEM,
         },
       ],
     },
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [
+      {
+        role: "user",
+        parts: readingBill
+          ? [{ inlineData: { mimeType: input.file_mime, data: input.file_base64 } }, { text: "Copy out the boxes of this bill of lading." }]
+          : [{ text: prompt }],
+      },
+    ],
     // Prose gets a little room to vary; a classification does not. Zero on a
     // reply produces the same four stiff sentences for every message.
     generationConfig: drafting || writingRfq
       ? { temperature: 0.4 }
       : {
           responseMimeType: "application/json",
-          responseSchema: quoting ? QUOTE_SCHEMA : tracking ? TRACK_SCHEMA : SCHEMA,
+          responseSchema: quoting ? QUOTE_SCHEMA : tracking ? TRACK_SCHEMA : readingBill ? HBL_SCHEMA : SCHEMA,
           temperature: 0,
+          // A scanned B/L read at the default resolution misread "SEP 28, 2026"
+          // as 2028 and dropped a letter from QDMAA260901055 (25 Sep 2026).
+          ...(readingBill ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}),
         },
   });
 
@@ -843,7 +968,7 @@ Deno.serve(async (req) => {
       with the shipper, not with a model. So a yes stands only with a UN number
       or IMO class beside it, or where the message itself says so.
     */
-    if (!quoting && !tracking && answer.hazardous === true && !answer.un_number && !answer.imo_class) {
+    if (!quoting && !tracking && !readingBill && answer.hazardous === true && !answer.un_number && !answer.imo_class) {
       const said = /\b(dangerous goods|hazardous|hazmat|haz\b|non-?haz|DGR?\b|IMDG|IMO class|UN\s?\d{4})/i;
       if (!said.test(`${input.subject ?? ""}\n${excerpt}`)) answer.hazardous = null;
     }
