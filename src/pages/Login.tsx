@@ -14,7 +14,6 @@ import { CompanyBrand, PoweredByAraxys } from "../components/Brand";
 
   `registry` imports nothing but types.
 */
-import { DOCUMENTS } from "../lib/documents/registry";
 import { BootScreen } from "../components/Loading";
 
 
@@ -127,53 +126,16 @@ export default function Login({ role }: { role: Role }) {
           }}
         />
 
-        <div className="relative h-full flex flex-col justify-between p-12 text-white">
-          <CompanyBrand size="lg" tone="dark" />
-
-          <div className="max-w-md">
-            <h1 className="text-[34px] leading-[1.15] font-semibold tracking-tight">
-              The freight desk that answers the phone.
-            </h1>
-            <p className="mt-4 text-[14px] leading-relaxed text-white/70">
-              Every call quoted, every booking allocated, every document generated — from the
-              conversation itself.
-            </p>
-
-            {/*
-              Three figures, each one checkable.
-              -----------------------------------------------------------------
-              Two claims that survive, and one that did not. "24 fields read
-              per call" went with the voice desk: there are no calls now, so the
-              number described something that no longer happens. A figure does
-              not become true again by staying on the screen.
-
-              The document count is read from the registry that renders them, so
-              adding a thirteenth updates this line rather than leaving it
-              quietly wrong. The other two are statements about how the desk
-              works, not counts, so there is nothing behind them to drift.
-            */}
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4 text-[12px] text-white/55">
-              <span>
-                <span className="block text-[19px] font-semibold text-white">{DOCUMENTS.length}</span>
-                documents issued
-              </span>
-              <span className="w-px h-8 bg-white/20" />
-              <span>
-                <span className="block text-[19px] font-semibold text-white">One</span>
-                reference per case
-              </span>
-              <span className="w-px h-8 bg-white/20" />
-              <span>
-                <span className="block text-[19px] font-semibold text-white">Nothing</span>
-                shipped on a guess
-              </span>
-            </div>
+        {/*
+          Just the company: the mark and the name, large, where a slogan used
+          to sit, and the platform's credit in the corner. The footage says
+          what the business does.
+        */}
+        <div className="relative h-full flex flex-col p-12 text-white">
+          <div className="my-auto">
+            <CompanyBrand size="xl" tone="dark" />
           </div>
-
-          <div className="flex items-end justify-between gap-4">
-            <p className="text-[11px] text-white/40">
-              Chennai · Colombo · Jebel Ali · Singapore · Jeddah
-            </p>
+          <div className="flex justify-end">
             <PoweredByAraxys tone="dark" />
           </div>
         </div>
