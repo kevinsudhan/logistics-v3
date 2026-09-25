@@ -95,20 +95,27 @@ export default function Login({ role }: { role: Role }) {
     <div className="min-h-screen grid lg:grid-cols-2 bg-surface-0">
       {/* ---------------------------------------------------------------- */}
       {/* Left: the video panel.                                            */}
-      {/* Hidden below lg -- a 18MB background is not worth downloading on   */}
-      {/* a phone to look at behind a form.                                  */}
+      {/* Hidden below lg -- a background is not worth downloading on a      */}
+      {/* phone to look at behind a form.                                    */}
+      {/*                                                                    */}
+      {/* The clip was 18 MB with its index at the end, so nothing played    */}
+      {/* until nearly all of it had arrived. It is now ~1.5 MB, silent,     */}
+      {/* index first (plays as it streams), with its first frame as the     */}
+      {/* poster so the panel is never blank. Versioned names: cached for a */}
+      {/* year (netlify.toml); a new clip gets a new name.                   */}
       {/* ---------------------------------------------------------------- */}
       <div className="relative hidden lg:block overflow-hidden bg-[#0b1a17]">
         <video
           className="absolute inset-0 w-full h-full object-cover"
-          src="/login-video.mp4"
+          poster="/media/login-poster-v2.webp"
           autoPlay
           muted
           loop
           playsInline
-          /* Autoplay only works muted; preload metadata keeps the first paint quick. */
-          preload="metadata"
+          /* Autoplay only works muted. */
+          preload="auto"
           aria-hidden="true"
+          src="/media/login-v2.mp4"
         />
 
         {/* Darkened so white type stays legible over any frame of the footage. */}

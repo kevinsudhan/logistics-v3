@@ -69,3 +69,10 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# The sign-in video and its poster. Named by version (login-v2.mp4), so a new
+# clip gets a new name and these can be kept as long as the hashed assets.
+[[headers]]
+  for = "/media/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
