@@ -49,6 +49,7 @@
  * ---------------------------------------------------------------------------
  */
 import schemaJson from "./icegate/csnSchema.json";
+import scaSchemaJson from "./icegate/scaSchema.json";
 
 export const CSN_SCHEMA = schemaJson as unknown as SchemaNode;
 
@@ -151,6 +152,8 @@ export interface CsnHouse {
   sbDate?: string;
   /** Export: the PCIN Customs gave that shipping bill — what the house line points at. */
   pcin?: string;
+  /** The sub-line ICEGATE holds it under, once filed (see `asFiled`); else its place in the list. */
+  subLine?: number;
 }
 
 export interface CsnDraft {
@@ -184,6 +187,8 @@ export interface CsnDraft {
   containers: CsnContainer[];
   itinerary: { from: CsnPlace; to: CsnPlace };
   houses: CsnHouse[];
+  /** On a filed form: the highest house sub-line given out, so one taken off is not reused. */
+  lastSubLine?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -705,7 +710,7 @@ function prune<T>(value: T): T {
 /** An import house: the cargo described in full (IM / H / N). */
 function importHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
   return {
-    HCRef: { subLineNo: i + 1, blNo: clean(h.hblNo).toUpperCase(), blDt: ymd(h.hblDate), consolidatedIndctr: "H", consolidatorPan: `PAN:${pan}`, prevDec: "N" },
+    HCRef: { subLineNo: h.subLine ?? i + 1, blNo: clean(h.hblNo).toUpperCase(), blDt: ymd(h.hblDate), consolidatedIndctr: "H", consolidatorPan: `PAN:${pan}`, prevDec: "N" },
     locCstm: location(d, h.destPort),
     trnshpr: d.movement === "TI" ? transhipper(d) : undefined,
     trnsprtDoc: transportDoc(h.acceptance, h.receipt, h.consignor, h.consignee, h.notify, h.description),
@@ -733,7 +738,7 @@ function importHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
 function exportHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
   const full = d.movement !== "FT";
   return {
-    HCRef: { subLineNo: i + 1, blNo: clean(h.hblNo).toUpperCase(), blDt: ymd(h.hblDate), consolidatedIndctr: "H", consolidatorPan: `PAN:${pan}`, prevDec: "B" },
+    HCRef: { subLineNo: h.subLine ?? i + 1, blNo: clean(h.hblNo).toUpperCase(), blDt: ymd(h.hblDate), consolidatedIndctr: "H", consolidatorPan: `PAN:${pan}`, prevDec: "B" },
     prevRef: { cinTyp: "PCIN", mcinPcin: clean(h.pcin ?? "").toUpperCase() },
     locCstm: full ? location(d, h.destPort) : undefined,
     trnshpr: full ? transhipper(d) : undefined,
@@ -1059,6 +1064,268 @@ function checkBoxes(where: string, list: CsnContainer[], add: (where: string, fi
     if (!/^[A-Z0-9]{4}$/.test(clean(c.size).toUpperCase())) add(where, `Container ${label}: size-type`, "needs its ISO code, like 22G1 or 45G1");
     if (!clean(c.seal)) add(where, `Container ${label}: seal`, "has no seal number", "warning");
   });
+}
+
+// ---------------------------------------------------------------------------
+// Amending a filed CSN (SCA)
+// ---------------------------------------------------------------------------
+
+/**
+ * ---------------------------------------------------------------------------
+ * WHAT AN AMENDMENT CARRIES
+ *
+ * Only what changed since the CSN it amends, each object flagged: U (updated),
+ * S (supplementary — added) or D (deleted). The header names the CSN amended by
+ * its number and date; the master line keeps its reference (MCRef) and adds a
+ * supplementary reference (supRef) back to that CSN — CIN type "CSN", filed by
+ * the desk (ANC, its PAN), reporting type SCE or SCX, at the port of
+ * reporting. That is Customs' own sample (F_SACHM22_SCA_…_DEC.json) and the
+ * guide's field table, which makes decRef, authPrsn, MCRef and supRef
+ * mandatory and everything else optional.
+ *
+ * WHAT IT IS COMPARED WITH
+ *
+ * The form as it was when the last live file for the console was made (kept on
+ * that file, 099), against the form now. Both are built into ICEGATE's JSON by
+ * `buildCsn` and compared object by object, so a change shows up exactly where
+ * ICEGATE would see it. Houses are matched by job and keep the sub-line number
+ * they were filed under; containers by number and keep their sequence number.
+ * A house added gets the next sub-line, with every object S; one taken off is
+ * its reference, D.
+ * ---------------------------------------------------------------------------
+ */
+
+export const SCA_SCHEMA = scaSchemaJson as unknown as SchemaNode;
+
+type Obj = Record<string, unknown>;
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const flagged = (o: unknown, amendment: "U" | "S" | "D"): Obj => ({ ...(o as Obj), amendment });
+
+/**
+ * A list of objects keyed by `key`, amended: what was filed stays at its
+ * sequence number, U if it is still there and D if not; what is new is S, after
+ * the highest number filed. Unchanged entries go as U with their values, as
+ * Customs' sample re-sends its whole equipment list.
+ */
+function amendList(filed: Obj[], now: Obj[], key: string, seq: string): { list: Obj[]; added: string[]; removed: string[]; changed: string[] } {
+  const was = new Map(filed.map((x) => [String(x[key]), x]));
+  const is = new Map(now.map((x) => [String(x[key]), x]));
+  let next = filed.reduce((m, x) => Math.max(m, Number(x[seq]) || 0), 0);
+  const list: Obj[] = [];
+  const added: string[] = [];
+  const removed: string[] = [];
+  const changed: string[] = [];
+  for (const [k, old] of was) {
+    const cur = is.get(k);
+    if (!cur) {
+      list.push(flagged(old, "D"));
+      removed.push(k);
+      continue;
+    }
+    const kept = { ...cur, [seq]: old[seq] };
+    if (!same(kept, old)) changed.push(k);
+    list.push(flagged(kept, "U"));
+  }
+  for (const [k, cur] of is) {
+    if (was.has(k)) continue;
+    list.push(flagged({ ...cur, [seq]: ++next }, "S"));
+    added.push(k);
+  }
+  return { list, added, removed, changed };
+}
+
+/**
+ * The form as ICEGATE holds it once `now` is filed: each house under the
+ * sub-line it was first filed under, new ones after the highest ever given out
+ * (one taken off is not reused). This is what the CRM keeps with a file (099),
+ * so the next amendment compares with it. `filed` null is a fresh CSN: 1, 2, 3…
+ */
+export function asFiled(filed: CsnDraft | null, now: CsnDraft): CsnDraft {
+  const was = new Map((filed?.houses ?? []).map((h, i) => [h.shipmentId, h.subLine ?? i + 1]));
+  let last = Math.max(filed?.lastSubLine ?? 0, 0, ...was.values());
+  const houses = now.houses.map((h) => ({ ...h, subLine: was.get(h.shipmentId) ?? ++last }));
+  return { ...now, houses, lastSubLine: last };
+}
+
+export interface CsnAmendment {
+  /** The file, without digSign, or null when nothing has changed. */
+  doc: Obj | null;
+  /** What changed, in the desk's words. */
+  changes: string[];
+}
+
+const OBJECT_LABEL: Record<string, string> = {
+  locCstm: "ports and cargo movement",
+  trnshpr: "transhipper",
+  trnsprtDoc: "parties and description",
+  trnsprtDocMsr: "packages, marks and weights",
+  prevRef: "shipping bill PCIN",
+  itemDtls: "cargo items",
+  itnry: "itinerary",
+};
+
+/**
+ * The amendment for a filed CSN: `filed` is the form the last live file was
+ * made from, `now` the form as it stands. The CSN amended is `csn` (the number
+ * and date ICEGATE gave it).
+ */
+export function buildAmendment(filed: CsnDraft, now: CsnDraft, settings: CsnSettings, file: CsnFile, csn: { no: string; date: string }): CsnAmendment {
+  const event = eventOf(now);
+  const pan = clean(settings.pan).toUpperCase();
+  const port = clean(settings.port_of_reporting).toUpperCase();
+  // Both sides built the same way, so a difference is a difference in the file.
+  now = asFiled(filed, now);
+  const A = buildCsn({ ...filed, event }, settings, file) as { master: Obj & { mastrCnsgmtDec: Obj[] } };
+  const B = buildCsn(now, settings, file) as { master: Obj & { mastrCnsgmtDec: Obj[] } };
+  const mA = A.master.mastrCnsgmtDec[0] as Obj;
+  const mB = B.master.mastrCnsgmtDec[0] as Obj;
+  const changes: string[] = [];
+
+  const master: Obj = {
+    decRef: {
+      msgTyp: "A",
+      prtofRptng: port,
+      jobNo: file.jobNo,
+      jobDt: file.date,
+      rptngEvent: "SCA",
+      csnNmbr: Number(digits(csn.no)) || 0,
+      csnDt: ymd(csn.date),
+      amendment: "U",
+    },
+    authPrsn: flagged(B.master.authPrsn, "U"),
+  };
+  if (!same(A.master.vesselDtls, B.master.vesselDtls)) {
+    master.vesselDtls = flagged(B.master.vesselDtls, "U");
+    changes.push("Vessel: IMO number");
+  }
+  if (!same(A.master.voyageDtls, B.master.voyageDtls)) {
+    master.voyageDtls = flagged(B.master.voyageDtls, "U");
+    changes.push("Voyage: call number or container count");
+  }
+
+  const mc: Obj = {
+    MCRef: flagged(mB.MCRef, "U"),
+    supRef: {
+      cinTyp: "CSN",
+      csnSbmtdTyp: "ANC",
+      csnSbmtdBy: pan,
+      csnRptngTyp: event,
+      csnSiteId: port,
+      csnNmbr: Number(digits(csn.no)) || 0,
+      csnDt: ymd(csn.date),
+      amendment: "U",
+    },
+  };
+  if (!same(mA.MCRef, mB.MCRef)) changes.push("Master B/L: number or date");
+  for (const k of ["locCstm", "trnshpr", "trnsprtDoc", "trnsprtDocMsr"]) {
+    if (same(mA[k], mB[k])) continue;
+    mc[k] = mB[k] ? flagged(mB[k], mA[k] ? "U" : "S") : flagged(mA[k], "D");
+    changes.push(`Master: ${OBJECT_LABEL[k]}`);
+  }
+  const boxes = amendList((mA.trnsprtEqmt as Obj[]) ?? [], (mB.trnsprtEqmt as Obj[]) ?? [], "eqmtId", "eqmtSeqNo");
+  if (boxes.added.length || boxes.removed.length || boxes.changed.length) {
+    mc.trnsprtEqmt = boxes.list;
+    for (const b of boxes.added) changes.push(`Master: container ${b} added`);
+    for (const b of boxes.removed) changes.push(`Master: container ${b} taken off`);
+    for (const b of boxes.changed) changes.push(`Master: container ${b} changed`);
+  }
+  if (!same(mA.itnry, mB.itnry)) {
+    mc.itnry = ((mB.itnry as Obj[]) ?? []).map((x) => flagged(x, "U"));
+    changes.push("Master: itinerary");
+  }
+
+  // Houses, matched by job; `asFiled` has given each its sub-line.
+  const housesA = (mA.houseCargoDec as Obj[]) ?? [];
+  const housesB = (mB.houseCargoDec as Obj[]) ?? [];
+  const filedAt = new Map(filed.houses.map((h, i) => [h.shipmentId, i]));
+  const nowAt = new Map(now.houses.map((h, i) => [h.shipmentId, i]));
+  const houses: Obj[] = [];
+  for (const [id, i] of filedAt) {
+    const hA = housesA[i];
+    const label = filed.houses[i].ref || filed.houses[i].hblNo;
+    const j = nowAt.get(id);
+    if (j === undefined) {
+      houses.push({ HCRef: flagged(hA.HCRef, "D") });
+      changes.push(`House ${label} taken off`);
+      continue;
+    }
+    const hB = housesB[j];
+    const out: Obj = { HCRef: flagged(hB.HCRef, "U") };
+    const what: string[] = [];
+    if (!same(hA.HCRef, hB.HCRef)) what.push("B/L number or date");
+    for (const k of ["prevRef", "locCstm", "trnshpr", "trnsprtDoc", "trnsprtDocMsr"]) {
+      if (same(hA[k], hB[k])) continue;
+      out[k] = hB[k] ? flagged(hB[k], hA[k] ? "U" : "S") : flagged(hA[k], "D");
+      what.push(OBJECT_LABEL[k]);
+    }
+    if (!same(hA.itemDtls, hB.itemDtls)) {
+      out.itemDtls = amendList((hA.itemDtls as Obj[]) ?? [], (hB.itemDtls as Obj[]) ?? [], "crgoItemSeqNmbr", "crgoItemSeqNmbr").list;
+      what.push(OBJECT_LABEL.itemDtls);
+    }
+    const hb = amendList((hA.trnsprtEqmt as Obj[]) ?? [], (hB.trnsprtEqmt as Obj[]) ?? [], "eqmtId", "eqmtSeqNo");
+    if (hb.added.length || hb.removed.length || hb.changed.length) {
+      out.trnsprtEqmt = hb.list;
+      what.push("containers");
+    }
+    if (!same(hA.itnry, hB.itnry)) {
+      out.itnry = ((hB.itnry as Obj[]) ?? []).map((x) => flagged(x, "U"));
+      what.push(OBJECT_LABEL.itnry);
+    }
+    if (what.length) {
+      houses.push(out);
+      changes.push(`House ${label}: ${what.join(", ")}`);
+    }
+  }
+  for (const [id, j] of nowAt) {
+    if (filedAt.has(id)) continue;
+    const hB = housesB[j];
+    const out: Obj = {};
+    for (const [k, v] of Object.entries(hB)) {
+      out[k] = Array.isArray(v) ? v.map((x) => flagged(x, "S")) : flagged(v, "S");
+    }
+    houses.push(out);
+    changes.push(`House ${now.houses[j].ref || now.houses[j].hblNo} added`);
+  }
+  if (houses.length) mc.houseCargoDec = houses;
+  master.mastrCnsgmtDec = [mc];
+
+  if (!changes.length) return { doc: null, changes };
+  return {
+    doc: prune({
+      headerField: {
+        senderID: clean(settings.icegate_id).toUpperCase(),
+        receiverID: port,
+        versionNo: `${event}1102`,
+        indicator: now.indicator,
+        messageID: "SACHM22",
+        sequenceOrControlNumber: file.jobNo,
+        date: file.date,
+        time: file.time,
+        reportingEvent: "SCA",
+      },
+      master,
+    }),
+    changes,
+  };
+}
+
+/**
+ * What stands between the form and an amendment ICEGATE will take: the form
+ * itself (as for a fresh CSN), the CSN being amended, something to amend, and
+ * the amendment file against CBIC's SCA schema.
+ */
+export function amendmentProblems(filed: CsnDraft | null, now: CsnDraft, settings: CsnSettings, csn: { no: string; date: string }): CsnProblem[] {
+  const out = csnProblems(now, settings).filter((p) => p.level === "error");
+  const add = (field: string, message: string) => out.push({ where: "Amendment", field, message, level: "error" });
+  if (!filed) add("The filed CSN", "no live file on record to compare with: the CRM keeps what it sends from now on");
+  if (!/^\d{1,7}$/.test(digits(csn.no)) || !digits(csn.no)) add("CSN number", "record the CSN number ICEGATE gave the original first");
+  if (!ymd(csn.date)) add("CSN date", "record the CSN date first");
+  if (filed && !out.length) {
+    const a = buildAmendment(filed, now, settings, { jobNo: 1, date: "20260101", time: "T00:00" }, csn);
+    if (!a.doc) add("Changes", "nothing has changed since the CSN was filed");
+    else for (const e of schemaErrors(a.doc, SCA_SCHEMA, { unsigned: true })) add(e.path, e.message);
+  }
+  return out;
 }
 
 /** The file's contents, as ICEGATE reads them. */

@@ -118,15 +118,20 @@ export async function saveCsnDraft(consoleId: string, draft: CsnDraft): Promise<
   await updateConsole(consoleId, { csn_draft: draft });
 }
 
-/** A job number from ICEGATE's sequence for this sender, and the file's name. */
-export async function newCsnFile(consoleId: string, event: CsnEvent, houses: number, indicator: "P" | "T"): Promise<{ job_no: number; file_name: string; date: string; time: string }> {
-  const { data, error } = await supabase.rpc("csn_file_new", { p_console: consoleId, p_event: event, p_indicator: indicator, p_houses: houses });
+/**
+ * A job number from ICEGATE's sequence for this sender, and the file's name.
+ * `filed` is the form as ICEGATE will hold it once this file is accepted
+ * (`asFiled`), kept on the file's row (099) for the next amendment to compare with.
+ */
+export async function newCsnFile(consoleId: string, event: CsnEvent | "SCA", houses: number, indicator: "P" | "T", filed: CsnDraft): Promise<{ job_no: number; file_name: string; date: string; time: string }> {
+  const { data, error } = await supabase.rpc("csn_file_new", { p_console: consoleId, p_event: event, p_indicator: indicator, p_houses: houses, p_draft: filed });
   if (error) throw new Error(error.message);
   return data as { job_no: number; file_name: string; date: string; time: string };
 }
 
 export interface CsnFileRow {
   job_no: number;
+  event: CsnEvent | "SCA";
   file_name: string;
   indicator: "P" | "T";
   houses: number;
@@ -136,12 +141,31 @@ export interface CsnFileRow {
 export async function csnFilesFor(consoleId: string): Promise<CsnFileRow[]> {
   const { data, error } = await supabase
     .from("csn_files")
-    .select("job_no, file_name, indicator, houses, created_at")
+    .select("job_no, event, file_name, indicator, houses, created_at")
     .eq("console_id", consoleId)
     .order("created_at", { ascending: false })
     .limit(10);
   if (error) throw new Error(error.message);
   return (data ?? []) as CsnFileRow[];
+}
+
+/**
+ * What ICEGATE holds for the console, as far as the CRM knows: the form kept
+ * with the last live (P) file made for it — the CSN, or the last amendment.
+ * Null when no live file was made since the CRM started keeping them (099).
+ */
+export async function filedDraftFor(consoleId: string): Promise<CsnDraft | null> {
+  const { data, error } = await supabase
+    .from("csn_files")
+    .select("draft")
+    .eq("console_id", consoleId)
+    .eq("indicator", "P")
+    .not("draft", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.draft as CsnDraft | undefined) ?? null;
 }
 
 /**

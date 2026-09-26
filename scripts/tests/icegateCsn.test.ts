@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import {
   CSN_SCHEMA,
+  SCA_SCHEMA,
+  asFiled,
+  amendmentProblems,
+  buildAmendment,
   buildCsn,
   csnProblems,
   draftFor,
@@ -247,6 +251,71 @@ console.log("\nsaved drafts");
 const savedImport = { ...draft, event: undefined };
 is("an import draft saved before exports existed still loads as an import", mergeDraft(savedImport, draftFor(src, settings, "SCE")).vesselImo, "9618587");
 is("a draft saved for the other direction is dropped", mergeDraft(savedImport, draftFor(exportSrc, settings, "SCX")).event, "SCX");
+
+console.log("\namendments (SCA)");
+is("Customs' own sample amendment passes the official SCA schema", schemaErrors(read("F_SACHM22_SCA_SOMETESTUSER_6055_20200701_DEC.json"), SCA_SCHEMA), []);
+
+// The import CSN as filed (the form above, IMO and VCN given), and the console since.
+const filedImport = structuredClone(draft);
+const later = structuredClone(draft);
+later.containers[0].seal = "SL889999"; // the same box, corrected on the master line and the house
+later.houses[0].containers[0].seal = "SL889999";
+later.houses[0].consignee.street = "NO 7, SIDCO ESTATE, GUINDY";
+const added = structuredClone(later.houses[0]);
+added.shipmentId = "ARX-SHP-0103";
+added.ref = "ALG09103-26";
+added.hblNo = "GZL2609003";
+later.houses = [later.houses[0], added]; // the second house taken off, a third added
+const csnRef = { no: "1000126", date: "2026-09-27" };
+const amend = buildAmendment(filedImport, later, settings, { jobNo: 30, date: "20260928", time: "T10:00" }, csnRef);
+type SCA = { headerField: Obj; master: { decRef: Obj; mastrCnsgmtDec: Array<{ MCRef: Obj; supRef: Obj; trnsprtEqmt: Obj[]; houseCargoDec: Array<Obj & { HCRef: Obj }> }> } };
+type Obj = Record<string, unknown>;
+const sd = amend.doc as unknown as SCA;
+is("the amendment passes CBIC's SCA schema", schemaErrors(amend.doc, SCA_SCHEMA, { unsigned: true }), []);
+is("header: SCA, on the original's version", [sd.headerField.reportingEvent, sd.headerField.versionNo], ["SCA", "SCE1102"]);
+is("it names the CSN it amends", [sd.master.decRef.msgTyp, sd.master.decRef.rptngEvent, sd.master.decRef.csnNmbr, sd.master.decRef.csnDt, sd.master.decRef.amendment], ["A", "SCA", 1000126, "20260927", "U"]);
+const amc = sd.master.mastrCnsgmtDec[0];
+is("and points back at it from the master line", amc.supRef, { cinTyp: "CSN", csnSbmtdTyp: "ANC", csnSbmtdBy: "ABDCA2229C", csnRptngTyp: "SCE", csnSiteId: "INMAA1", csnNmbr: 1000126, csnDt: "20260927", amendment: "U" });
+is("the corrected seal: the container list, updated", amc.trnsprtEqmt.map((b) => [b.eqmtId, b.eqmtSealNmbr, b.amendment]), [["TGHU8261450", "SL889999", "U"]]);
+is("houses: the first updated, the second deleted, the new one added", amc.houseCargoDec.map((h) => [h.HCRef.subLineNo, h.HCRef.blNo, h.HCRef.amendment]), [[1, "GZL2609001", "U"], [2, "GZL2609002", "D"], [3, "GZL2609003", "S"]]);
+is("the updated house carries only what changed", Object.keys(amc.houseCargoDec[0]).sort(), ["HCRef", "trnsprtDoc", "trnsprtEqmt"]);
+is("the added house carries everything, all S", Object.values(amc.houseCargoDec[2]).every((v) => (Array.isArray(v) ? v.every((x) => (x as Obj).amendment === "S") : (v as Obj).amendment === "S")), true);
+is("the changes, in words", amend.changes, [
+  "Master: container TGHU8261450 changed",
+  "House ALG09101-26: parties and description, containers",
+  "House ALG09102-26 taken off",
+  "House ALG09103-26 added",
+]);
+is("nothing changed, nothing to file", buildAmendment(filedImport, structuredClone(filedImport), settings, { jobNo: 31, date: "20260928", time: "T10:01" }, csnRef), { doc: null, changes: [] });
+is("no filed CSN to compare with is said", amendmentProblems(null, later, settings, csnRef).map((p) => p.field), ["The filed CSN"]);
+is("no CSN number recorded is said", amendmentProblems(filedImport, later, settings, { no: "", date: "" }).map((p) => p.field), ["CSN number", "CSN date"]);
+is("unchanged is said", amendmentProblems(filedImport, structuredClone(filedImport), settings, csnRef).map((p) => p.message), ["nothing has changed since the CSN was filed"]);
+is("a real amendment has nothing in its way", amendmentProblems(filedImport, later, settings, csnRef), []);
+
+// A second amendment, on top of the first: the form as ICEGATE now holds it.
+const held = asFiled(asFiled(null, filedImport), later);
+is("the form kept with the first amendment: sub-lines as filed, 2 not reused", [held.houses.map((h) => h.subLine), held.lastSubLine], [[1, 3], 3]);
+const again = structuredClone(later);
+again.houses[1].marks = "ALG/103 1-12";
+const fourth = structuredClone(again.houses[1]);
+fourth.shipmentId = "ARX-SHP-0104";
+fourth.ref = "ALG09104-26";
+fourth.hblNo = "GZL2609004";
+again.houses.push(fourth);
+const a2 = buildAmendment(held, again, settings, { jobNo: 33, date: "20260929", time: "T09:00" }, csnRef);
+const s2 = (a2.doc as unknown as SCA).master.mastrCnsgmtDec[0];
+is("second amendment: the house added before, updated under 3; the new one S under 4", s2.houseCargoDec.map((h) => [h.HCRef.subLineNo, h.HCRef.blNo, h.HCRef.amendment]), [[3, "GZL2609003", "U"], [4, "GZL2609004", "S"]]);
+is("and it passes the SCA schema", schemaErrors(a2.doc, SCA_SCHEMA, { unsigned: true }), []);
+is("a fresh CSN numbers its houses in order", asFiled(null, draft).houses.map((h) => h.subLine), [1, 2]);
+
+const filedExport = structuredClone(ex);
+const exLater = structuredClone(ex);
+exLater.houses[0].pcin = "26PCEG0920173415499";
+const xa = buildAmendment(filedExport, exLater, settings, { jobNo: 32, date: "20260928", time: "T10:02" }, csnRef);
+const xs = xa.doc as unknown as SCA;
+is("an export amendment passes the SCA schema", schemaErrors(xa.doc, SCA_SCHEMA, { unsigned: true }), []);
+is("on the export's version, pointing back at an SCX", [xs.headerField.versionNo, xs.master.mastrCnsgmtDec[0].supRef.csnRptngTyp], ["SCX1102", "SCX"]);
+is("a corrected PCIN is the house's previous reference, updated", [xa.changes, (xs.master.mastrCnsgmtDec[0].houseCargoDec[0].prevRef as Obj).mcinPcin, (xs.master.mastrCnsgmtDec[0].houseCargoDec[0].prevRef as Obj).amendment], [["House ALG09201-26: shipping bill PCIN"], "26PCEG0920173415499", "U"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

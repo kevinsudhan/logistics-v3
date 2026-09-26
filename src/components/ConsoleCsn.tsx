@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, AlertTriangle, Check, ChevronDown, ChevronRight, Download, FileJson, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, ChevronDown, ChevronRight, Download, FileJson, FilePen, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { formatDate } from "../lib/dates";
 import { failureText } from "../lib/errorText";
 import { csnDue } from "../lib/receivedHbl";
-import { buildCsn, csnJson, csnProblems, type CsnContainer, type CsnDraft, type CsnHouse, type CsnItem, type CsnParty, type CsnPlace, type CsnSettings } from "../lib/icegateCsn";
-import { csnDraftFor, csnEventFor, csnFilesFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow } from "../services/icegateCsn";
+import { amendmentProblems, asFiled, buildAmendment, buildCsn, csnJson, csnProblems, type CsnContainer, type CsnDraft, type CsnHouse, type CsnItem, type CsnParty, type CsnPlace, type CsnSettings } from "../lib/icegateCsn";
+import { csnDraftFor, csnEventFor, csnFilesFor, filedDraftFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow } from "../services/icegateCsn";
 import type { Console } from "../services/consoles";
 
 /**
@@ -20,6 +20,10 @@ import type { Console } from "../services/consoles";
  * is recorded here, on the console and every job, which clears the jobs' "CSN
  * due" alerts.
  *
+ * Once the CSN number is recorded, a change to the form becomes an amendment
+ * (SCA, 099): what changed since the last live file, and only that, against
+ * the CSN it amends.
+ *
  * The format and every rule are CBIC's: lib/icegateCsn.ts, docs/icegate-csn.
  */
 export default function ConsoleCsn({ console: c, onChanged }: { console: Console; onChanged: () => void }) {
@@ -28,6 +32,8 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
   const [settings, setSettings] = useState<CsnSettings | null>(null);
   const [draft, setDraft] = useState<CsnDraft | null>(null);
   const [files, setFiles] = useState<CsnFileRow[]>([]);
+  /** What ICEGATE holds, as far as the CRM knows: the form kept with the last live file. */
+  const [filed, setFiled] = useState<CsnDraft | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -41,11 +47,12 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
     (async () => {
       try {
         const s = await loadCsnSettings();
-        const [d, f] = await Promise.all([csnDraftFor(c, s), csnFilesFor(c.id)]);
+        const [d, f, was] = await Promise.all([csnDraftFor(c, s), csnFilesFor(c.id), filedDraftFor(c.id)]);
         if (cancelled) return;
         setSettings(s);
         setDraft(d);
         setFiles(f);
+        setFiled(was);
       } catch (e) {
         if (!cancelled) setError(failureText(e, "Could not gather the console for the CSN.").message);
       }
@@ -60,6 +67,16 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
   const problems = useMemo(() => (draft && settings ? csnProblems(draft, settings) : []), [draft, settings]);
   const errors = problems.filter((p) => p.level === "error");
   const due = csnDue(c.eta, null, c.csn_date);
+  const csnRef = { no: c.csn_no ?? "", date: c.csn_date ?? "" };
+  const amendment = useMemo(
+    () => (c.csn_no && draft && settings && filed ? buildAmendment(filed, draft, settings, { jobNo: 1, date: "20260101", time: "T00:00" }, { no: c.csn_no, date: c.csn_date ?? "" }) : null),
+    [c.csn_no, c.csn_date, draft, settings, filed],
+  );
+  // What only the amendment needs; the form's own problems are listed above it.
+  const amendProblems = useMemo(
+    () => (c.csn_no && draft && settings ? amendmentProblems(filed, draft, settings, { no: c.csn_no, date: c.csn_date ?? "" }).filter((p) => p.where === "Amendment") : []),
+    [c.csn_no, c.csn_date, draft, settings, filed],
+  );
 
   /** Change the draft in place, on a copy. */
   const change = (fn: (d: CsnDraft) => void) =>
@@ -83,20 +100,43 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
     }
   }
 
+  /** Hand the browser a file to save. */
+  function save(name: string, doc: Record<string, unknown>) {
+    const url = URL.createObjectURL(new Blob([csnJson(doc)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  /** After a file is made: the list, and what ICEGATE holds once a live one is accepted. */
+  async function afterFile(indicator: "P" | "T") {
+    const [f, was] = await Promise.all([csnFilesFor(c.id), indicator === "P" ? filedDraftFor(c.id) : Promise.resolve(filed)]);
+    setFiles(f);
+    setFiled(was);
+  }
+
   const download = () =>
     act("download", async () => {
       if (!draft || !settings) return;
       await saveCsnDraft(c.id, draft);
-      const file = await newCsnFile(c.id, event, draft.houses.length, draft.indicator);
-      const doc = buildCsn(draft, settings, { jobNo: file.job_no, date: file.date, time: file.time });
-      const url = URL.createObjectURL(new Blob([csnJson(doc)], { type: "application/json" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.file_name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setFiles(await csnFilesFor(c.id));
+      const file = await newCsnFile(c.id, event, draft.houses.length, draft.indicator, asFiled(null, draft));
+      save(file.file_name, buildCsn(draft, settings, { jobNo: file.job_no, date: file.date, time: file.time }));
+      await afterFile(draft.indicator);
       setNote(`Made ${file.file_name}. Sign it with ICEGATE's signing utility and your Class III certificate, then upload it on ICEGATE. When the CSN number comes back, record it below.`);
+    });
+
+  const downloadAmendment = () =>
+    act("amend", async () => {
+      if (!draft || !settings || !filed) return;
+      await saveCsnDraft(c.id, draft);
+      const file = await newCsnFile(c.id, "SCA", draft.houses.length, draft.indicator, asFiled(filed, draft));
+      const a = buildAmendment(filed, draft, settings, { jobNo: file.job_no, date: file.date, time: file.time }, csnRef);
+      if (!a.doc) throw new Error("Nothing has changed since the CSN was filed.");
+      save(file.file_name, a.doc);
+      await afterFile(draft.indicator);
+      setNote(`Made ${file.file_name}, amending CSN ${csnRef.no}. Sign it and upload it on ICEGATE as you did the CSN.${draft.indicator === "P" ? " The next amendment will compare with the form as it stands now." : ""}`);
     });
 
   return (
@@ -322,10 +362,14 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
               type="button"
               disabled={busy !== null || errors.length > 0}
               onClick={download}
-              title={errors.length ? "Fix what is listed above first" : undefined}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+              title={errors.length ? "Fix what is listed above first" : c.csn_no ? "The CSN is on record: to change it, amend it below" : undefined}
+              className={
+                c.csn_no
+                  ? "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-primary hover:border-border-strong disabled:opacity-50"
+                  : "inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+              }
             >
-              {busy === "download" ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download the CSN file
+              {busy === "download" ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {c.csn_no ? "Download a fresh CSN file" : "Download the CSN file"}
             </button>
           </div>
 
@@ -353,13 +397,52 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
               <ul className="mt-2 space-y-0.5 text-[11px] text-text-muted">
                 {files.map((f) => (
                   <li key={f.job_no}>
-                    {f.file_name} · {f.indicator === "T" ? "test" : "live"} · {f.houses} house B/L{f.houses === 1 ? "" : "s"} ·{" "}
+                    {f.file_name} · {f.event === "SCA" ? "amendment" : "CSN"} · {f.indicator === "T" ? "test" : "live"} · {f.houses} house B/L{f.houses === 1 ? "" : "s"} ·{" "}
                     {formatDate(f.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
                   </li>
                 ))}
               </ul>
             )}
           </Block>
+
+          {/* ---- amending it ---- */}
+          {c.csn_no && (
+            <Block
+              title="Amend the CSN (SCA)"
+              note={`CSN ${c.csn_no}${c.csn_date ? ` of ${formatDate(c.csn_date, { day: "numeric", month: "short", year: "numeric" })}` : ""} is on record. Change the form above; the amendment carries only what changed since the last live file.`}
+            >
+              {amendment && amendment.changes.length > 0 && (
+                <ul className="space-y-0.5 pl-5 text-[12px] text-text-primary">
+                  {amendment.changes.map((x, k) => (
+                    <li key={k} className="list-disc">
+                      {x}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {amendProblems.length > 0 && (
+                <ul className="space-y-0.5 rounded-lg bg-surface-2 px-3 py-2 pl-7 text-[12px] text-text-secondary">
+                  {amendProblems.map((p, k) => (
+                    <li key={k} className="list-disc">
+                      <strong className="font-medium">{p.field}</strong>: {p.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy !== null || errors.length > 0 || amendProblems.length > 0}
+                  onClick={downloadAmendment}
+                  title={errors.length ? "Fix what is listed above first" : amendProblems.length ? amendProblems[0].message : undefined}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+                >
+                  {busy === "amend" ? <Loader2 size={13} className="animate-spin" /> : <FilePen size={13} />} Download the amendment
+                </button>
+                <span className="text-[11px] text-text-muted">{draft.indicator === "T" ? "As a test file (T)" : "As a live filing (P)"}, per the choice above.</span>
+              </div>
+            </Block>
+          )}
         </div>
       )}
     </section>
