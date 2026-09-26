@@ -26,6 +26,7 @@ import { listPartners, type Partner } from "../services/partners";
 import type { Shipment } from "../services/enquiries";
 import { PageSkeleton } from "../components/Loading";
 import ConsoleManifest from "../components/ConsoleManifest";
+import ConsoleCsn from "../components/ConsoleCsn";
 
 /**
  * The consoles the desk is building.
@@ -638,6 +639,9 @@ export default function Consoles() {
 
                     {/* ---- the list for the agent at the other end (090) ---- */}
                     <ConsoleManifest console={c} jobs={list.length} onChanged={() => void load()} />
+
+                    {/* ---- the CSN for ICEGATE, as consol agent on an import (097) ---- */}
+                    {c.direction === "import" && <ConsoleCsn console={c} onChanged={() => void load()} />}
                   </div>
                 )}
               </div>

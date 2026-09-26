@@ -1,0 +1,163 @@
+{
+  "headerField" : {
+    "senderID" : "TESTUSER",
+    "receiverID" : "INNSA1",
+    "versionNo" : "SCX1102",
+    "indicator" : "T",
+    "messageID" : "SACHM22",
+    "sequenceOrControlNumber" : 2,
+    "date" : "20200910",
+    "time" : "T17:04",
+    "reportingEvent" : "SCX"
+  },
+  "master" : {
+    "decRef" : {
+      "msgTyp" : "F",
+      "prtofRptng" : "INNSA1",
+      "jobNo" : 2,
+      "jobDt" : "20200910",
+      "rptngEvent" : "SCX"
+    },
+    "authPrsn" : {
+      "sbmtrTyp" : "PAN",
+      "sbmtrCd" : "AADCC3951G",
+      "authReprsntvCd" : "ASRPK2423Q"
+    },
+    "vesselDtls" : {
+      "modeOfTrnsprt" : "1",
+      "typOfTrnsprtMeans" : "10",
+      "trnsprtMeansId" : "9229855"
+    },
+    "voyageDtls" : {
+      "cnvnceRefNmbr" : "INNSA120200622",
+      "totalNoOfTrnsprtEqmtMnfsted" : 2,
+      "totalNmbrOfLines" : 1
+    },
+    "mastrCnsgmtDec" : [ {
+      "MCRef" : {
+        "lineNo" : 1,
+        "mstrBlNo" : "AMC0928370",
+        "mstrBlDt" : "20200829",
+        "consolidatedIndctr" : "C",
+        "prevDec" : "N",
+        "consolidatorPan" : "PAN:AADCC3951G"
+      },
+      "locCstm" : {
+        "firstPrtOfEntry" : "INNSA1",
+        "destPrt" : "CUMAR",
+        "nxtPrtOfUnlading" : "MTMLA",
+        "typOfCrgo" : "EX",
+        "itemTyp" : "OT",
+        "crgoMvmt" : "TC",
+        "natrOfCrgo" : "C"
+      },
+      "trnsprtDoc" : {
+        "prtOfAcptCdd" : "INNSA1",
+        "prtOfAcptName" : "Nhava Sheva",
+        "prtOfReceiptCdd" : "CUMAR",
+        "prtOfReceiptName" : "Mariel",
+        "cnsgnrsName" : "AGENCIA TRANSITARIA Y ADUANAL DE    ",
+        "cnsgnrsCd" : "AABCU8170H",
+        "cnsgnrStreetAddress" : "ALMACENES UNIVERSALES SAFABRICA 45 E/ASPURU Y LINEA DELFERROCARRIL. HA",
+        "cnsgnrCity" : "NEW DELHI",
+        "cnsgnrCntrySubDivName" : "Delhi",
+        "cnsgnrCntrySubDivCd" : "07",
+        "cnsgnrCntryCd" : "IN",
+        "cnsgnrPstcd" : "110025",
+        "cnsgnesName" : "UPOWER LOGISTICS INDIA PVT LTD",
+        "cnsgneStreetAddress" : "C/O RAMINATRANS SLFLAT NO. 617, 6TH FLOORDLF TOWER B, JASOLA",
+        "cnsgneCity" : "HAVANA",
+        "cnsgneCntrySubDivName" : "HAVANA",
+        "cnsgneCntryCd" : "CU",
+        "nameOfAnyOtherNotfdParty" : "ALMACENES UNIVERSALES",
+        "notfdPartyStreetAddress" : "C/O RAMINATRANSFABRICA 45 E/ASPURU Y LINEA DELFERROCARRIL. HABANA VIEJ",
+        "notfdPartyCity" : "HABANA",
+        "notfdPartyCntrySubDivName" : "HABANA",
+        "notfdPartyCntryCd" : "CU",
+        "goodsDescAsPerBl" : " Self-propelled boring or sinki         ** TOTAL 7 PACKAGES ( 2 MACHINES LOOSE, 2 CRATES, 2 PALLET AND 1 DRUM) M1 BOOMER FACE DRILLING RIG MACHIINE SERIAL NUMBER: MHN20URE5003 MACHIIN  E SERIAL NUMBER: MHN20URE5004 MO 8999439100 / 8999439200 YEAR OF MANUF ACTURING 2020 HS CODE: 84304130 WITH HYDRAULIC 300 OIL-1X 210L BARREL   HS CODE: 27101979 NW: 44286 KGS SB NO: 4537880 DT: 18.08.2020 4541052 DT: 18.08.2020 FREIGHT COLLECT OVERSIZE - HEIGHT: 1.61 MT   Self-propelled boring or sinki         ** .    "
+      },
+      "trnsprtDocMsr" : {
+        "nmbrOfPkgs" : 7,
+        "typsOfPkgs" : "PKG",
+        "marksNoOnPkgs" : " NIL         ** TECNOIMPORT LA HABANA CUBA MADE IN INDIA     NIL         ** .    ",
+        "grossWeight" : 54881.0,
+        "netWeight" : 45356.0,
+        "unitOfWeight" : "KGS"
+      },
+      "itemDtls" : [ {
+        "crgoItemSeqNmbr" : 1,
+        "hsCd" : "843041",
+        "crgoItemDesc" : "Self-propelled boring or sinki         ** TOTAL 7 PACKAGES ( 2 MACHINES LOOSE, 2 CRATES, 2 PALLET AND 1 DRUM) M1 BOOMER FACE DRILLING RIG MACHIINE SERIAL NUMBER: MHN20URE5003 MACHIIN  E SERIAL NUMBER: MHN20URE5004 MO 8999439100 / 8999439200 YEAR OF MANUF A",
+        "unoCd" : "ZZZZZ",
+        "imdgCd" : "ZZZ",
+        "nmbrOfPkgs" : 7,
+        "typOfPkgs" : "PKG"
+      } ],
+      "trnsprtEqmt" : [ {
+        "eqmtSeqNo" : 1,
+        "eqmtId" : "BHCU4712476",
+        "eqmtTyp" : "CN",
+        "eqmtSize" : "4261",
+        "eqmtLoadStatus" : "FCL",
+        "eqmtSealTyp" : "BTSL",
+        "eqmtSealNmbr" : "NA",
+        "socFlag" : "N",
+        "cntrAgntCd" : "AADCC3951G",
+        "cntrWeight" : 27184.0,
+        "totalNmbrOfPkgs" : 3
+      }, {
+        "eqmtSeqNo" : 2,
+        "eqmtId" : "CRXU7656982",
+        "eqmtTyp" : "CN",
+        "eqmtSize" : "4261",
+        "eqmtLoadStatus" : "FCL",
+        "eqmtSealTyp" : "BTSL",
+        "eqmtSealNmbr" : "NA",
+        "socFlag" : "N",
+        "cntrAgntCd" : "AADCC3951G",
+        "cntrWeight" : 27697.0,
+        "totalNmbrOfPkgs" : 4
+      } ],
+      "itnry" : [ {
+        "prtOfCallSeqNmbr" : 1,
+        "prtOfCallCdd" : "INNSA1",
+        "prtOfCallName" : "Nhava Sheva",
+        "nxtPrtOfCallCdd" : "MTMLA",
+        "nxtPrtOfCallName" : "Malta (Valetta)",
+        "modeOfTrnsprt" : "1"
+      } ],
+      "houseCargoDec" : [ {
+        "HCRef" : {
+          "subLineNo" : 1,
+          "blNo" : "4537880",
+          "blDt" : "18082020",
+          "consolidatedIndctr" : "H",
+          "prevDec" : "B"
+        },
+        "prevRef" : {
+          "cinTyp" : "P",
+          "mcinPcin" : "20PCEG0820173415400"
+        }
+        }, {
+        "HCRef" : {
+          "subLineNo" : 2,
+          "blNo" : "4541052",
+          "blDt" : "18092020",
+          "consolidatedIndctr" : "H",
+          "prevDec" : "B"
+        },
+        "prevRef" : {
+          "cinTyp" : "P",
+          "mcinPcin" : "20PCEG0820173412400"
+        }
+      } ]
+    } ]
+  }
+,
+"digSign":
+{
+"startSignature":"k6c5Q8AtqSxT2nBXlzt1t+mZO+wF6oXNj9AL/l5HZhW9rOJq8MskcmHRfN9TOYnhacqKuBF7boGcN6sgnlb2oHEmmN9VsKFrmYALwFXoXdvL63shCfvN1T81a0/1fElkALtQCt3xCvtpFm8bHryOb1qYj8waHwAXH/O8JohLKooSrtGIIPyG6eiwjE/1t/JvmcYCx3WAUUZ+whSkMWwAnwUC98XRyBPFI3N54ZYerk/f0B2jSspGDMRnITXf8u9PzQ+pJ91N6tKezyjYxDHZGs5HPLXshAKEcGpguSbJbXrIF4i6oZIHdS8BiUV+TqxQc84oupczAUd10yd1J2Twhg==",
+"startCertificate":"MIIFXDCCBESgAwIBAgIII4JEiwIODlwwDQYJKoZIhvcNAQELBQAwczELMAkGA1UEBhMCSU4xIjAgBgNVBAoTGVNpZnkgVGVjaG5vbG9naWVzIExpbWl0ZWQxDzANBgNVBAsTBlN1Yi1DQTEvMC0GA1UEAxMmU2FmZVNjcnlwdCBzdWItQ0EgZm9yIFJDQUkgQ2xhc3MzIDIwMTQwHhcNMTkwNDE3MTAyODM1WhcNMjEwNDE3MTAyODM1WjCCASExCzAJBgNVBAYTAklOMS8wLQYDVQQKEyZDTUEgQ0dNIEFHRU5DSUVTIElORElBIFBSSVZBVEUgTElNSVRFRDEQMA4GA1UEERMHNDAwMDcwMjEUMBIGA1UECBMLTWFoYXJhc2h0cmExSTBHBgNVBBQTQDhmOGYwZGIwMjY5NTJmZGE1YWI4NDVmMDRiNjZhYjExM2IzMWU1ZjgzYzhkYmVmM2Y0ZmExMjhjNzYxMGYwN2UxSTBHBgNVBAUTQDMyZWVmMzI5NzY0ODk1YjYwODExMzY5OGQxMmY3ZDUxNDYxMTU5ZDFkMDcxNzNiOTczMzFjOWQ0ZmFlNTA5YWUxIzAhBgNVBAMTGlNIUklQQUQgR1VOQURISVNIIEtBVEFSQU5FMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlHpgYP5Xqi7I6brduMLzghbRh7toXQAw9As+pmecSDghDpJd2Nz2jrn2rnDDpFF9ndnEJ5PDZQgVlVFMfcB9I8L8lu/Ykm9w5vVMsrNv+ZdYGPySnK5Ku/eY7ssX/HZrGkj6YUnXDuvq4rzhMMX8V1BEukIw4b9GQ93afbIvJrnwU/4zx2dGM46b2lZcNnewekDIgO4W2Owe7x91q/8+2jnQj2SY/xomIX3ph4JFwfxZyMzs4NG7SaA/xj3iShu74HBylGZIILLx/Q3qFeike9032ZZtoBI08sWEnVDX7wln8k1P/bcESdWpaGPwo6RLbS101/WG34p97upzlXhSCwIDAQABo4IBQjCCAT4wDgYDVR0PAQH/BAQDAgbAMBMGA1UdIwQMMAqACETAUaMKIW3iMBEGA1UdDgQKBAhNfaumKzuaIDAiBgNVHREEGzAZgRdtYnkua3NyaXBhZEBjbWEtY2dtLmNvbTBHBgNVHR8EQDA+MDygOqA4hjZodHRwOi8vY3JsLnNhZmVzY3J5cHQuY29tL1NhZmVTY3J5cHRSQ0FJQ2xhc3MzMjAxNC5jcmwwgYEGCCsGAQUFBwEBBHUwczBJBggrBgEFBQcwAoY9aHR0cHM6Ly93d3cuc2FmZXNjcnlwdC5jb20vZHJ1cGFsL2Rvd25sb2FkL1JDQUlDbGFzczMyMDE0LmNlcjAmBggrBgEFBQcwAYYaaHR0cDovL29jc3Auc2FmZXNjcnlwdC5jb20wEwYDVR0gBAwwCjAIBgZggmRkAgMwDQYJKoZIhvcNAQELBQADggEBADgMhYaWvefztYFnwGdDeSWLc7IRwrStgnz5d/nMbBIXtaNFTjaqb64IX7JK3ApfVYAZ2AuBj0peRoEh2ZxQtaS1WsSjBaD8PsBmYAZGEqSpUPjw2zz8/56/RaKHrEeWsL0EzrNqdYoq9fl4S2HESToneGmjhhZSr0QsdH9raziJH4J/L9GS0063fb9PihLJvru3UkC+irgtJFlAlWXm7xj3frR7ZCsBlLFw206If7LORUxayoerPlazOstEFHKNnXzj9K03Pz7Ew8p7vFIWgW4x/GoX55sav/BCx7MXC9CLXACNHRXLDp9bYudnXF2h6nx5lmpxYzGklbP9uWu4z0Q=",
+"signerVersion":"1.0"
+}
+}

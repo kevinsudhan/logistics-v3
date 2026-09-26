@@ -1,0 +1,87 @@
+{
+  "headerField" : {
+    "senderID" : "SOMEUSER",
+    "receiverID" : "INMUN1",
+    "messageID" : "SACHM22",
+    "sequenceOrControlNumber" : 1,
+    "date" : "21-09-20",
+    "reportingEvent" : "SCE"
+  },
+  "master" : {
+    "decRef" : {
+      "msgTyp" : "F",
+      "prtofRptng" : "INMUN1",
+      "jobNo" : 1,
+      "jobDt" : "2020-08-19",
+      "rptngEvent" : "SCE",
+      "errorCode" : [ ]
+    },
+    "authPrsn" : {
+      "errorCode" : [ ]
+    },
+    "vesselDtls" : {
+      "errorCode" : [ {
+        "pathName" : "/master/vesselDtls/",
+        "errorCode" : "014",
+        "errorMessage" : "Invalid Mode of Transport"
+      }, {
+        "pathName" : "/master/vesselDtls/",
+        "errorCode" : "015",
+        "errorMessage" : "Invalid Transport Means"
+      }, {
+        "pathName" : "/master/vesselDtls/",
+        "errorCode" : "016",
+        "errorMessage" : "Invalid Transport Means Identity"
+      } ]
+    },
+    "voyageDtls" : {
+      "errorCode" : [ {
+        "pathName" : "/master/voyageDtls/",
+        "errorCode" : "020",
+        "errorMessage" : "Invalid Voyage Call Number-VCN"
+      } ]
+    },
+    "mastrCnsgmtDec" : [ {
+      "MCRef" : {
+        "lineNo" : 1,
+        "errorCode" : [ ]
+      },
+      "prevRef" : {
+        "errorCode" : [ ]
+      },
+      "locCstm" : {
+        "errorCode" : [ ]
+      },
+      "trnshpr" : {
+        "errorCode" : [ ]
+      },
+      "trnsprtDoc" : {
+        "errorCode" : [ ]
+      },
+      "trnsprtDocMsr" : {
+        "errorCode" : [ ]
+      },
+      "itemDtls" : [ {
+        "crgoItemSeqNmbr" : 1,
+        "errorCode" : [ {
+          "errorCode" : "00",
+          "errorMessage" : "Successful"
+        } ]
+      } ],
+      "trnsprtEqmt" : [ {
+        "eqmtSeqNo" : 1,
+        "errorCode" : [ {
+          "errorCode" : "00",
+          "errorMessage" : "Successful"
+        } ]
+      } ],
+      "itnry" : [ {
+        "prtOfCallSeqNmbr" : 1,
+        "errorCode" : [ {
+          "errorCode" : "00",
+          "errorMessage" : "Successful"
+        } ]
+      } ]
+    } ]
+  }
+}

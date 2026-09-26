@@ -1,0 +1,33 @@
+{
+	"headerField": {
+		"senderID": "ICEGATEID",
+		"receiverID": "INNSA1",
+		"versionNo": "1102",
+		"indicator": "T",
+		"messageID": "SACHM22",
+		"sequenceOrControlNumber": 12,
+		"date": "20191028",
+		"time": "T12:00",
+		"reportingEvent": "SCE"
+	},
+
+	"errorDetails": {
+		"status": "Schema validation failure",
+		"errorCode": "ERR100",
+		"errorMessage": [{
+				"level": "error",
+				"schema": {
+					"loadingURI": "#",
+					"pointer": "/properties/master/properties/mastrCnsgmtDec/items/properties/houseCargoDec/items/properties/itemDtls/items"
+				},
+				"instance": {
+					"pointer": "/master/mastrCnsgmtDec/0/houseCargoDec/0/itemDtls/1"
+				},
+				"domain": "validation",
+				"keyword": "required",
+				"message": "object has missing required properties ([\"crgoItemSeqNmbr\"])",
+				"required": ["crgoItemSeqNmbr", "hsCd", "imdgCd", "unoCd"],
+				"missing": ["crgoItemSeqNmbr"]
+			}]
+}	
+}

@@ -1,0 +1,10617 @@
+
+-895350-933450
+Contents
+ TOC \o "1-6" \h \z \u Revision History PAGEREF _Toc53649558 \h 4
+1. Introduction: PAGEREF _Toc53649559 \h 6
+1.1 Background: PAGEREF _Toc53649560 \h 6
+1.2 Scope: PAGEREF _Toc53649561 \h 6
+1.3 Stakeholders involved: PAGEREF _Toc53649562 \h 7
+2. Message Guidelines: PAGEREF _Toc53649563 \h 7
+2.1 Introduction PAGEREF _Toc53649564 \h 7
+2.2 Submission of the File – ICEGATE: PAGEREF _Toc53649565 \h 7
+2.3 Acknowledgement of Declaration: PAGEREF _Toc53649566 \h 8
+2.3.1 Structural Validation PAGEREF _Toc53649567 \h 8
+2.3.1.1 Structural Validation File naming format: PAGEREF _Toc53649568 \h 8
+2.3.1.2 Vocabulary for errors on Structural Validation failure: PAGEREF _Toc53649569 \h 8
+2.3.1.3 Sample SFL Outbound Files: PAGEREF _Toc53649570 \h 9
+2.3.2 Business Validation Acknowledgement: PAGEREF _Toc53649571 \h 11
+2.3.2.1 Business Validation Acknowledgement File Format : PAGEREF _Toc53649572 \h 11
+2.3.2.2 Sample ACK Files and Schema : PAGEREF _Toc53649573 \h 11
+3. Sea Cargo Manifest: PAGEREF _Toc53649574 \h 12
+3.1 Process Flow: PAGEREF _Toc53649575 \h 12
+3.2 Declaration – Json Objects: PAGEREF _Toc53649576 \h 13
+3.3 Document Structure – Hiérarchie: PAGEREF _Toc53649577 \h 14
+3.4 Attribute Table: PAGEREF _Toc53649578 \h 15
+3.4.1 Declaration Reference PAGEREF _Toc53649579 \h 15
+3.4.2 Authorized Person PAGEREF _Toc53649580 \h 16
+3.4.3 Vessel Details PAGEREF _Toc53649581 \h 17
+3.4.4 Voyage Details PAGEREF _Toc53649582 \h 18
+3.4.4 Master Consignment Declaration PAGEREF _Toc53649583 \h 19
+3.4.4.1 MC Reference PAGEREF _Toc53649584 \h 19
+3.4.4.2 Master Previous Declaration PAGEREF _Toc53649585 \h 20
+3.4.4.3 Master Supplementary Declaration PAGEREF _Toc53649586 \h 21
+3.4.4.4 MC Location_Customs PAGEREF _Toc53649587 \h 22
+3.4.4.5 MC Transhipper PAGEREF _Toc53649588 \h 23
+3.4.4.6 MC Transport Document PAGEREF _Toc53649589 \h 24
+3.4.4.7 MC Transport Document_msr PAGEREF _Toc53649590 \h 27
+3.4.4.8 MC Item Details PAGEREF _Toc53649591 \h 29
+3.4.4.9 MC Transport Equipment PAGEREF _Toc53649592 \h 31
+3.4.4.10 MC Itinerary PAGEREF _Toc53649593 \h 33
+3.4.4.11 House Cargo Declaration PAGEREF _Toc53649594 \h 34
+3.4.4.11.1 HC Declaration_Reference PAGEREF _Toc53649595 \h 34
+3.4.4.11.2 HC Previous_Reference PAGEREF _Toc53649596 \h 35
+3.4.4.11.3 HC Supplementary Declaration PAGEREF _Toc53649597 \h 36
+3.4.4.11.4 HC Location_Customs PAGEREF _Toc53649598 \h 37
+3.4.4.11.5 HC Transhipper PAGEREF _Toc53649599 \h 38
+3.4.4.11.6 HC Transport Document PAGEREF _Toc53649600 \h 39
+3.4.4.11.7 HC Transport Document_msr PAGEREF _Toc53649601 \h 42
+3.4.4.11.8 HC Item Details PAGEREF _Toc53649602 \h 43
+3.4.4.11.9 HC Transport Equipment PAGEREF _Toc53649603 \h 44
+3.4.4.11.10 HC Itinerary PAGEREF _Toc53649604 \h 45
+3.4.4.11.11 HC Additional Declaration PAGEREF _Toc53649605 \h 46
+3.4.4.11.12 HC_Supporting Documents PAGEREF _Toc53649606 \h 47
+3.4.4.11.13 HC Response PAGEREF _Toc53649607 \h 48
+3.4.4.12 MC Additional Declaration PAGEREF _Toc53649608 \h 49
+3.4.4.13 MC_ Supporting Documents PAGEREF _Toc53649609 \h 50
+3.4.4.14 MC Response PAGEREF _Toc53649610 \h 51
+4. Proposed JSONs Schema and Sample Files PAGEREF _Toc53649611 \h 52
+4.1 JSON Inbound Schema’s PAGEREF _Toc53649612 \h 52
+4.2 CSN JSON Inbound and Outbound Files on Different Trade Scenarios PAGEREF _Toc53649613 \h 52
+4.3 CSN JSON Outbound Schema_ SFL (Structure Failure) PAGEREF _Toc53649614 \h 52
+4.4 CSN JSON Outbound Sample_ SFL (Structure Failure) PAGEREF _Toc53649615 \h 52
+4.5 CSN JSON Outbound Schema_ ACK (Business Logic Failure) PAGEREF _Toc53649616 \h 53
+4.7 Links for JSON Schema Validation PAGEREF _Toc53649617 \h 53
+5. Field Table PAGEREF _Toc53649618 \h 54
+6. LOVs: Code List PAGEREF _Toc53649619 \h 65
+7. ACK Error Code List PAGEREF _Toc53649620 \h 85
+8. Trade Scenarios Mapping Tables PAGEREF _Toc53649621 \h 95
+9. MCIN / PCIN Generation Scenarios Table PAGEREF _Toc53649622 \h 101
+Revision History
+Version
+ | Date
+ | Author
+ | Approved By
+ | Owner
+ | Remarks
+ | New Sea Manifest Message Implementation Guide V 0.1
+ | 27/05/2019
+ | NIC
+ | 
+ | 
+ | 
+ | New Sea Manifest Message Implementation Guide V 1
+ | 23/07/2019
+ | NIC, Chetna Jain
+ | 
+ | ICES
+ | 
+ | New Sea Manifest Message Implementation Guide V 1.1
+ | 23/08/2019
+ | NIC, Chetna Jain
+ | 
+ | ICES
+ | 
+ | New Sea Manifest Message Implementation Guide V 1.2
+ | 14/11/2019
+ | Chetna Jain
+ | 
+ | ICES
+ | 
+ | New Sea Manifest Message Implementation Guide V 1.3
+ | 21/01/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | . Addition of :
+ACK approach
+CSN Mapping Scenarios
+Revised para on response
+Trade Scenarios Mapping Table
+MCIN / PCIN Table
+SFL Keywords Examples 
+Change in attribute datatype
+ | New Sea Manifest Message Implementation Guide V 1.3A
+ | 11/05/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | Addition of CSN Amendment reporting in field table
+ | New Sea Manifest Message Implementation Guide V 1.3A_3
+ | 18/05/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | 
+ | New Sea Manifest Message Implementation Guide V 1.3A_7
+ | 25/05/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | Explanation table
+Change in reporting events
+Change in hierarchy and declaration
+Change in field table
+Addition of other ANC reporting events with their structure
+ | New Sea Manifest Message Implementation Guide V 1.3A_10
+ | 10/06/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | Addition of amendment field
+Updated for Schema’s, Reporting Events
+ | New Sea Manifest Message Implementation Guide V 1.3A_16
+ | 10/10/2020
+ | Chetna Jain
+ | 
+ | ICES
+ | Revised Field Table
+Revised Trade Mapping Table
+Revised PCIN Generation Table
+Revised Schema’s
+Revised Sample Files 
+ | New Sea Manifest Message Implementation Guide V 1.4
+ | 22.02.2024
+ | Anil, Rishi
+ | 
+ | ICES
+ | Updated fields
+ | New Sea Manifest Message Implementation Guide V 1.5
+ | 05.03.2025
+ | Rishi Sharma, Krishan Rathee, NIC, Rohan Mamtani
+ | 
+ | ICES
+ | - Field Table (Section 5)
+--Mode of Transport: Sea (added river and canal)
+- Error codes
+- Data elements
+ | 
+Introduction:
+Background:
+Central Board of Indirect Taxes and Custom (CBIC) vide notification No. 38/2018-Cus (NT)dated 11.05.2018 read with notification No. 65/2018-Cus (NT) dated 30.07.2018 and 88/2018-Cus(NT) dated 30.10.2018 notified Sea Cargo Manifest and Transshipment Regulations 2018.
+This regulation supersedes the earlier regulations of Import Manifest (Vessels) Regulations, 1971, Export Manifest (Vessels) Regulation, 1976 and Transportation of Goods (Through Foreign Territory) Regulations of 1965. The new regulation stipulates changes in timelines and requirements for advance notice by shipping lines (vessels) arriving in India and Exports through shipping lines (vessels) out of India.
+As per the new regulations, the Authorized Sea Carrier (ASC)/Authorized Sea Agent (ASA) shall submit an Arrival Manifest electronically, prior to departure from the last port of call to the Indian Port of call. And submit a Departure Manifest electronically before departure from the Indian Port of call. 
+The submission of Arrival and Departure Manifest shall have to be complied with by the ASC/ASA before departure from the last port/customs station of call to every Indian customs station and Departure then on respectively.
+1.2Scope:
+The Scope of this document is to provide list of messages involved in this process and provide format, sample for generation of declaration. The brief of messages are as follows:
+Sea Cargo Summary Notification on Entry (SCE)
+Sea Cargo Summary Notification on Exit (SCX)
+Sea Cargo Summary Notification for Domestic Movements (SCD)
+SeaCargo Summary Notification Amendment (SCA)
+Sea Cargo Identification Number Updation Request(SCU)
+Sea Cargo Confirmation (SCC)
+1.3 Stakeholders involved:
+Following Stakeholders are involved in the implementation
+Authorized Sea Carrier (Including Shipping line)
+Authorized Sea Agent (Steamer/ Shipping Agent)
+Authorized Carrier (Transhipper)
+Authorized Terminal Operator
+Authorized Custodian
+Authorized Persons of all the above
+Message Guidelines:
+Introduction
+This message guideline would help the users to prepare the declaration in the required format. 
+The following sections may be referred for the preparation of the file.
+The structure and Hierarchy of the json object is available in SubSection 3.3 of this document.
+The attributes of the json objects for different messages is provided in HYPERLINK "C:\\Users\\chetnajainvst\\Desktop\\MAnifest Samples\\CSN\\CSN MIG\\ANC_MIG_CSN_v1.3A_9.docx" \l "LOVs: Code List"Section 6.
+The Schema and Sample Json formats are available in Section 4.
+Certain data elements are coded for bringing uniformity in the processing. The List of values for those data elements are given in Section 7 of the document.
+The file submitted to the ICEGATE should be in following name format. For e.g
+F_SACHM22_SCE_ICEGATEID_3456556_20200819_DEC.json
+(<messageType><msgID><reportingEvent><SenderID><jobID><date>_declaration)
+The Declaration should be digitally signed as per the required format. (For more details, refer the following link https://www.icegate.gov.in/digitalSign/digitalSign.html).
+Submission of the File – ICEGATE:
+The Declaration is to be submitted to Customs by User to ICEGATE either through 
+Simple Mail Transfer Protocol (SMTP) or 
+Web upload 
+(For more details refer Link: https://icegate.gov.in/com_guideline.html).
+Acknowledgement of Declaration:
+Any file sent to Icegate through proper channel would be responded through acknowledgement mail with the response codes regarding acceptance or rejection of the declaration. 
+The Format of Outbound JSON Schema and File are available in Section – 4 and List of Error Codes are available in Section -8 of this document.
+The Inbound message from the user undergoes two level of validations:
+Structural Validation 
+Data and Business Logic Validation
+Structural Validation
+It is the 1st level validation which matches the schema of the inbound file with its objects and attributes with the prescribed structure of that message. In case of a mismatch, a structural validation failure (SFL) acknowledgment would be sent as a response to the User.
+Structural Validation File naming format:
+The file sent by the ICEGATE should be in following name format. For e.g
+F_SACHM22_SCE_ICEGATEID_3456556_22082019_SFL.json
+(<messageType><msgID><reportingEvent><SenderID><jobID><date>_structural validation)
+Vocabulary for errors on Structural Validation failure:
+The most common errors found during structural validation and the Keywords in the SFL Outbound File are as follows :
+Data Type Mismatch (“maxLength “)
+Numeric Minimum Field Length Mismatch (“minLength”)
+String Maximum Field Length Mismatch (“required”)
+Object/Array Discrepancy Mismatch (“type”)
+Pattern Mismatch (“pattern”)
+Missing required Property/Object (“required”)
+For additional details, following links may be referred. (Vocabulary for Structural validation is in section 6 of Link 1 )
+1. https://json-schema.org/draft/2019-09/json-schema-validation.html
+2. https://json-schema.org/specification.html
+3. https://json-schema.org/draft-06/json-schema-release-notes.html
+It is the 1st level validation which arises when submitted file fails at Icegate end due to the error in matching the file against the structural schema validation. 
+Sample SFL Outbound Files:
+Examples of the SFL outbound file have been given below:
+SFL Example:
+Sample A: (Maximum Length Validation Failure)
+NAK Response
+{
+"headerField": {
+ "senderID": "ICEGATEID",
+ "receiverID": "INNSA1",
+ "versionNo": "1102",
+ "indicator": "T",
+ "messageID": "SACHM22",
+ "sequenceOrControlNumber": 7,
+ "date": "20191028",
+ "time": "T12:00",
+ "reportingEvent": "SCE"
+ },
+"errorDetails":{
+ "status": "Schema validation failure",
+ "errorCode": "ERR100",
+ "errorMessage":[{
+ "level": "error",
+ "schema": {
+ "loadingURI": "#",
+ "pointer": "/properties/master/properties/mastrCnsgmtDec/items/properties/MCRef/properties/consolidatedIndctr"
+ },
+ "instance": {
+ "pointer": "/master/mastrCnsgmtDec/0/MCRef/consolidatedIndctr"
+ },
+ "domain": "validation",
+ "keyword": "maxLength",
+ "message": "string \"Cffkdsahlfk\" is too long (length: 11, maximum allowed: 4)",
+ "value": "Cffkdsahlfk",
+ "found": 11,
+ "maxLength": 4
+}]
+}
+}
+Sample B: (Object has missing required properties)
+NAK Response
+{
+"headerField": {
+ "senderID": "ICEGATEID",
+ "receiverID": "INNSA1",
+ "versionNo": "1102",
+ "indicator": "T",
+ "messageID": "SACHM22",
+ "sequenceOrControlNumber": 7,
+ "date": "20191028",
+ "time": "T12:00",
+ "reportingEvent": "SCE"
+ },
+"errorDetails":{
+ "status": "Schema validation failure",
+ "errorCode": "ERR100",
+ "errorMessage": [{
+ "level": "error",
+ "schema": {
+ "loadingURI": "#",
+ "pointer": "/properties/master/properties/mastrCnsgmtDec/items/properties/houseCargoDec/items/properties/itemDtls/items"
+ },
+ "instance": {
+ "pointer": "/master/mastrCnsgmtDec/0/houseCargoDec/0/itemDtls/1"
+ },
+ "domain": "validation",
+ "keyword": "required",
+ "message": "object has missing required properties ([\"crgoItemSeqNmbr\"])",
+ "required": ["crgoItemSeqNmbr", "hsCd", "imdgCd", "unoCd"],
+ "missing": ["crgoItemSeqNmbr"]
+ }, {
+ "level": "error",
+ "schema": {
+ "loadingURI": "#",
+ "pointer": "/properties/master/properties/mastrCnsgmtDec/items/properties/houseCargoDec/items/properties/itemDtls/items"
+ },
+ "instance": {
+ "pointer": "/master/mastrCnsgmtDec/0/houseCargoDec/0/itemDtls/2"
+ },
+ "domain": "validation",
+ "keyword": "required",
+ "message": "object has missing required properties ([\"unoCd\"])",
+ "required": ["crgoItemSeqNmbr", "hsCd", "imdgCd", "unoCd"],
+ "missing": ["unoCd"]
+ }]
+}
+}
+Additional sample JSON files have been given under Subsection 4.4 of this document.
+The inbound file would undergo Second level business validation will only after successful structural validation.
+Business Validation Acknowledgement:
+Once the file has been validated for its structural correctness, the Customs Systems would validate the data with its inbuilt directories and data tables. The list of Error Codes given in Section - 8 of can serve as an indication on the kind of data validations the inbound files would undergo. On Successful integration of the submitted JSON file with the Customs System, a positive ACK will be sent to the submitter with CSN No., Date and/or MCIN/PCIN number. In case of error, a negative ACK file with error code and error description will be sent.
+Business Validation Acknowledgement File Format :
+The file sent by the ICEGATE should be in following name format. For e.g
+F_SACHM22_SCE_ICEGATEID_3456556_22082019_ACK.json
+(<messageType><msgID><reportingEvent><SenderID><jobID><date>_Final Acknowledgment)
+Sample ACK Files and Schema :
+Sample ACK files and schema have been attached under Subscetion 4.6 and Subsection 4.5 for the benefit of the stakeholders.
+3. Sea Cargo Manifest:
+3.1 Process Flow:
+3.2 Declaration – Json Objects:
+Sea Manifest Declaration Reference (Message Header)
+Authorized Person
+Vessel Details
+Master Consignment Declaration
+MC Reference
+Master Previous Declaration
+Master Supplementary Declaration
+MC Location_Custom
+MC Transhipper
+MC Transport Document_msr
+MC Transport Document
+MC Item Details
+MC Transport Equipment
+MC itinerary
+House Cargo Declaration
+HC Declaration Reference
+HC Previous Reference
+HC Supplementary Declaration
+HC Location_Customs
+HC Transhipper
+HC Transport Document
+HC Transport Document_msr
+HC Item Details
+HC Transport Equipment
+HC itinerary
+HC_Additional Declaration
+HC_Supporting Documents
+HC Response
+MC UCR
+MC_Additional Declaration
+MC_Supporting Documents
+MC Response
+3.3 Document Structure – Hiérarchie:
+3.4 Attribute Table:
+3.4.1 Declaration Reference
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Declaration Reference
+ | 
+ | 
+ | Master Declaration
+ | Message Type
+ | 1
+ | C
+ | The Flag specifying the action requested on this transmission.
+List of Values : F - Fresh ; A - Amendment ; D - Deletion
+ | Port of Reporting 
+ | 10
+ | AN
+ | The Custom Location of Reporting
+ | Job Number
+ | 7
+ | N
+ | The Unique ID provided by User for this transmission.
+ | Job Date
+ | 
+ | D
+ | The Date of generation of of Unique ID provided by User for this transmission. (DDMMYYYY)
+ | Reporting Event
+ | 4
+ | C
+ | The Code specifying the Reporting Event pertaining to this transmission.
+LOVs: SCE, SCX, SCC, SCA, SCD, SCU
+ | CSN Number 
+ | 7
+ | N
+ | The Identifier number of referenced CSN
+ | CSN Date
+ | 
+ | D
+ | The identifier date of referenced CSN
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object.
+LOVs are: U – Updation, D – Deletion
+ | 
+Vessel Movement:
+Indicator referring to Type of Vessel Movement as per SCMTR.
+In case of RI - Bond should be given by carrier registered at Port of Registration. Bond registration and the Port of registration should be the same.
+FI - origin should be foreign port and destination should be Indian Port.
+II - both the origin port and the destination port should be Indian port.
+3.4.2 Authorized Person 
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Authorized Person
+ | 
+ | 
+ | Person authorized for submission
+ | Submitter Type
+ | 4
+ | C
+ | The Type of Authorised Entity submitting this Manifest.
+Submitter Type (ASA/ASC/ANC)
+ | Submitter Code
+ | 15
+ | AN
+ | The Code of Authorised Entity submitting this Manifest.
+ | Authorized Representative Code (SL or SA code)
+ | 10
+ | AN
+ | PAN of authorised person
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – Updation.
+ | 
+3.4.3 Vessel Details
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Vessel Details
+ | 
+ | 
+ | The Details of conveyance
+ | Mode of Transport
+ | 4
+ | AN
+ | Mode of Transport used for crossing the border/Movement, Coded.
+List of Values : 1-Sea/River/Canal,2 = Rail, 3=Truck,4-Air
+ | Type of Transport Means
+ | 25
+ | AN
+ | The type of identifier of the means of transport used in crossing the border/Movement, coded.
+List of Values : 10 - IMO Vessel ; 11 - Non IMO Vessel
+ | Transport Means Identity
+ | 25
+ | AN
+ | Identifier to identify the means of transport used for crossing the Border/Movement, Coded.
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – Updation.
+ | 
+3.4.4 Voyage Details
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Voyage Details
+ | 
+ | 
+ | 
+ | ConveyanceReferenceNumber
+ | 35
+ | AN
+ | To identify a journey of a means of transport, for example voyage number, flight number, trip number (Assigned by Port, Airport).
+ | Total No. of Transport Equipment Manifested
+ | 5
+ | N
+ | The Count of Transport Contracts Manifested on the voyage
+ | Total number of Transport Contracts Manifested
+ | 5
+ | N
+ | The Count of Transport Contracts Manifested on the voyage.
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – Updation.
+ | 
+3.4.4 Master Consignment Declaration
+- Nil Cargo Ships can come
+3.4.4.1 MC Reference
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Reference
+ | 
+ | 
+ | The Reference of Master Consignment
+ | Line No
+ | 5
+ | N
+ | The serial number indicating the list of Transport Contracts carried in the Transport Means. 
+ | Master BL No
+ | 20
+ | AN
+ | The Unique Identifier of Transport Document issued by Main Line Operator
+ | Master BL Date
+ | 
+ | D
+ | The date of issue of Unique Identifier of Transport Document issued by Main Line Operator (ddmmyyyy)
+ | Consolidated Indicator
+ | 4
+ | AN
+ | The Code indicating if the cargo is consolidated or not.
+The List of Values : S - Straight BL ; C - consolidated BL ; H - House BL
+ | Previous Declaration
+ | 4
+ | AN
+ | The Code indicating if the declaration is filed earlier for the related cargo
+LOV : N,C,Y
+ | Consolidator_PAN
+ | 35
+ | AN
+ | PAN no. of Consolidator
+The Indian Entity who is party to this transaction (Actual person, whether or not, he is submitter - For Exports - issuer of the BL ; Imports - Indian Counter party to the Transaction;) (TR - ASC who undertakes to give cargo summary through CSN or Manifest.)
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs: U–Updation,D–Deletion, S– Supplementary.
+ | 
+3.4.4.2Master Previous Declaration
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Master Previous Declaration
+ | 
+ | 
+ | he Details of Reference to declaration filed earlier for this cargo.
+ | CIN Type 
+ | 4
+ | AN
+ | CIN Type: MCIN/PCIN
+ | CIN No
+ | 20
+ | AN
+ | The unique Identifier issued by Customs for Transport Contract issued by Main line operator- Master Cargo Identification Number.
+ | CSN Submitted Type
+ | 4
+ | AN
+ | The Type of Authorised Entity who filed CSN
+ | CSN Submitted by
+ | 20
+ | AN
+ | The Code of Authorised Entity who filed CSN
+ | CSN Reporting Type
+ | 4
+ | AN
+ | The reporting Type of referenced CSN
+ | CSN Site ID
+ | 6
+ | AN
+ | CSN Site ID
+ | CSN Number
+ | 7
+ | N
+ | The Identifier number of referenced CSN
+ | CSN Date
+ | 
+ | D
+ | The identifier date of referenced CSN
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.3 Master Supplementary Declaration
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Supplementary Declaration
+ | 
+ | 
+ | 
+ | CIN Type ("cinTyp")
+ | 4
+ | AN
+ | The Type of Cargo Identification Number given by Customs for referenced Cargo
+ | CIN No. ("mcinPcin")
+ | 20
+ | AN
+ | The unique Identifier issued by Customs forTransport Contract issued by Main line operator- Master Cargo Identification Number.
+ | CSN Submitted Type ("csnSbmtdTyp")
+ | 4
+ | AN
+ | The Type of Authorized Entity who filed CSNC
+ | CSN Submitted by ("csnSbmtdBy")
+ | 20
+ | AN
+ | The Code of authorized Entity who filed CSN
+ | CSN Reporting Type ("csnRptngTyp")
+ | 4
+ | AN
+ | The reporting Type of referenced CSN
+ | CSN Site ID ("csnSiteId")
+ | 6
+ | AN
+ | The Custom Location of Reporting
+ | CSN Number ("csnNmbr": )
+ | 7
+ | N
+ | The identifier Number of referenced CSN
+ | CSN Date ("csnDt")
+ | 
+ | D
+ | The identifier date of referenced CSN
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.4 MC Location_Customs
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Location Customs
+ | 
+ | 
+ | The Details of Relevant of Port of Call pertaining to this cargo.
+ | First Port of Entry/Last Port of Departure
+ | 10
+ | AN
+ | The Code of Port indicating first port of Arrival.
+SAM - First Port of Arrival of the Cargo where cargo is to be Offloaded ; EX - Port where Customs Clearance is given ; TR - First port of Arrival into India ; CG - First
+ | Destination Port
+(Port/ICD/CFS/SEZ)
+ | 10
+ | AN
+ | The Code of Port indicating Customs clearance
+IM - Port of Destination (Custodian Code of CFS/ICD) ; TR - Last port of Departure in India ; EX -Last port where the Goods are intended to be Exported outside India.
+ | Next Port of Unlading
+ | 10
+ | AN
+ | The Code indicating the Port of next unlading.
+ | Type of Cargo
+ | 2
+ | C
+ | The Code specifying the type of cargo based on the cross border carriage terms.
+LOVs: IM, EX, CG, TR
+ | Item Type
+ | 2
+ | C
+ | The Code specifying the type of cargo based on application of customs rules
+(Govt. Cargo - GC, Unaccompanied Baggage - UB or Other Cargo - OT)
+ | Cargo Movement
+ | 2
+ | AN
+ | The Code specifying the type of cargo based on movement of cargo
+(Local Clearance - LC, Domestic Transshipment - TI, Foreign Transshipment - TC, Domestic Transit - DT, Foreign Transit - FT)
+ | Nature of Cargo
+ | 4
+ | AN
+ | The flag to indicate the type of Transport Equipment carrying the referenced cargo.
+LOV: Containerized – C, Liquid Bulk – LB, Dry Bulk - DB
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.5MC Transhipper
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Transhipper
+ | 
+ | 
+ | The Details of Authorised Person undertaking responsibility of Transhipment
+ | Transhipper Code (Authorized Carrier)
+ | 10
+ | AN
+ | The Registered Carrier) of Transhipper Code (Authorised Entity responsible for operating the Conveyance)
+ | Transhipper Bond
+ | 10
+ | AN
+ | The Bond of Authorised Entity trashing this Manifest.
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.6 MC Transport Document
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Transport Document
+ | 
+ | 
+ | The Details of Document issued by Main Transport Operator
+ | Port of Acceptance (Coded)
+ | 10
+ | AN
+ | Identification of the place where the goods are taken over by the carrier from the consignor, Coded
+ | Port of Acceptance Name
+ | 256
+ | AN
+ | Identification of the place where the goods are taken over by the carrier from the consignor, Name
+ | Port of Receipt
+ | 10
+ | AN
+ | Identification of the place at which the goods have been or are to be received by the consignee.
+ | Port of Receipt Name
+ | 256
+ | AN
+ | Name of the place at which the goods have been or are to be received by the consignee.
+ | Consignor’s Name
+ | 70
+ | AN
+ | The Name of the Consignor as per the Transport Document
+ | Consignor’s Code
+ | 17
+ | AN
+ | A - not mandatory ; D- Mandatory - same as SB
+Mandatory only for EX and CG cargo and Consolidated Indicator is not C; Incase of EX, IEC code should be mentioned. Incase of CG, GSTIN/PAN code should be mentioned.
+ | Consignor Code Type
+ | 3
+ | AN
+ | The Type of Identification of Code of the Consignor as per the Transport Document issued by MLO.
+The Code would be IEC,GSN,GSD,GSG,PAN; IEC - Importer Exporter Code ; PAN - PAN given by Income Tax Dept ; GSN - GSTIN given for normal Taxpayers ; GSD - GSTIN given for Diplomats ; GSG - GSTIN given for Govt. Entities
+ | Consignor Street Address
+ | 70
+ | AN
+ | The address of the Consignor as per Transport Document issued by MLO
+ | Consignor City
+ | 70
+ | AN
+ | The City of the Consignor as per Transport Document issued by MLO.
+ | Consignor country sub division name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Consignor as per MLO
+ | Consignor country sub division code
+ | 9
+ | AN
+ | The Code indicating Consignor's State or Subdivision of the country as per Transport Document issued by MLO.
+ | Consignor Country Code
+ | 2
+ | AN
+ | The code indicating the country of Consignor as per Transport Document issued by MLO.
+ | Consignor Post Code
+ | 9
+ | AN
+ | The Postal Code of the Consignor as per Transport Document issued by MLO.
+ | Consignee Name
+ | 70
+ | AN
+ | The Name of the Consignee as per the Transport Document.
+ | Consignee Code
+ | 17
+ | AN
+ | D - not mandatory ; A- Mandatory
+Mandatory incase of IM,CG IEC number of the consignee should be Mentioned ; If IEC is not available, PAN should be mentioned.Incase of CG, GSTIN/PAN code should be mentioned.
+ | Type of code
+ | 3
+ | AN
+ | The Identification Code of the Consignee as per the Transport Document issued by Main Line Operator.
+The Code would be IEC,GSN,GSD,GSG,PAN; IEC - Importer Exporter Code ; PAN - PAN given by Income Tax Dept ; GSN - GSTIN given for normal Taxpayers ; GSD - GSTIN given for Diplomats ; GSG - GSTIN given for Govt. Entities
+ | Consignee Street Address
+ | 70
+ | AN
+ | The address of the Consignee as per Transport Document issued by MLO
+ | Consignee City
+ | 70
+ | AN
+ | The City of the Consignee as per Transport Document issued by MLO.
+ | Consignee Country sub division name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Consignee as per MLO.
+ | Consignee Country Sub division
+ | 9
+ | AN
+ | The Code indicating Consignee's State or Subdivision of the country as per Transport Document issued by MLO.
+ | Consignee Country Code
+ | 2
+ | C
+ | The code indicating the country of Consignor as per Transport Document issued by MLO
+ | Consignee Post Code
+ | 9
+ | AN
+ | 
+ | Name of any other Notified Party
+ | 70
+ | C
+ | The Name of the Notified Party as per the Transport Document
+ | PAN of notified party
+ | 17
+ | AN
+ | The Identification Code of the Notified Party as per the Transport Document issued by Main Line Operator.
+ | Type of Notified Party Code
+ | 3
+ | AN
+ | The Type of Identification of Code of the Notified Party as per the Transport Document issued by MLO.
+ | Notified Party Street Address
+ | 70
+ | AN
+ | The address of the Notified Party as per Transport Document issued by MLO
+ | Notified Party City
+ | 70
+ | AN
+ | The City of the Notified Party as per Transport Document issued by MLO.
+ | Notified party country sub division name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Notified party as per Transport Document issued by MLO.
+ | Notified party country sub division
+ | 9
+ | AN
+ | The Code indicating Notified Party's State or Subdivision of the country as per Transport Document issued by MLO.
+ | Notified Party Country Code
+ | 2
+ | C
+ | The code indicating the country of Notified Party as per Transport Document issued by MLO.
+ | Notified Party Post Code
+ | 9
+ | AN
+ | The Postal Code of the Notified Party as per Transport Document issued by MLO.
+ | Goods Description as per B/L
+ | 512
+ | AN
+ | A description of the type of cargo carried on the ship in general terms as per Transport Document issued by MLO.
+ | UCR Type
+ | 3
+ | AN
+ | The type of Unique Consignment
+ | UCR Code
+ | 35
+ | AN
+ | Unique number by shipper assigned to goods being subject to cross border
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.7 MC Transport Document_msr
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Transport Document_msr
+ | 
+ | 
+ | The Details of msr_Document
+ | Number of packages
+ | 8
+ | N
+ | Number of individual items packaged in such a way that they cannot be divided without first undoing the packing.
+ | Type of Packages 
+ | 3
+ | AN
+ | A code representing the type of package used for the referenced cargo.
+LOVs: PKG
+ | Marks & Numbers on packages
+ | 512
+ | AN
+ | An alphanumeric or symbolic identifier assigned by the shipper as a means to track cargo not carried in bulk. 
+ | Gross Weight
+ | 12,3
+ | N
+ | Weight (mass) of goods including packaging but excluding the carrier's equipment for a document
+ | Net Weight
+ | 12,3
+ | N
+ | Weight (mass) of the goods themselves without any packing
+ | Unit of weight
+ | 3
+ | C
+ | A code representing the type of measure used for the referenced cargo.
+LOV: KGS, MTS
+ | Gross Volume
+ | 12,3
+ | N
+ | A measure of the gross volume, normally calculated by multiplying the maximum length, width and height of the cargo item.
+Mandatory when Nature of Cargo is LB ( Liquid Bulk)
+ | Unit of Volume
+ | 3
+ | C
+ | A code representing the type of measure used for the referenced cargo.
+LOV : LTR, USG
+ | Invoice value of consignment
+ | 16,2
+ | N
+ | Total of all invoice amounts declared in a single declaration
+ | Currency Code
+ | 3
+ | C
+ | Code specifying a monetary unit or currency
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs: U – updation, D – Deletion, S – Supplementary.
+ | 
+Consignor’s Code /Consignee Code: SCE / SCD – Consignee code is mandatory
+SCX – Consignor code is mandatory
+(A - not mandatory, D- Mandatory - same as SB.)
+Consignor’s Code Type: Default IEC -but others may include.
+Name of any notified party: if not available, provide consignee Name.
+PAN of Notified Party :in case of SCD it is mandatory and for SCX it is not mandatory
+3.4.4.8MC Item Details 
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Item Details
+ | 
+ | 
+ | The Details of Cargo items in reference to Transport Document.
+ | Cargo Item Sequence No
+ | 5
+ | N
+ | The Serial number indicating the cargo items carried in the Transport Document
+ | HS Code
+ | 8
+ | AN
+ | A code describing the commodity classification, e.g. Harmonized System of Classification (HSN)
+ | Cargo Item Description
+ | 256
+ | AN
+ | Plain language description of the nature of a goods item sufficient to identify it for cross-border regulatory purposes such as customs, phytosanitary, statistical or transport purposes.
+ | UNO Code
+ | 5
+ | AN
+ | United Nations Dangerous Goods Identifier (UNDG) assigned by the UN Sub-Committee of Experts on the Transport of Dangerous Goods and shown in the IMO IMDG.
+UN number assigned by UN Sub Committee on Transport of Dangerous Goods and shown in IMO IMDG ( e.g 0012 - Cartridges for Weapons…). ZZZZ should be declared, if not hazardous
+ | IMDG Code 
+ | 3
+ | AN
+ | United Nations Dangerous Goods Identifier (UNDG) assigned by the UN Sub-Committee of Experts on the Transport of Dangerous Goods and shown in the IMO IMDG.
+ZZZ should be declared if not hazardous.
+ | Number of Packages
+ | 8
+ | N
+ | A description of the type of cargo carried on the ship in general terms as per Transport Document issued by MLO
+ | Type of Packages
+ | 3
+ | AN
+ | Number of individual items packaged in such a way that they cannot be divided without first undoing the packing.
+LOV: PKG_CODE ; Mandatory if Number of Packages declared
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs: U –Updation, D – Deletion, S – Supplementary.
+ | 
+Cargo Item Sequence No : mandatory if consolidated = N
+3.4.4.9MC Transport Equipment
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Transport Equipment
+ | 
+ | 
+ | A code representing the type of package used for the referenced cargo.
+ | Equipment Sequence Number
+ | 5
+ | N
+ | The Serial number of Equipment referenced in the Transport Document
+ | Equipment Identifier
+ | 17
+ | AN
+ | Marks (letters and/or numbers) which identify equipment e.g. unit load device, Container
+ | Equipment Type 
+ | 3
+ | AN
+ | The Code specifying the type of the Equipment used for Transport
+ | Equipment Size
+ | 4
+ | AN
+ | The Code specifying the size of the Equipment used for Transport.
+Mandatory if EQU_TYPE = CN
+ | Equipment Load Status
+ | 3
+ | AN
+ | Code specifying how full is piece of transport is.
+LOV : FCL, LCL, EMP
+ | Additional equipment hold
+ | 256
+ | AN
+ | The Identifier for Additional Equipment used for Hold e.g Tray etc.
+ | Equipment Seal Type
+ | 5
+ | AN
+ | The Type of Seal used for affixing to a Transport Equipment.
+LOV : ESEAL, BTSL
+ | Equipment Seal number
+ | 15
+ | AN
+ | The identification number of a seal affixed to a piece of transport equipment.
+ | Other equipment id
+ | 256
+ | AN
+ | The Identifier of Other Additional Equipment used for Carriage
+ | SOC Flag(Y/N)
+ | 1
+ | C
+ | The Indicator to specify the Ownership of the Container
+ | Container Agent Code
+ | 17
+ | AN
+ | The Identifier of the Container Agent responsible for handling of Container.
+Mandatory incase of EQU_TYPE : CNThe PAN number registered with Customs for Bond given for Re-export of Bond
+ | Container Weight
+ | 14,2
+ | N
+ | The Verified Gross Mass (VGM) is the weight ofthe cargo (in kgs) including dunnage and bracing. (Container weight is the cargo+package weight (no tare weight))The Verified Gross Mass (VGM) is the weight ofthe cargo including dunnage and bracing plus the tare weight of the container carrying this cargo..
+ | Total no of packages
+ | 8
+ | N
+ | The measure of packages being carried in the voyage for particular Transport Equipment
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs : U – Updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.10MC Itinerary
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Itinerary
+ | 
+ | 
+ | The Details of Routing for the referenced Cargo
+ | Port of call sequence number
+ | 5
+ | N
+ | The Serial number indicating the sequence of the port of call by the referenced cargo
+ | Port of Call, Coded
+ | 10
+ | AN
+ | The Code indicating the place/Port of call, Coded
+ | Port of Call Name
+ | 256
+ | AN
+ | The Code indicating the place/Port of call, Text
+ | Next port of call, coded
+ | 10
+ | AN
+ | The Registered Coded of Next Port of Call, Coded
+ | Next port of call name
+ | 256
+ | AN
+ | The Registered Coded of Next Port of Call, Text
+ | Mode of Transport
+ | 4
+ | AN
+ | Mode of Transport used for crossing the Border/Movement, Coded.
+LOVs : 1 – Sea/River/Canal, 2 – Rail, 3 – Road, 4 - Air
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs : U – Updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11 House Cargo Declaration
+ – Nil cargo ships can come
+3.4.4.11.1 HC Declaration_Reference
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Declaration Reference
+ | 
+ | 
+ | The Details of House Transport Document
+ | Subline No
+ | 4
+ | N
+ | The Serial number of the House Transport Document
+ | House BL No
+ | 20
+ | N
+ | The Unique Identifier of Transport Document issued by NVOCC to the Actual Shipper
+ | House BL Date
+ | 
+ | D
+ | The date of issue of Unique Identifier of Transport Document issued by NVOCC to the Shipper
+ | Previous Declaration
+ | 4
+ | AN
+ | The Code indicating if the declaration is filed earlier for the related cargo
+ | Consolidated Indicator
+ | 4
+ | AN
+ | The Code indicating if the cargo is consolidated or not, default Values : S-Straight BL, C-consolidated BL, H-House BL
+ | Consolidator_PAN
+ | 35
+ | AN
+ | PAN of Entity consolidating all BL
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs: U – Updation, D – Deletion, S – Supplementary.
+ | 3.4.4.11.2 HC Previous_Reference
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Previous_Reference
+ | 
+ | 
+ | The Details of Reference to declaration filed earlier for this cargo
+ | CIN Type
+ | 4
+ | AN
+ | The Type of Cargo Identification Number given by Customs for referenced Cargo.
+ | CIN No.
+ | 20
+ | AN
+ | The unique Identifier issued by Customs for Transport Contract issued by Main line operator- Master Cargo Identification Number
+ | CSN Submitted Type
+ | 4
+ | AN
+ | The Type of Authorised Entity who filed CSN
+ | CSN Submitted By
+ | 20
+ | AN
+ | The Code of Authorised Entity who filed CSN 
+ | CSN Reporting Type
+ | 4
+ | AN
+ | The reporting type of referenced CSN
+ | CSN Site ID
+ | 6
+ | AN
+ | The custom location of reporting
+ | CSN Number
+ | 7
+ | N
+ | The Identifier number of referenced CSN
+ | CSN Date
+ | 
+ | D
+ | The identifier date of referenced CSN
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.3 HC Supplementary Declaration
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | Supplementary Declaration
+ | 
+ | 
+ | 
+ | CIN Type 
+ | 4
+ | AN
+ | The Type of Cargo Identification Number given by Customs for referenced Cargo
+ | CIN No.
+ | 20
+ | AN
+ | The unique Identifier issued by Customs forTransport Contract issued by Main line operator- Master Cargo Identification Number.
+ | CSN Submitted Type 
+ | 4
+ | AN
+ | The Type of Authorized Entity who filed CSNC
+ | CSN Submitted by 
+ | 20
+ | AN
+ | The Code of authorized Entity who filed CSN
+ | CSN Reporting Type 
+ | 4
+ | AN
+ | The reporting Type of referenced CSN
+ | CSN Site ID 
+ | 6
+ | AN
+ | The Custom Location of Reporting
+ | CSN Number 
+ | 7
+ | N
+ | The identifier Number of referenced CSN
+ | CSN Date
+ | 
+ | D
+ | The identifier date of referenced CSN
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.4HC Location_Customs
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Location Customs
+ | 
+ | 
+ | The Details of locations relevant for this House Transport Document
+ | First Port of entry
+ | 10
+ | AN
+ | The Code of Port indicating first port of Arrival/Last of Port of Departure
+ | Destination port
+ | 10
+ | AN
+ | The Code of Port indicating Customs clearance
+(Port/ICD/CFS/SEZ)
+ | Next Port of Unlading 
+ | 10
+ | AN
+ | The Code indicating the Port of next unlading
+ | Type of Cargo
+ | 2
+ | C
+ | The Code specifying the type of cargo based on the cross border carriage terms
+(IM, EX, CG, EM)
+ | Item Type 
+ | 2
+ | C
+ | The Code specifying the type of cargo based on application of customs rules
+(Govt. Cargo - GC, Un-accompanied Baggage - UB or Other Cargo - OT)
+ | Cargo Movement 
+ | 4
+ | C
+ | The Code specifying the type of cargo based on movement of cargo
+(Local Clearance - LC, Domestic Transshipment - TI, Foreign Transshipment - FI, Domestic Transit - DT, Foreign Transit - FT)
+ | Nature of Cargo
+ | 4
+ | AN
+ | The Flag to indicate the type of Transport Equipment carrying the referenced cargo
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.5HC Transhipper
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Transhipper
+ | 
+ | 
+ | The Details of Authorised Person undertaking responsibility of Transhipment
+ | Transhipper Code (Authorized Carrier)
+ | 10
+ | AN
+ | The Registered Carrier) of Transhipper Code (Authorised Entity responsible for operating the Conveyance)
+ | Transhipper Bond
+ | 10
+ | AN
+ | The Bond of Authorised Entity undertaking transhipment of the referenced cargo
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.6HCTransportDocument
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Transport Document 
+ | 
+ | 
+ | The Details of Document issued by NVOCC
+ | Port of Acceptance,
+coded
+ | 10
+ | AN
+ | Identification of the place where the goods are taken over by the carrier from the consignor, Coded
+ | Port of Acceptance Name
+ | 256
+ | AN
+ | Identification of the place where the goods are takenover by the carrier from the consignor, Name
+ | Port of Receipt
+ | 10
+ | AN
+ | Identification of the place at which the goods have been or are to be received by the consignee
+ | Port of Receipt Name
+ | 256
+ | AN
+ | Name of the place at which the goods have been or are to be received by the consignee
+ | Consignor Name
+ | 70
+ | AN
+ | The Name of the Consignor as per the Transport Document
+ | Consignor Code
+ | 17
+ | AN
+ | The Identification Code of the Consignor as per the Transport Document issued by NVOCC
+ | Consignor Code Type
+ | 3
+ | AN
+ | The Type of Identification of Code of the Consignor as per the Transport Document issued by NVOCC
+ | Consignor street address
+ | 70
+ | AN
+ | The address of the Consignor as per Transport Document issued by NVOCC
+ | Consignor city
+ | 70
+ | AN
+ | The City of the Consignor as per Transport Document issued by NVOCC
+ | Consignor country sub division name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Consignor as per NVOCC
+ | Consignor country sub division code 
+ | 9
+ | AN
+ | The Code indicating Consignor's State or Subdivision of the country as per Transport Document issued by NVOCC
+ | Consignor country code
+ | 2
+ | C
+ | The code indicating the country of Consignor as per Transport Document issued by NVOCC
+ | Consignor Post Code
+ | 9
+ | AN
+ | The Postal Code of the Consignor as per Transport Document issued by NVOCC
+ | Consignee Name
+ | 70
+ | AN
+ | The Name of the Consignee as per the Transport Document
+ | Consignee code
+ | 17
+ | AN
+ | The Identification Code of the Consignee as per the Transport Document issued by NVOCC
+ | Type of code
+ | 3
+ | C
+ | The Type of Identification of Code of the Consignee as per the Transport Document issued by NVOCC
+ | Consignee street address
+ | 70
+ | AN
+ | The address of the Consignee as per Transport Document issued by NVOCC
+ | Consignee city
+ | 70
+ | AN
+ | The City of the Consignee as per Transport Document issued by NVOCC
+ | Consignee country sub division name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Consignee as per NVOCC
+ | Consignee country sub division
+ | 9
+ | AN
+ | The Code indicating Consignee's State or Subdivision of the country as per Transport Document issued by NVOCC
+ | Consignee Country Code
+ | 2
+ | C
+ | The code indicating the country of Consignor as per Transport Document issued by NVOCC
+ | Consignee post code
+ | 9
+ | AN
+ | The Postal Code of the Consignor as per Transport Document issued by NVOCC
+ | Name of any other notified party
+ | 70
+ | AN
+ | The Name of the Notified Party as per the Transport Document
+ | PAN of notified party
+ | 17
+ | AN
+ | The Identification Code of the Notified Party as per the Transport Document issued by Main Line Operator
+ | Type of notified party code
+ | 3
+ | C
+ | The Type of Identification of Code of the Notified Party as per the Transport Document issued by NVOCC
+ | Notified Party Street Address
+ | 70
+ | AN
+ | The address of the Notified Party as per Transport Document issued by NVOCC
+ | Notified Party City
+ | 70
+ | AN
+ | The City of the Notified Party as per Transport Document issued by NVOCC
+ | Notified Party Country subdivision name
+ | 35
+ | AN
+ | The State or any Subdivision of the Country of the Notified party as per Transport Document issued by NVOCC
+ | Notified Party Country subdivision
+ | 9
+ | AN
+ | The Code indicating Notified Party's State or Subdivision of the country as per Transport Document issued by NVOCC
+ | Notified party country code
+ | 2
+ | C
+ | The code indicating the country of Notified Party as per Transport Document issued by NVOCC
+ | Notified party post code
+ | 9
+ | AN
+ | The Postal Code of the Notified Party as per Transport Document issued by NVOCC
+ | Goods Description as per B/L
+ | 512
+ | AN
+ | A description of the type of cargo carried on the ship in general terms as per Transport Document issued by NVOCC
+ | UCR Type
+ | 3
+ | AN
+ | The type of unique consignment
+ | UCR Code
+ | 35
+ | AN
+ | Unique number by Shipper assigned to goods being subject to cross border transactions.
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.7HC Transport Document_msr
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Transport Document_msr
+ | 
+ | 
+ | The Details of Document_msr
+ | Number of Packages
+ | 8
+ | N
+ | Number of individual items packaged in such a way that they cannot be divided without first undoing the packing.
+ | Types of Packages
+ | 3
+ | AN
+ | A code representing the type of package used for the referenced cargo.
+ | Marks &No on Packages
+ | 512
+ | AN
+ | An alphanumeric or symbolic identifier assigned by the shipper as a means to track cargo not carried in bulk. 
+ | Gross Weight
+ | 12,3
+ | N
+ | Weight (mass) of goods including packaging but excluding the carrier's equipment for a document
+ | Net Weight
+ | 12,3
+ | N
+ | Weight (mass) of the goods themselves without any packing
+ | Unit of Weight
+ | 3
+ | C
+ | A code representing the type of measure used for the referenced cargo.
+ | Gross Volume
+ | 12,3
+ | N
+ | A measure of the gross volume, normally calculated by multiplying the maximum length, width and height of the cargo item.
+ | Unit of Volume
+ | 3
+ | C
+ | A code representing the type of measure used for the referenced cargo.
+ | Invoice Value of Consignment
+ | 16,2
+ | N
+ | Total of all invoice amounts declared in a single declaration
+ | Currency Code
+ | 3
+ | AN
+ | Code specifying a monetary unit or currency
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.8HC Item Details
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Item Details
+ | 
+ | 
+ | The Details of Cargo items in reference to Transport Document
+ | Cargo Item Sequence No
+ | 5
+ | N
+ | The Serial number indicating the cargo items carried in the Transport Document
+ | HS Code
+ | 8
+ | AN
+ | A code describing the commodity classification, e.g. Harmonized System of Classification (HSN)
+ | Cargo Item Description
+ | 256
+ | AN
+ | Plain language description of the nature of a goods item sufficient to identify it for cross-border regulatory purposes such as customs, phytosanitary, statistical or transport
+ | UNO Code
+ | 5
+ | AN
+ | United Nations Dangerous Goods Identifier (UNDG) assigned by the UN Sub-Committee of Experts on the Transport of Dangerous Goods and shown in the IMO IMDG.
+ZZZZ - for non-hazardous
+ | IMDG Code 
+ | 3
+ | AN
+ | Any risk in addition to the class of the referenced dangerous goods according to the IMO IMDG Code. 
+ZZZ – for non-hazardous
+ | Number of Packages
+ | 8
+ | N
+ | A description of the type of cargo carried on the ship in general terms as per Transport Document issued by MLO
+ | Type of Packages
+ | 3
+ | AN
+ | Number of individual items packaged in such a way that they cannot be divided without first undoing the packing.
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs : U – Updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.9HC Transport Equipment
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Transport Equipment
+ | 
+ | 
+ | The Details of Transport Equipment referenced in Transport Document
+ | Equipment Sequence Number
+ | 5
+ | N
+ | The Serial number of Equipment referenced in the Transport Document
+ | Equipment ID
+ | 17
+ | AN
+ | Marks (letters and/or numbers) which identify equipment e.g. unit load device, Container
+ | Equipment Type 
+ | 3
+ | AN
+ | The Code specifying the type of the Equipment used for Transport
+ | Equipment Size
+ | 4
+ | AN
+ | The Code specifying the size of the Equipment used for Transport
+ | Equipment Load Status
+ | 3
+ | AN
+ | Code specifying how full is piece of transport is.
+ | Additional equipment hold
+ | 256
+ | AN
+ | The Identifier for Additional Equipment used for Hold e.g Tray etc.
+ | Equipment Seal Type
+ | 5
+ | AN
+ | The Type of Seal used for affixing to a Transport Equipment
+ | Equipment Seal number
+ | 15
+ | AN
+ | The identification number of a seal affixed to a piece of transport equipment.
+ | Other equipment id
+ | 256
+ | AN
+ | The Identifier of Other Additional Equipment used for Carriage
+ | SOC Flag (Y/N)
+ | 1
+ | C
+ | The Indicator to specify the Ownership of the Container
+ | Container Agent Code
+ | 17
+ | AN
+ | The Identifier of the Container Agent responsible for handling of Container
+ | Container Weight
+ | 14,2
+ | N
+ | The Verified Gross Mass (VGM) is the weight ofthe cargo (in kgs) including dunnage and bracing. (Container weight is the cargo+package weight (no tare weight))The Verified Gross Mass (VGM) is the weight ofthe cargo including dunnage and bracing plus the tare weight of the container carrying this cargo..
+ | Total no of packages
+ | 8
+ | N
+ | The measure of packages being carried in the voyage for particular Transport Equipment
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs : U – Updation, D – Deletion, S – Supplementary.
+ | 3.4.4.11.10HC Itinerary
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Itinerary
+ | 
+ | 
+ | The Details of Routing for the referenced Cargo
+ | Port of call sequence number
+ | 5
+ | N
+ | The Serial number indicating the sequence of the port of call by the referenced cargo
+ | Port of Call, Coded
+ | 10
+ | AN
+ | The Code indicating the place/Port of call, Coded
+ | Port of Call Name
+ | 256
+ | AN
+ | The Code indicating the place/Port of call, Text
+ | Next port of call, Coded
+ | 10
+ | AN
+ | The Registered Coded of Next Port of Call, Coded
+ | Next port of call name
+ | 256
+ | AN
+ | The Registered Coded of Next Port of Call, Text
+ | Mode of Transport
+ | 4
+ | AN
+ | Mode of Transport used for crossing the Border/Movement, Coded
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs : U – Updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.11HC Additional Declaration
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Additional Declaration
+ | 
+ | 
+ | The Details of Additional Declaration provided in reference to this cargo
+ | Tag Reference
+ | 5
+ | AN
+ | The Flag indicating the part of the declaration to which this document is referenced
+ | Reference serial no
+ | 5
+ | AN
+ | The Serial number in that part of the declaration to which this document is referenced
+ | Info_type
+ | 10
+ | AN
+ | The code indicating the type of Additional Declaration being made.
+ | Info_qualifier
+ | 10
+ | AN
+ | The code indicating the type of additional declaration being made.
+ | Info_code
+ | 35
+ | AN
+ | The Response to the additional declaration as a Code.
+ | Info_text
+ | 100
+ | AN
+ | The Response to the additional declaration as a text.
+ | Info_Msr
+ | 5
+ | AN
+ | The Response to the additional declaration as a Measure
+ | Info_date
+ | 
+ | T
+ | The Response to the additional declaration as a Date
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.12HC_SupportingDocuments
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC Supporting Documents
+ | 
+ | 
+ | The Details of Supporting Documents provided in reference to the cargo in Transport Document
+ | Tag Reference
+ | 5
+ | AN
+ | The Flag indicating the part of the declaration to which this document is referenced
+ | Reference Serial No
+ | 5
+ | N
+ | The Serial number in that part of the declaration to which this document is referenced
+ | Sub Serial No Reference
+ | 5
+ | N
+ | The Sub Serial Number in that part of the declaration to which this document is referenced
+ | ICEGATE User ID
+ | 15
+ | AN
+ | The ICEGATE ID of the User who uploaded this document
+ | IRN Number
+ | 14
+ | AN
+ | The Unique Reference Number given by eSanchit on uploading of this document
+ | Document Reference No
+ | 17
+ | AN
+ | The Unique Reference Number given by the Issuer to this document
+ | Document Type Code
+ | 6
+ | AN
+ | The Identifier assigned by Customs to identify the type of the document
+ | Beneficiary Code
+ | 35
+ | AN
+ | The Idenfier of the Beneficiary of this Document
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.11.13 HC Response
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC_Response
+ | 
+ | 
+ | 
+ | CIN Type 
+ | 4
+ | AN
+ | The Type of Cargo Identification Number given by Customs for referenced Cargo
+ | CIN No.
+ | 20
+ | AN
+ | The unique Identifier issued by Customs for Transport Contract issued by Main line operator- Master Cargo Identification Number
+ | Decision Code
+ | 
+ | AN
+ | The code indicating the action communicated by Customs consequent to the declaration.
+ | Decision Remarks
+ | 
+ | AN
+ | The Free Text remarks communicated by Customs consequent to the declaration.
+ | 
+3.4.4.12MC Additional Declaration
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Additional Declaration
+ | 
+ | 
+ | The Details of Additional Declaration provided in reference to this cargo
+ | Tag Reference
+ | 5
+ | AN
+ | The Flag indicating the part of the declaration to which this document is referenced
+ | Reference Serial No
+ | 5
+ | AN
+ | The Serial number in that part of the declaration to which this document is referenced
+ | Info_type
+ | 10
+ | AN
+ | The code indicating the type of additional declaration being made.
+ | Info_qualifier
+ | 10
+ | AN
+ | The code indicating the type of additional declaration being made.
+ | Info_code
+ | 35
+ | AN
+ | The Response to the additional declaration as a Code.
+ | Info_text
+ | 100
+ | AN
+ | The Response to the additional declaration as a text.
+ | Info_Msr
+ | 5
+ | AN
+ | The Response to the additional declaration as a Measure
+ | Info_date
+ | 
+ | T
+ | The Response to the additional declaration as a Date
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.13 MC_ Supporting Documents
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | MC Supporting Documents
+ | 
+ | 
+ | The Details of Supporting Documents provided in reference to the cargo in Transport Document
+ | Tag Reference
+ | 5
+ | AN
+ | The Flag indicating the part of the declaration to which this document is referenced
+ | Reference Serial Number
+ | 5
+ | N
+ | The Serial number in that part of the declaration to which this document is referenced
+ | Sub Serial No Reference
+ | 5
+ | N
+ | The Sub Serial Number in that part of the declaration to which this document is referenced
+ | ICEGATE User ID
+ | 15
+ | AN
+ | The ICEGATE ID of the User who uploaded this document
+ | IRN Number
+ | 14
+ | AN
+ | The Unique Reference Number given by eSanchit on uploading of this document
+ | Document Reference No
+ | 17
+ | AN
+ | The Unique Reference Number given by the Issuer to this document
+ | Document Type Code
+ | 6
+ | AN
+ | The Identifier assigned by Customs to identify the type of the document
+ | Beneficiary Code
+ | 35
+ | AN
+ | The Identifier of the Beneficiary of this Document
+ | Amendment
+ | 1
+ | AN
+ | Indicates the amend values for the object. 
+LOVs are: U – updation, D – Deletion, S – Supplementary.
+ | 
+3.4.4.14 MC Response
+Field Description
+ | Field Length
+ | Type
+ | Description
+ | HC_Response
+ | 
+ | 
+ | 
+ | CIN Type 
+ | 4
+ | AN
+ | The Type of Cargo Identification Number given by Customs for referenced Cargo
+ | CIN No.
+ | 20
+ | AN
+ | The unique Identifier issued by Customs for Transport Contract issued by Main line operator- Master Cargo Identification Number
+ | Decision Code
+ | 
+ | AN
+ | The code indicating the action communicated by Customs consequent to the declaration.
+ | Decision Remarks
+ | 
+ | AN
+ | The Free Text remarks communicated by Customs consequent to the declaration.
+ | 
+4. Proposed JSONs Schema and SampleFiles
+ 4.1 JSON Inbound Schema’s
+4.2 CSN JSON Inboundand Outbound Files on Different Trade Scenarios
+4.3 CSN JSON Outbound Schema_ SFL (Structure Failure)
+4.4 CSN JSON Outbound Sample_ SFL (Structure Failure)
+ a. Pattern Mismatch
+ b. Data Type Mismatch
+ c. Missing Required Property 
+ d. Maximum String Length Error
+ e. Minimum Numeric Length Error
+ f. Object and Array Discrepancy
+4.5 CSN JSON Outbound Schema_ ACK (Business Logic Failure)
+4.7 Links for JSONSchemaValidation
+https://json-schema.org/draft/2019-09/json-schema-validation.html
+https://json-schema.org/specification.html
+https://json-schema.org/draft-06/json-schema-release-notes.html
+Field Table
+ | Field Description
+ | SCE
+ | SCX
+ | SCD
+ | SCA
+ | SCU
+ | SCC
+ | ACK
+ |  
+ | Header (headerField)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ | Sender ID ("senderID")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Receiver ID ("receiverID")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Version No. ("versionNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Indicator ("indicator")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Message ID (messageID)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Sequence No. ("sequenceOrControlNumber")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Job Date ("date")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Job Time ("time")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ | 
+ | Reporting Event ("reportingEvent")
+ | SCE
+ | SCX
+ | SCD
+ | SCA
+ | SCU
+ | SCC
+ | M
+ | 
+ | 
+ | Unique ID
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | Acceptance status
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ |  
+ | Master (“master”)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ |  
+ | Declaration Reference ("decRef")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Message Type ("msgTyp",)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Port of Reporting ("prtofRptng",)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Job Number ("jobNo",)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Job Date ("jobDt",) 
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Reporting Event ("rptngEvent")
+ | SCE
+ | SCA
+ | SCD
+ | SCA
+ | SCU
+ | SCC
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Number ("csnNmbr")
+ | X
+ | X
+ | X
+ | M
+ | X
+ | M
+ | O
+ | 
+ | 
+ | 
+ | 
+ | CSN Date ("csnDt")
+ | X
+ | X
+ | X
+ | M
+ | X
+ | M
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Authorized Person ("authPrsn": )
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | O
+ |  
+ |  
+ | 
+ | 
+ | Submitter Type ("sbmtrTyp",)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ | 
+ | 
+ | Submitter Code ("sbmtrCd",)
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Authorised Representative Code ("authReprsntvCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Vessel Details ("vesselDtls")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | O
+ |  
+ |  
+ | 
+ | 
+ | Mode of Transport ("modeOfTrnsprt")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | 
+ |  
+ |  
+ | 
+ | 
+ | Type of Transport Means ("typOfTrnsprtMeans")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Transport Means Identity ("trnsprtMeansId")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Voyage Details ("voyageDtls")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | O
+ |  
+ |  
+ | 
+ | 
+ | Conveyance Reference Number ("cnvnceRefNmbr")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | M
+ |  
+ |  
+ | 
+ | 
+ | Total No. of Transport Equipment Manifested ("totalNoOfTrnsprtEqmtMnfsted")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Total number of Transport Contracts Manifested ("totalNmbrOfLines")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | M
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Master Consignment Declaration ("mastrCnsgmtDec")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Reference ("MCRef")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Line No ("lineNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ | 
+ | Master BL No ("mstrBlNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ | 
+ | Master BL Date ("mstrBlDt")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ | 
+ | Consolidated Indicator ("consolidatedIndctr")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ | 
+ | Previous Declaration ("prevDec")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ |  
+ |  
+ |  
+ |  
+ | Consolidator_PAN ("consolidatorPan")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Master Previous Declaration ("prevRef")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | CIN Type ("cinTyp")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CIN No. ("mcinPcin")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Submitted Type ("csnSbmtdTyp")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Submitted by ("csnSbmtdBy")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Reporting Type ("csnRptngTyp")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Site ID ("csnSiteId")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Number ("csnNmbr":)
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | CSN Date ("csnDt")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Master supplementary Declaration ("supRef")
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | CIN Type ("cinTyp")
+ | X
+ | X
+ | X
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CIN No. ("mcinPcin")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Submitted Type ("csnSbmtdTyp")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Submitted by ("csnSbmtdBy")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Reporting Type ("csnRptngTyp")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Site ID ("csnSiteId")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Number ("csnNmbr")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Date ("csnDt")
+ | X
+ | X
+ | X
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Location Customs ("locCstm")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | First Port of Entry/Last Port of Departure ("firstPrtOfEntry")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Destination Port ("destPrt")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Next Port of Unlading ("nxtPrtOfUnlading")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Type of Cargo ("typOfCrgo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Item Type ("itemTyp")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Cargo Movement ("crgoMvmt")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Naure of Cargo ("natrOfCrgo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Transshipper ("trnshpr")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Transhipper Code ("trnshprCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Transhipper Bond ("trnshprBond")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Transport Document ("trnsprtDoc")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Port of Acceptance, Coded ("prtOfAcptCdd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Port of Acceptance Name ("prtOfAcptName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Port of Receipt, coded ("prtOfReceiptCdd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Port of Receipt Name ("prtOfReceiptName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor’s Name ("cnsgnrsName")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor’s Code ("cnsgnrsCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor Code Type ("cnsgnrCdTyp")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor Street Address ("cnsgnrStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor City ("cnsgnrCity")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor country sub division name ("cnsgnrCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor country sub division code ("cnsgnrCntrySubDivCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor Country Code ("cnsgnrCntryCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignor Post Code ("cnsgnrPstcd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Name ("cnsgnesName")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Code ("cnsgnesCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Type of code ("typOfCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Street Address ("cnsgneStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee City ("cnsgneCity")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Country sub division name ("cnsgneCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Country Sub division ("cnsgneCntrySubDiv")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Country Code ("cnsgneCntryCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Consignee Post Code ("cnsgnePstcd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Name of any other Notified Party ("nameOfAnyOtherNotfdParty")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | PAN of notified party ("panOfNotfdParty")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Type of Notified Party Code ("typOfNotfdPartyCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified Party Street Address ("notfdPartyStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified Party City ("notfdPartyCity")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified party country sub division name ("notfdPartyCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified party country sub division ("notfdPartyCntrySubDiv")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified Party Country Code ("notfdPartyCntryCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Notified Party Post Code ("notfdPartyPstcd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Goods Description as per B/L ("goodsDescAsPerBl")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | UCR Type ("ucrTyp")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | UCR Code ("ucrCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Transport Document_msr ("trnsprtDocMsr")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Number of packages ("nmbrOfPkgs")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Type of Packages ("typsOfPkgs")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Marks & Numbers on packages ("marksNoOnPkgs")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Gross Weight ("grossWeight")
+ | O
+ | O
+ | 
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Net Weight ("netWeight")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Unit of weight ("unitOfWeight")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Gross Volume ("grossVolume")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Unit of Volume ("unitOfVolume")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Invoice value of consignment ("invoiceValueOfCnsgmt")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Currency Code ("crncyCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Item Details ("itemDtls")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Cargo Item Sequence No ("crgoItemSeqNmbr")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | O
+ |  
+ |  
+ |  
+ | 
+ | HS Code ("hsCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Cargo Item Description ("crgoItemDesc")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | UNO Code ("unoCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | IMDG Code ("imdgCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Number of Packages ("nmbrOfPkgs")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Type of Packages ("typOfPkgs")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Transport Equipment ("trnsprtEqmt")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | M
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Equipment Sequence Number ("eqmtSeqNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Equipment Identifier ("eqmtId")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Equipment Type ("eqmtTyp")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Equipment Size ("eqmtSize")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Equipment Load Status ("eqmtLoadStatus")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Additional equipment hold ("adtnlEqmtHold")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Equipment Seal Type ("eqmtSealTyp")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Equipment Seal number ("eqmtSealNmbr")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Other equipment id ("otherEqmtId")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Soc Flag ("socFlag")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Container Agent Code ("cntrAgntCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Container Weight ("cntrWeight")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Total no of packages ("totalNmbrOfPkgs")
+ | M
+ | M
+ | M
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Itinerary ("itnry")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Port of call sequence number ("prtOfCallSeqNmbr")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Port of Call, Coded ("prtOfCallCdd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Port of Call Name ("prtOfCallName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Next port of call, coded ("nxtPrtOfCallCdd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Next port of call name ("nxtPrtOfCallName")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Mode of Transport ("modeOfTrnsprt")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | House Cargo Declaration ("houseCargoDec")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | HC Declaration Reference ("HCRef")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Subline No ("subLineNo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | House BL No ("blNo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | House BL Date ("blDt")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | Previous Declaration ("prevDec")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consolidated Indicator ("consolidatedIndctr")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consolidator_PAN ("consolidatorPan")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Previous_Reference ("prevRef")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | CIN Type ("cinTyp")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CIN No. ("mcinPcin")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Submitted Type ("csnSbmtdTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Submitted By ("csnSbmtdBy")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Reporting Type ("csnRptngTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Site ID ("csnSiteId")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Number ("csnNmbr")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | CSN Date ("csnDt")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | HC Supplementary Reference ("supRef")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | CIN Type ("cinTyp")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CIN No. ("mcinPcin")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Submitted Type ("csnSbmtdTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Submitted By ("csnSbmtdBy")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Reporting Type ("csnRptngTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Site ID ("csnSiteId")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Number ("csnNmbr")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CSN Date ("csnDt")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Location Customs ("locCstm")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | First Port of entry ("firstPrtOfEntry")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Destination port ("destPrt")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Next Port of Unlading ("nxtPrtOfUnlading")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Type of Cargo("typOfCrgo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Item Type ("itemTyp")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Cargo Movement ("crgoMvmt")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Nature of Cargo ("natrOfCrgo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Transhipper ("trnshpr")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Transhipper Code( "trnshprCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Transhipper Bond ("trnshprBond")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Transport Document ("trnsprtDoc")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Port of Acceptance, coded ("prtOfAcptCdd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Port of Acceptance Name ("prtOfAcptName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Port of Receipt, coded ("prtOfReceiptCdd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Port of Receipt Name ("prtOfReceiptName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor Name ("cnsgnrsName")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor Code ("cnsgnrsCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor Code Type ("cnsgnrCdTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor street address ("cnsgnrStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor city ("cnsgnrCity")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor country sub division name ("cnsgnrCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor country sub division code ("cnsgnrCntrySubDivCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor country code ("cnsgnrCntryCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignor Post Code ("cnsgnrPstcd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee Name ("cnsgnesName")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee code ("cnsgnesCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Type of code ("typOfCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee street address ("cnsgneStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee city ("cnsgneCity")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee country sub division name ("cnsgneCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee country sub division ("cnsgneCntrySubDiv")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee Country Code ("cnsgneCntryCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Consignee post code ("cnsgnePstcd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Name of any other notified party ("nameOfAnyOtherNotfdParty")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | PAN of notified party ("panOfNotfdParty")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Type of notified party code ("typOfNotfdPartyCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified Party Street Address ("notfdPartyStreetAddress")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified Party City ("notfdPartyCity")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified Party Country subdivision name ("notfdPartyCntrySubDivName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified Party Country subdivision ("notfdPartyCntrySubDiv")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified party country code ("notfdPartyCntryCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Notified party post code ("notfdPartyPstcd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Goods Description as per B/L ("goodsDescAsPerBl")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | UCR Type ("ucrTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | UCR Code ("ucrCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Transport Document_msr ("trnsprtDocMsr")
+ | M
+ | M
+ | M
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Number of Packages ("nmbrOfPkgs")
+ | M
+ | M
+ | M
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Types of Packages ("typsOfPkgs")
+ | M
+ | M
+ | M
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Marks &No on Packages ("marksNoOnPkgs")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Gross Weight ("grossWeight")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Net Weight ("netWeight")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Unit of Weight ("unitOfWeight")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Gross Volume ("grossVolume")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Unit of Volume ("unitOfVolume")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Invoice Value of Consignment ("invoiceValueOfCnsgmt")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Currency Code ("crncyCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Item Details ("itemDtls")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Cargo Item Sequence No ("crgoItemSeqNmbr")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | HS Code ("hsCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Cargo Item Description ("crgoItemDesc")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | UNO Code ("unoCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | IMDG Code ("imdgCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Number of Packages ("nmbrOfPkgs")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Type of Packages ("typOfPkgs")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Transport Equipment ("trnsprtEqmt")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Equipment Sequence Number ("eqmtSeqNo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | Equipment ID ("eqmtId")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Equipment Type ("eqmtTyp")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Equipment Size ("eqmtSize")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Equipment Load Status ("eqmtLoadStatus")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Additional equipment hold ("adtnlEqmtHold")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Equipment Seal Type ("eqmtSealTyp")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Equipment Seal number ("eqmtSealNmbr")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Other equipment id ("otherEqmtId")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Soc Flag ("socFlag")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Container Agent Code ("cntrAgntCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Container Weight ("cntrWeight")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Total no of packages ()"totalNmbrOfPkgs"(
+ | M
+ | M
+ | M
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Itinerary ("itnry")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Port of call sequence number ("prtOfCallSeqNmbr")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | M
+ |  
+ |  
+ |  
+ |  
+ | Port of Call, Coded ("prtOfCallCdd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Port of Call Name ("prtOfCallName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Next port of call, Coded ("nxtPrtOfCallCdd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Next port of call name ("nxtPrtOfCallName")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Mode of Transport ("modeOfTrnsprt")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Additional Declaration ("adtnlDec")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Tag Reference ("tagRef")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Reference serial no ("refSerialNo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_type ("infoTyp")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_qualifier ("infoQualifier")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_code ("infoCd")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_text ("infoText")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_Msr ("infoMsr")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_date ("infoDt")
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | HC Supporting Documents ("crgoSuprtDocs")
+ | O
+ | O
+ | O
+ | O
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Tag Reference ("tagRef")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ |  
+ | Reference Serial No ("refSerialNo")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | O
+ |  
+ |  
+ |  
+ |  
+ | Sub Serial No Reference ("subSerialNoRef")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ |  
+ | ICEGATE User ID ("icegateUserid")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | IRN Number ("irnNmbr")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Document Reference No ("docRefNmbr")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Document Type Code ("docTypCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Beneficiary Code ("bnefcryCd")
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | HC Response
+ | X
+ | X
+ | X
+ | X
+ | X
+ | X
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CIN Type ("cinTyp")
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Opt
+ | 
+ | 
+ | 
+ | 
+ | CIN No. ("mcinPcin")
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Opt
+ | 
+ | 
+ | 
+ | 
+ | MC Response
+ | X
+ | X
+ | X
+ | X
+ | X
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | CIN Type ("cinTyp")
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Opt
+ | 
+ | 
+ | 
+ | 
+ | CIN No. ("mcinPcin")
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ |  
+ | MC Additional Declaration ("mcAdtnlDec")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Tag Reference ("tagRef")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Reference Serial No ("refSerialNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Info_type ("infoTyp")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Info_qualifier ("infoQualifier")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Info_code ("infoCd")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Info_text ("infoText")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Info_Msr ("infoMsr")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Info_date ("infoDt")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ |  
+ |  
+ |  
+ |  
+ | MC Supporting Documents ("mcSuprtDocs")
+ | O
+ | O
+ | O
+ | O
+ | O
+ | X
+ | O
+ |  
+ |  
+ |  
+ | 
+ | Tag Reference ("tagRef")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ | 
+ | Reference Serial Number ("refSerialNo")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ | 
+ | Sub Serial No Reference ("subSerialNoRef")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | Opt
+ |  
+ |  
+ |  
+ | 
+ | ICEGATE User ID ("icegateUserid")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | IRN Number ("irnNmbr")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Document Reference No ("docRefNmbr")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ | 
+ | Document Type Code ("docTypCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ |  
+ |  
+ |  
+ |  
+ | Beneficiary Code ("bnefcryCd")
+ | M
+ | M
+ | M
+ | M
+ | M
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | Amendment (“amendment”)
+ | X
+ | X
+ | X
+ | M
+ | X
+ | X
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Error code tag
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | errorCode
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | ErrorMessage
+ | 
+ | 
+ | 
+ | 
+ | 
+ | 
+ | O
+ | 
+ | 
+ | 
+ | 
+ | Amend_det(amdType)
+ | X
+ | X
+ | X
+ | M
+ | M
+ | X
+ | O
+ | 
+LOVs: Code List
+Code Type
+ | Code
+ | Code Name
+ | Code Description
+ | PURP_CALL
+ | 1
+ | Cargo Operations
+ | Discharging and/or loading of cargo.
+ | PURP_CALL
+ | 2
+ | Passenger movement
+ | Embarking and/or disembarking of passengers.
+ | PURP_CALL
+ | 3
+ | Taking bunkers
+ | Taking bunker (refueling).
+ | PURP_CALL
+ | 4
+ | Changing crew
+ | Changing crew member(s).
+ | PURP_CALL
+ | 5
+ | Good will visit
+ | Friendly visit.
+ | PURP_CALL
+ | 6
+ | Taking supplies
+ | Taking supplies.
+ | PURP_CALL
+ | 7
+ | Repair
+ | Toeffectrepair.
+ | PURP_CALL
+ | 8
+ | Laid-up
+ | In active service.
+ | PURP_CALL
+ | 9
+ | Awaiting orders
+ | Awaiting job order.
+ | PURP_CALL
+ | 10
+ | Miscellaneous
+ | Miscellaneous purpose of call.
+ | PURP_CALL
+ | 11
+ | Crew movement
+ | Embarking and/or disembarking of crews.
+ | PURP_CALL
+ | 12
+ | Cruise, leisure and recreation
+ | To visit a port for cruise, leisure and recreation.
+ | PURP_CALL
+ | 13
+ | Under government order
+ | This is a visit to a port which has been ordered by a government.
+ | PURP_CALL
+ | 14
+ | Quarantine inspection
+ | To have a quarantine inspection.
+ | PURP_CALL
+ | 15
+ | Refuge
+ | Toseekprotectionagainstsomethingunpleasantand/orthreateningsuchasbadweatherordanger.
+ | PURP_CALL
+ | 16
+ | Unloading cargo
+ | Discharging of cargo from the means of transport.
+ | PURP_CALL
+ | 17
+ | Loading cargo
+ | Loading of cargo on to the means of transport.
+ | PURP_CALL
+ | 18
+ | Repair in dry dock
+ | Vessel to under gore pair in a dry dock.
+ | PURP_CALL
+ | 19
+ | Repair in wet dock
+ | Repair of a vessel in a dock without removing the surrounding water.
+ | PURP_CALL
+ | 20
+ | Cargo tank cleaning
+ | Cargo tanks of the means of transport will be cleaned.
+ | PURP_CALL
+ | 21
+ | Means of transport customs clearance
+ | Means of transport will be customs cleared.
+ | PURP_CALL
+ | 22
+ | Degassing
+ | Means of transport will be degassed.
+ | PURP_CALL
+ | 23
+ | Waste disposal
+ | Means of transport will dispose of her waste.
+ | PER_ID
+ | 036
+ | Identity card
+ |  
+ | PER_ID
+ | 039
+ | Passport
+ |  
+ | PER_ID
+ | 101
+ | Registration doc.
+ |  
+ | PER_ID
+ | 483
+ | Visa
+ |  
+ | PER_ID
+ | 980
+ | Seaman’s book
+ |  
+ | PER_ID
+ | 981
+ | Residence permit
+ |  
+ | SHIP_TYP
+ | 50
+ | General cargo vessel
+ | Vessel designed to carry general cargo.
+ | SHIP_TYP
+ | 501
+ | Grain vessel
+ | Vessel designed to carry grain.
+ | SHIP_TYP
+ | 502
+ | Timber/log carrier
+ | Vessel designed to carry logs and timber.
+ | SHIP_TYP
+ | 503
+ | Wood chips vessel
+ | Vessel designed to carry woodchips.
+ | SHIP_TYP
+ | 504
+ | Steel products vessel
+ | Vessel designed to carry steel products.
+ | SHIP_TYP
+ | 505
+ | Carrier, general cargo/container
+ | Vessel designed to carry general cargo and containers.
+ | SHIP_TYP
+ | 506
+ | Temperature-controlled cargo vessels
+ | Vessel designed to carry temperature-controlled cargo.
+ | SHIP_TYP
+ | 51
+ | Unit carrier
+ | Vessel designed to carry unit loads.
+ | SHIP_TYP
+ | 511
+ | Full containership/cellular vessel
+ | Vessel designed to carry containers only.
+ | SHIP_TYP
+ | 512
+ | RORO vessel
+ | Vessel with ramp designed to carry roll-on/roll-off cargo.
+ | SHIP_TYP
+ | 513
+ | Car carrier
+ | Vessel designed to carry automotive vehicles or their knock-down parts.
+ | SHIP_TYP
+ | 514
+ | Live stock carrier
+ | Vessel designed to carry livestock.
+ | SHIP_TYP
+ | 515
+ | Barge carrier–Lash ship
+ | Vessel designed to carry barges. Lash means lighters aboard ship.
+ | SHIP_TYP
+ | 516
+ | Chemical carrier
+ | Vessel designed to carry chemical sin bulk or drumsnotin tanks.
+ | SHIP_TYP
+ | 517
+ | Irradiated fuel carrier
+ | Vessel designed to carry irradiated fuel.
+ | SHIP_TYP
+ | 518
+ | Heavy cargo vessel
+ | Ship designed to carry heavy cargo.
+ | SHIP_TYP
+ | 519
+ | RoRo/container vessel
+ | Vessel designed to carry both containers and roll-on/roll-off cargo.
+ | SHIP_TYP
+ | 52
+ | Bulk carrier
+ | Vessel designed to carry bulk cargo.
+ | SHIP_TYP
+ | 521
+ | Dry bulk carrier
+ | Vessel designed to carry dry bulk(expellers).
+ | SHIP_TYP
+ | 522
+ | Ore carrier
+ | Vessel designed to carry ore.
+ | SHIP_TYP
+ | 523
+ | Cement carrier
+ | Vessel designed to carry cement.
+ | SHIP_TYP
+ | 524
+ | Gravel carrier
+ | Vessel designed to carry gravel.
+ | SHIP_TYP
+ | 525
+ | Coal carrier
+ | Vessel designed to carry coal.
+ | SHIP_TYP
+ | 53
+ | Tanker
+ | Vessel solely equipped with tanks to carry cargo.
+ | SHIP_TYP
+ | 531
+ | Crude oil tanker
+ | Tanker designed to carry crude oil.
+ | SHIP_TYP
+ | 532
+ | Chemical tanker, coaster
+ | Tanker designed to carry chemicals in coastal traffic.
+ | SHIP_TYP
+ | 533
+ | Chemical tanker, deep sea
+ | Tanker designed to carry chemicals in deep sea.
+ | SHIP_TYP
+ | 534
+ | Oil and other derivatives tanker
+ | Tanker designed to carry oil and other derivatives.
+ | SHIP_TYP
+ | 54
+ | Liquefied gas tanker
+ | Tanker designed to carry liquefied gas.
+ | SHIP_TYP
+ | 541
+ | LPG tanker
+ | Vessel designed to carry Liquefied Petroleum Gas(LPG).
+ | SHIP_TYP
+ | 542
+ | LNG tanker
+ | Tanker designed to carry Liquefied Natural Gas(LNG).
+ | SHIP_TYP
+ | 543
+ | LNG/LPG tanker
+ | Tanker designed to carry Liquefied Natural Gas(LNG) and Liquefied Petroleum Gas(LPG).
+ | SHIP_TYP
+ | 55
+ | Other special tanker
+ | Tanker designed to carry other special liquids.
+ | SHIP_TYP
+ | 551
+ | Asphalt/bitumen tanker
+ | Tanker designed to carry asphalt and bitumen.
+ | SHIP_TYP
+ | 552
+ | Molasses tanker
+ | Tanker designed to carry molasses.
+ | SHIP_TYP
+ | 553
+ | Vegetable oil tanker
+ | Tanker designed to carry vegetable oil.
+ | SHIP_TYP
+ | 57
+ | Cargo and passenger vessel
+ | Vessel designed to carry cargo and passengers.
+ | SHIP_TYP
+ | 59
+ | Passenger ship
+ | Vesseldesignedtocarrymorethan12passengers.
+ | SHIP_TYP
+ | 591
+ | Cruise ship
+ | Passenger ship designed to carry tourists on specified routes.
+ | SHIP_TYP
+ | 592
+ | Ferry
+ | Vessel designed to ply regularly between twoor more ports.
+ | SHIP_TYP
+ | 593
+ | Other passenger ship
+ | Vessel designed to carry passengers, not otherwise specified.
+ | SHIP_TYP
+ | 594
+ | Passenger ship, sailing
+ | Vessel designed to carry passengers and mainly propelled by sails.
+ | SHIP_TYP
+ | 60
+ | Assistance vessel
+ | Vessel designed to give assistance.
+ | SHIP_TYP
+ | 601
+ | Tug, without tow
+ | Vessel designed to tow objects but sailing alone.
+ | SHIP_TYP
+ | 602
+ | Tug, with tow
+ | Vessel designed to tow, and towing an object.
+ | SHIP_TYP
+ | 603
+ | Salvage vessel
+ | Vessel designed to salvage.
+ | SHIP_TYP
+ | 604
+ | Rescue vessel
+ | Vessel designed to effect rescue operations.
+ | SHIP_TYP
+ | 605
+ | Oil combat vessel
+ | Vessel designed to combat oil spills.
+ | SHIP_TYP
+ | 606
+ | Oilrig
+ | Object designed for drilling oil at sea.
+ | SHIP_TYP
+ | 607
+ | Hospital vessel
+ | Vessel designed to serve as a hospital at sea.
+ | SHIP_TYP
+ | 70
+ | Other sea-going vessel
+ | Sea-going vessel, not otherwise specified.
+ | SHIP_TYP
+ | 711
+ | Pilot boat
+ | Vessel designed to convey pilots to/from ships.
+ | SHIP_TYP
+ | 712
+ | Patrol/measure ship
+ | Vessel designed to guard, patrolor measure.
+ | SHIP_TYP
+ | 72
+ | Work ship
+ | Vessel designed to assist in work.
+ | SHIP_TYP
+ | 721
+ | Supply vessel
+ | Vessel designed to provide supplies.
+ | SHIP_TYP
+ | 723
+ | Offshore support vessel
+ | Vessel designed to provide off shore support.
+ | SHIP_TYP
+ | 724
+ | Pontoon
+ | Flat-bottomed vessel with a flat deck.
+ | SHIP_TYP
+ | 725
+ | Stone dumping vessel
+ | Vessel designed to dump stones.
+ | SHIP_TYP
+ | 726
+ | Cable layer
+ | Vessel designed to lay cable.
+ | SHIP_TYP
+ | 727
+ | Buoyage vessel
+ | Vessel designed to handle buoys.
+ | SHIP_TYP
+ | 728
+ | Icebreaker
+ | Vessel designed to break ice.
+ | SHIP_TYP
+ | 729
+ | Pipe laying vessel
+ | Vessel designed to lay pipe.
+ | SHIP_TYP
+ | 73
+ | Push boat
+ | Vessel designed to push other vessels.
+ | SHIP_TYP
+ | 74
+ | Dredger
+ | Vessel designed to scoopor suck mud orsand.
+ | SHIP_TYP
+ | 75
+ | Fishing boat
+ | Vessel designed for fishing.
+ | SHIP_TYP
+ | 751
+ | Trawler
+ | Vessel designed to drag a bag-like net.
+ | SHIP_TYP
+ | 752
+ | Cutter
+ | Small vessel that sometimes can be carried on a larger ship.
+ | SHIP_TYP
+ | 753
+ | Factory ship
+ | Vessel designed as a fish factory.
+ | SHIP_TYP
+ | 76
+ | Research and education ship
+ | Vessel designed for research and education.
+ | SHIP_TYP
+ | 761
+ | Fishery research vessel
+ | Vessel designed for fishery research.
+ | SHIP_TYP
+ | 762
+ | Climate registration vessel
+ | Vessel designed for climate registration.
+ | SHIP_TYP
+ | 763
+ | Ship for environmental measurement
+ | Vessel designed for environmental monitoring and measurement.
+ | SHIP_TYP
+ | 764
+ | Scientific vessel
+ | Vessel designed for scientific purposes.
+ | SHIP_TYP
+ | 765
+ | Sailing school ship
+ | Vessel designed for training, powered by sail.
+ | SHIP_TYP
+ | 76
+ | Training vessel
+ | Vessel designed for training. 
+ | SHIP_TYP
+ | 77
+ | Navy vessel
+ | Vessel operated by a navy.
+ | SHIP_TYP
+ | 78
+ | Structure, floating
+ | Any floating structure.
+ | SHIP_TYP
+ | 781
+ | Crane, floating
+ | Acranemountedonabargeorpontoon.
+ | SHIP_TYP
+ | 782
+ | Dock, floating
+ | Asubmersiblefloatingstructureusedasadock.
+ | SHIP_TYP
+ | 80
+ | Pleasure boat
+ | Vessel designed for recreation.
+ | SHIP_TYP
+ | 81
+ | Speedboat
+ | Vessel designed for speed, often used for recreation.
+ | SHIP_TYP
+ | 82
+ | Sailing boat with auxiliary motor
+ | Vessel designed primarily for sailing, out fitted with an auxiliary motor.
+ | SHIP_TYP
+ | 83
+ | Sailing yacht
+ | A specific type of vessel mostly used for pleasure and designed for sailing.
+ | SHIP_TYP
+ | 84
+ | Boat for sport fishing
+ | Vessel designed for sport fishing.
+ | SHIP_TYP
+ | 85
+ | Craft,pleasure,longerthan20metres
+ | Vessellongerthan20metres,designedforrecreation.
+ | SHIP_TYP
+ | 89
+ | Craft, other, recreational
+ | Vesseldesignedforrecreation,nototherwisespecified.
+ | SHIP_TYP
+ | 90
+ | Fast ship
+ | Fast, all-purpose vessel.
+ | SHIP_TYP
+ | 91
+ | Hydrofoil
+ | Vessel with wing-like structure for skimming at high speed.
+ | SHIP_TYP
+ | 92
+ | Catamaran, fast
+ | Fast vessel designed with two parallel hulls.
+ | CAR_DESC
+ | 0
+ | No cargo unit (liquid bulk goods)
+ |  
+ | CAR_DESC
+ | 1
+ | No cargo unit (solid bulk goods)
+ |  
+ | CAR_DESC
+ | 2
+ | Large freight containers
+ |  
+ | CAR_DESC
+ | 3
+ | Other freight containers
+ |  
+ | CAR_DESC
+ | 4
+ | Palletized
+ |  
+ | CAR_DESC
+ | 5
+ | Pre-slung
+ |  
+ | CAR_DESC
+ | 6
+ | Mobile self-propelled units
+ |  
+ | CAR_DESC
+ | 7
+ | Other mobile units
+ |  
+ | CAR_DESC
+ | 8
+ | (Reserved)
+ |  
+ | CAR_DESC
+ | 9
+ | Other cargo types
+ |  
+ | IMDG_CD
+ | 1
+ | Class1:Explosives
+ | Class1:Explosives
+ | IMDG_CD
+ | 1.1
+ | Mass explosion hazard
+ | Division1.1:Substancesandarticleswhichhaveamassexplosionhazard
+ | IMDG_CD
+ | 1.2
+ | Projection hazard but not a mass explosion hazard
+ | Division1.2:Substancesandarticleswhichhaveaprojectionhazardbutnotamassexplosionhazard
+ | IMDG_CD
+ | 1.3
+ | Fire hazard and either a minor Hazard
+ | Division1.3:Substancesandarticleswhichhaveafirehazardandeitheraminorblasthazardoraminorprojectionhazard,orboth,butnotamassexplosionhazard
+ | IMDG_CD
+ | 1.4
+ | No significant hazard
+ | Division1.4:Substancesandarticleswhichpresentnosignificanthazard
+ | IMDG_CD
+ | 1.5
+ | Very insensitive substances which have a mass explosion hazard
+ | Division1.5:Veryinsensitivesubstanceswhichhaveamassexplosionhazard
+ | IMDG_CD
+ | 1.6
+ | Extremely insensitive articles
+ | Division1.6:Extremelyinsensitivearticleswhichdonothaveamassexplosionhazard
+ | IMDG_CD
+ | 2
+ | Class2:Gases
+ | Class2:Gases
+ | IMDG_CD
+ | 2.1
+ | Division2.1:Flammablegases
+ | Division2.1:Flammablegases
+ | IMDG_CD
+ | 2.2
+ | Division2.2:Non-flammable,non-toxicgases
+ | Division2.2:Non-flammable,non-toxicgases
+ | IMDG_CD
+ | 2.3
+ | Division2.3:Toxicgases
+ | Division2.3:Toxicgases
+ | IMDG_CD
+ | 3
+ | Class3:Flammableliquids
+ | Class3:Flammableliquids
+ | IMDG_CD
+ | 4
+ | Class4:Flammablesolids
+ | Class4:Flammablesolids, substancesliabletospontaneouscombustion, substanceswhich,incontactwithwater,emitflammablegases
+ | IMDG_CD
+ | 4.1
+ | Division4.1:Flammablesolids,self-reactivesubstancesanddesensitizedexplosives
+ | Division4.1:Flammablesolids,self-reactivesubstancesanddesensitizedexplosives
+ | IMDG_CD
+ | 4.2
+ | Division4.2:Substancesliabletospontaneouscombustion
+ | Division4.2:Substancesliabletospontaneouscombustion
+ | IMDG_CD
+ | 4.3
+ | Division4.3:Substanceswhich,incontactwithwater,emitflammablegases
+ | Division4.3:Substanceswhich,incontactwithwater,emitflammablegases
+ | IMDG_CD
+ | 5
+ | Class5:Oxidizingsubstancesandorganicperoxides
+ | Class5:Oxidizingsubstancesandorganicperoxides
+ | IMDG_CD
+ | 5.1
+ | Division5.1:Oxidizingsubstances
+ | Division5.1:Oxidizingsubstances
+ | IMDG_CD
+ | 5.2
+ | Division5.2:Organicperoxides
+ | Division5.2:Organicperoxides
+ | IMDG_CD
+ | 6
+ | Class6:Toxicandinfectioussubstances
+ | Class6:Toxicandinfectioussubstances
+ | IMDG_CD
+ | 6.1
+ | Division6.1:Toxicsubstances
+ | Division6.1:Toxicsubstances
+ | IMDG_CD
+ | 6.2
+ | Division6.2:Infectioussubstances
+ | Division6.2:Infectioussubstances
+ | IMDG_CD
+ | 7
+ | Class7:Radioactivematerial
+ | Class7:Radioactivematerial
+ | IMDG_CD
+ | 8
+ | Class8:Corrosivesubstances
+ | Class8:Corrosivesubstances
+ | IMDG_CD
+ | 9
+ | Class9:Miscellaneousdangeroussubstancesandarticles
+ | Class9:Miscellaneousdangeroussubstancesandarticles
+ | PER_TR_IND
+ | 0
+ | Person will not leavethevessel
+ |  
+ | PER_TR_IND
+ | 1
+ | Person will leave or has left the vessel but intends tore turn on board again before departure of the vessel
+ |  
+ | PER_TR_IND
+ | 2
+ | Person has left the vessel but is on board again
+ |  
+ | CRW_RNK
+ | ABLESEAM
+ | Able Seaman
+ |  
+ | CRW_RNK
+ | AGENT
+ | Agent
+ |  
+ | CRW_RNK
+ | ASSTFOOD
+ | Assistant Food and Beverage Manager
+ |  
+ | CRW_RNK
+ | BARMANAG
+ | Bar Manager
+ |  
+ | CRW_RNK
+ | BARSERVI
+ | Bar Service
+ |  
+ | CRW_RNK
+ | BOSUN
+ | Bo sun
+ |  
+ | CRW_RNK
+ | CADET
+ | Cadet
+ |  
+ | CRW_RNK
+ | CAPTAIN
+ | Captain
+ |  
+ | CRW_RNK
+ | CARGOTEC
+ | Cargo Technician
+ |  
+ | CRW_RNK
+ | CASINOST
+ | Casino Staff
+ |  
+ | CRW_RNK
+ | CHIEFCOO
+ | Chief Cook
+ |  
+ | CRW_RNK
+ | CHIEFELE
+ | Chief Electrician
+ |  
+ | CRW_RNK
+ | CHIEFHOU
+ | Chief House keeper
+ |  
+ | CRW_RNK
+ | CHIEFENG
+ | Chief Engineer
+ |  
+ | CRW_RNK
+ | CHIEFMAS
+ | Chief Master
+ |  
+ | CRW_RNK
+ | CHIEFMAT
+ | Chief Mate
+ |  
+ | CRW_RNK
+ | CHIEFOFF
+ | Chief Officer
+ |  
+ | CRW_RNK
+ | CHIEFPUR
+ | Chief Purser
+ |  
+ | CRW_RNK
+ | CHIEFSTE
+ | Chief Steward
+ |  
+ | CRW_RNK
+ | CLASSSUR
+ | Class Surveyor
+ |  
+ | CRW_RNK
+ | CSO
+ | Company Security Officer
+ |  
+ | CRW_RNK
+ | COOK
+ | Cook
+ |  
+ | CRW_RNK
+ | CRANEOPE
+ | Crane Operator
+ |  
+ | CRW_RNK
+ | CREWMEMB
+ | Crew Member
+ |  
+ | CRW_RNK
+ | CRUISEDI
+ | Cruise Director
+ |  
+ | CRW_RNK
+ | CRUISEST
+ | Cruise Staff
+ |  
+ | CRW_RNK
+ | DECKAPPR
+ | Deck Apprentice
+ |  
+ | CRW_RNK
+ | DECKFITT
+ | Deck Fitter
+ |  
+ | CRW_RNK
+ | DECKOFFI
+ | Deck Officer
+ |  
+ | CRW_RNK
+ | DECKHAND
+ | Deck hand, Deck Crew
+ |  
+ | CRW_RNK
+ | DOCTOR
+ | Doctor
+ |  
+ | CRW_RNK
+ | DONKEYMA
+ | Donkey man
+ |  
+ | CRW_RNK
+ | ELECENGI
+ | Electrical Engineer
+ |  
+ | CRW_RNK
+ | ELECOFFI
+ | Electrical Officer
+ |  
+ | CRW_RNK
+ | ELECTRIC
+ | Electrician
+ |  
+ | CRW_RNK
+ | ENGCADET
+ | Engineer Cadet, Engine Apprentice
+ |  
+ | CRW_RNK
+ | ENGCREW
+ | Engineering Crew, Engine Crew
+ |  
+ | CRW_RNK
+ | ENGINEFI
+ | Engine Fitter
+ |  
+ | CRW_RNK
+ | ENTERTAI
+ | Entertainment
+ |  
+ | CRW_RNK
+ | FACCREW
+ | Facilities Crew
+ |  
+ | CRW_RNK
+ | FACMANAG
+ | Facilities Manager
+ |  
+ | CRW_RNK
+ | FIRSTASS
+ | First Assistant Engineer
+ |  
+ | CRW_RNK
+ | FIRSTENG
+ | First Engineer
+ |  
+ | CRW_RNK
+ | FIRSTMAT
+ | First Mate
+ |  
+ | CRW_RNK
+ | FIRSTOFF
+ | First Officer
+ |  
+ | CRW_RNK
+ | FITTER
+ | Fitter
+ |  
+ | CRW_RNK
+ | FOURTHOF
+ | Fourth Officer
+ |  
+ | CRW_RNK
+ | FOODBEVM
+ | Food and Beverage Manager, Catering Officer
+ |  
+ | CRW_RNK
+ | FOODSERV
+ | Food Service, Catering Crew
+ |  
+ | CRW_RNK
+ | FOURTHAS
+ | Fourth Assistant Engineer, Fourth Engineer
+ |  
+ | CRW_RNK
+ | GREASER
+ | Greaser
+ |  
+ | CRW_RNK
+ | HOSPITAL
+ | Hospitality
+ |  
+ | CRW_RNK
+ | HOTELDIR
+ | Hotel Director
+ |  
+ | CRW_RNK
+ | HOTELSTA
+ | Hotel Staff
+ |  
+ | CRW_RNK
+ | HOUSEKEE
+ | Housekeeping Staff
+ |  
+ | CRW_RNK
+ | INFORMAT
+ | Information Technology
+ |  
+ | CRW_RNK
+ | JUNIOREN
+ | Junior Engineer
+ |  
+ | CRW_RNK
+ | LAUNDRYM
+ | Laundry Master
+ |  
+ | CRW_RNK
+ | LIFEBOAT
+ | Lifeboat man
+ |  
+ | CRW_RNK
+ | MAITRED
+ | Maître
+ |  
+ | CRW_RNK
+ | MARINECR
+ | Marine Crew
+ |  
+ | CRW_RNK
+ | MARKETIN
+ | Marketing Revenue Manager
+ |  
+ | CRW_RNK
+ | MASTER
+ | Master
+ |  
+ | CRW_RNK
+ | MASTERFI
+ | Master First Class Pilot
+ |  
+ | CRW_RNK
+ | MATEFIRS
+ | Mate First Class Pilot
+ |  
+ | CRW_RNK
+ | MECHANIC
+ | Mechanic
+ |  
+ | CRW_RNK
+ | MEDICALS
+ | Medical Staff
+ |  
+ | CRW_RNK
+ | MESSMAN
+ | Mess man
+ |  
+ | CRW_RNK
+ | MOTORMAN
+ | Motor man
+ |  
+ | CRW_RNK
+ | OILER
+ | Oiler
+ |  
+ | CRW_RNK
+ | OPERATOR
+ | Operator
+ |  
+ | CRW_RNK
+ | ORDINAIR
+ | Ordinary Seaman
+ |  
+ | CRW_RNK
+ | OWNERNL
+ | Owner in NL
+ |  
+ | CRW_RNK
+ | PAINTER
+ | Painter
+ |  
+ | CRW_RNK
+ | PORTER
+ | Porter
+ |  
+ | CRW_RNK
+ | PROVISIO
+ | Provision
+ |  
+ | CRW_RNK
+ | PROVMAST
+ | Provision Master
+ |  
+ | CRW_RNK
+ | PUMPMAN
+ | Pump man, Pump Man
+ |  
+ | CRW_RNK
+ | QMED
+ | QMED
+ |  
+ | CRW_RNK
+ | RADIOOFF
+ | Radio Officer
+ |  
+ | CRW_RNK
+ | REEFERMA
+ | Reefer man
+ |  
+ | CRW_RNK
+ | REPAIRMA
+ | Repair Man
+ |  
+ | CRW_RNK
+ | RIDDINGC
+ | Ridding Crew
+ |  
+ | CRW_RNK
+ | SAFETYAN
+ | Safety and Security
+ |  
+ | CRW_RNK
+ | SECONDAS
+ | Second Assistant Engineer, Second Engineer
+ |  
+ | CRW_RNK
+ | SECONDMA
+ | Second Mate
+ |  
+ | CRW_RNK
+ | SECONDOF
+ | Second Officer
+ |  
+ | CRW_RNK
+ | SSO
+ | Ship Security Officer
+ |  
+ | CRW_RNK
+ | STAFFCAP
+ | Staff Captain
+ |  
+ | CRW_RNK
+ | STEWARD
+ | Steward
+ |  
+ | CRW_RNK
+ | SUPERINT
+ | Superintendent
+ |  
+ | CRW_RNK
+ | TANKERMA
+ | Tanker man
+ |  
+ | CRW_RNK
+ | THIRDASS
+ | Third Assistant Engineer, Third Engineer
+ |  
+ | CRW_RNK
+ | THIRDMAT
+ | Third Mate
+ |  
+ | CRW_RNK
+ | THIRDOFF
+ | Third Officer
+ |  
+ | CRW_RNK
+ | THIRDPAR
+ | Third Party
+ |  
+ | CRW_RNK
+ | TRUCKMEC
+ | Truck Mechanic
+ |  
+ | CRW_RNK
+ | TUNNELMA
+ | Tunnel man
+ |  
+ | CRW_RNK
+ | UTILITYP
+ | Utility Person
+ |  
+ | CRW_RNK
+ | VETTINGI
+ | Vetting inspector
+ |  
+ | CRW_RNK
+ | WELDER
+ | Welder
+ |  
+ | CRW_RNK
+ | WIPER
+ | Wiper
+ |  
+ | CRW_RNK
+ | YARDPERS
+ | Yard Personnel
+ |  
+ | CRW_RNK
+ | OTHER
+ | Other
+ |  
+ | CRW_RNK
+ | SUPERNUM
+ | Supernumerary
+ |  
+ | GD_ONB
+ | 001
+ | Alcoholic spirits
+ |  
+ | GD_ONB
+ | 002
+ | Other alcoholic goods
+ |  
+ | GD_ONB
+ | 003
+ | Wine
+ |  
+ | GD_ONB
+ | 004
+ | Cigarettes
+ |  
+ | GD_ONB
+ | 005
+ | Cigars
+ |  
+ | GD_ONB
+ | 006
+ | Tobacco
+ |  
+ | GD_ONB
+ | 007
+ | Fuels
+ |  
+ | GD_ONB
+ | 008
+ | Lubricants
+ |  
+ | GD_ONB
+ | 009
+ | Drugs
+ |  
+ | GD_ONB
+ | 010
+ | Flesh and flesh products
+ |  
+ | GD_ONB
+ | 011
+ | Firearms
+ |  
+ | GD_ONB
+ | 012
+ | Ammunition
+ |  
+ | GD_ONB
+ | 099
+ | Miscellaneous
+ |  
+ | Ent_type
+ | ASC
+ | Authorized Sea Carrier
+ |  
+ | Ent_type
+ | ASA
+ | Authorized Shipping Agent
+ |  
+ | Ent_type
+ | ATP
+ | Authorized Transhipper
+ |  
+ | Ent_type
+ | ATO
+ | Authorized Terminal Operator
+ |  
+ | Ent_type
+ | AES
+ | Authorized Exporter for Eseal
+ |  
+ | En_AO_type
+ | CT
+ | Authorized Custodian-Terminal
+ |  
+ | En_AO_type
+ | CI
+ | Authorized Custodian-ICD
+ |  
+ | En_AO_type
+ | CC
+ | Authorized Custodian-CFS
+ |  
+ | En_AO_type
+ | SL
+ | Shipping Line
+ |  
+ | En_AO_type
+ | SA
+ | Shipping/Steamer Agent
+ |  
+ | En_AO_type
+ | IEB
+ | Exporter Branch
+ |  
+ | Edu_ql_lvl
+ | A
+ | Pre-Primary Level
+ |  
+ | Edu_ql_lvl
+ | B
+ | Primary Level
+ |  
+ | Edu_ql_lvl
+ | C
+ | Upper Primary Level
+ |  
+ | Edu_ql_lvl
+ | D
+ | Secondary Level
+ |  
+ | Edu_ql_lvl
+ | E
+ | Senior Secondary Level
+ |  
+ | Edu_ql_lvl
+ | F
+ | Under Graduate
+ |  
+ | Edu_ql_lvl
+ | G
+ | Post Graduate Level
+ |  
+ | Edu_ql_lvl
+ | H
+ | M.Phil. Level
+ |  
+ | Edu_ql_lvl
+ | I
+ | Ph.D. Level
+ |  
+ | Edu_ql_lvl
+ | J
+ | Diploma
+ |  
+ | Edu_ql_lvl
+ | L
+ | Integrated
+ |  
+ | Edu_ql_lvl
+ | M
+ | Certificate
+ |  
+ | Edu_ql_lvl
+ | N
+ | In-service Training
+ |  
+ | Edu_ql_lvl
+ | O
+ | Adult Education
+ |  
+ | Edu_ql_lvl
+ | X
+ | Education Not else where classified
+ |  
+ | Equ_Status
+ | 001
+ | Arrival, completed
+ |  
+ | Equ_Status
+ | 3
+ | Arrival, in defective condition
+ |  
+ | Equ_Status
+ | 15
+ | Consolidated
+ |  
+ | Equ_Status
+ | 16
+ | Crossed border
+ |  
+ | Equ_Status
+ | 18
+ | Damaged in the course of transportation
+ |  
+ | Equ_Status
+ | 35
+ | Forwarded to destination
+ |  
+ | Equ_Status
+ | 208
+ | Seals, replaced
+ |  
+ | Equ_Status
+ | 218
+ | Damaged
+ |  
+ | Equ_Status
+ | 238
+ | Means of transport, damaged
+ |  
+ | Equ_Status
+ | 309
+ | Packaging/equipment opened
+ |  
+ | Equ_Status
+ | 335
+ | Seals, damaged
+ |  
+ | Equ_Status
+ | 336
+ | Seals, broken
+ |  
+ | Equ_Status
+ | 337
+ | Seals, tampered
+ |  
+ | Equ_Status
+ | 127
+ | Departed, completedona means of transport
+ |  
+ | Equ_Status
+ | 94
+ | Stuffed and sealed
+ |  
+ | Equ_Status
+ | 71
+ | Ready for transportation
+ |  
+ | Nat_cargo
+ | C
+ | Containerized
+ |  
+ | Nat_cargo
+ | P
+ | Packaged
+ |  
+ | Nat_cargo
+ | CP
+ | Part of Consignment is containerized, remaining are packaged but not containerized
+ |  
+ | Nat_cargo
+ | LB
+ | Liquid Bulk
+ |  
+ | Nat_cargo
+ | DB
+ | Dry Bulk
+ |  
+ | State_code
+ | 01
+ | JAMMU&KASHMIR
+ |  
+ | State_code
+ | 02
+ | HIMACHALPRADESH
+ |  
+ | State_code
+ | 03
+ | PUNJAB
+ |  
+ | State_code
+ | 04
+ | CHANDIGARH
+ |  
+ | State_code
+ | 05
+ | UTTARANCHAL
+ |  
+ | State_code
+ | 06
+ | HARYANA
+ |  
+ | State_code
+ | 07
+ | DELHI
+ |  
+ | State_code
+ | 08
+ | RAJASTHAN
+ |  
+ | State_code
+ | 09
+ | UTTARPRADESH
+ |  
+ | State_code
+ | 10
+ | BIHAR
+ |  
+ | State_code
+ | 11
+ | SIKKIM
+ |  
+ | State_code
+ | 12
+ | ARUNACHALPRADESH
+ |  
+ | State_code
+ | 13
+ | NAGALAND
+ |  
+ | State_code
+ | 14
+ | MANIPUR
+ |  
+ | State_code
+ | 15
+ | MIZORAM
+ |  
+ | State_code
+ | 16
+ | TRIPURA
+ |  
+ | State_code
+ | 17
+ | MEGHALAYA
+ |  
+ | State_code
+ | 18
+ | ASSAM
+ |  
+ | State_code
+ | 19
+ | WESTBENGAL
+ |  
+ | State_code
+ | 20
+ | JHARKHAND
+ |  
+ | State_code
+ | 21
+ | ORISSA
+ |  
+ | State_code
+ | 22
+ | CHATTISGARH
+ |  
+ | State_code
+ | 23
+ | MADHYAPRADESH
+ |  
+ | State_code
+ | 24
+ | GUJARAT
+ |  
+ | State_code
+ | 25
+ | DAMAN&DIU
+ |  
+ | State_code
+ | 26
+ | DADRA&NAGARHAVELI
+ |  
+ | State_code
+ | 27
+ | MAHARASHTRA
+ |  
+ | State_code
+ | 29
+ | KARNATAKA
+ |  
+ | State_code
+ | 30
+ | GOA
+ |  
+ | State_code
+ | 31
+ | LAKSHADWEEP
+ |  
+ | State_code
+ | 32
+ | KERALA
+ |  
+ | State_code
+ | 33
+ | TAMILNADU
+ |  
+ | State_code
+ | 34
+ | PONDICHERRY
+ |  
+ | State_code
+ | 35
+ | ANDAMAN&NICOBAR
+ |  
+ | State_code
+ | 36
+ | TELANGANA
+ |  
+ | PKG_CODE
+ | PKG
+ | Packages
+ |  
+ | PKG_CODE
+ | KGS
+ | Kilograms
+ |  
+ | PKG_CODE
+ | MTS
+ | Metric Ton
+ |  
+ | PKG_CODE
+ | LTR
+ | Liters
+ |  
+ | PKG_CODE
+ | USG
+ | US Gallons
+ |  
+ | EQU_Type
+ | BB
+ | Breakbulk
+ | Cargoes in bulk not stuffed in equipment.
+ | EQU_Type
+ | BL
+ | Blocks
+ | A piece of equipment that is normally a piece of wood to fix cargo (e.g. coils) during transport.
+ | EQU_Type
+ | CH
+ | Chassis
+ | A wheeled carriage onto which an ocean container is mounted for inland conveyance.
+ | EQU_Type
+ | CN
+ | Container
+ | Equipment item as defined by ISO for transport.
+ | EQU_Type
+ | DPL
+ | Onboard Equipment
+ | Equipment permanently onboard a means of transport.
+ | EQU_Type
+ | TE
+ | Trailer
+ | A vehicle without motive power, designed for the carriage of cargo and to be towed by a motor vehicle.
+ | ACK Error Code List
+ERR_CD
+ | ERR_DESC
+ | 00
+ | Success
+ | 01
+ | Duplicate Records
+ | 02
+ | No Attribute Exists for Mandatory Object
+ | 03
+ | Invalid Message Type
+ | 04
+ | Invalid Reporting Events
+ | 05
+ | Reporting Port Not Match with Submission Port
+ | 06
+ | Mandatory Field Contains Null Value
+ | 07
+ | Invalid Vessel Movement Type
+ | 08
+ | Invalid Submitter Type
+ | 09
+ | Invalid Submitter Type/Code
+ | 10
+ | Invalid Authorized Person Code
+ | 11
+ | Invalid Shipping Line Code
+ | 12
+ | Invalid Carrier/Submitter Code-ASC
+ | 13
+ | Mismatch in Terminal Optr Cd of SAM and VCN-NLP
+ | 14
+ | Invalid Mode of Transport
+ | 15
+ | Invalid Transport Means
+ | 16
+ | Invalid Transport Means No/IMO Code
+ | 17
+ | Invalid Vessel Code
+ | 18
+ | Invalid Purpose of Call
+ | 19
+ | Invalid Voyage Number
+ | 20
+ | Invalid Voyage Call Number-VCN
+ | 21
+ | Invalid Goods Description Code
+ | 22
+ | Invalid Expected Time of Arrival
+ | 23
+ | Invalid Expected Time of Departure
+ | 24
+ | Invalid Rotation/Voyage Call Number
+ | 25
+ | Invalid Departure Rotation Number
+ | 26
+ | Error in the Data Table-ObjType
+ | 27
+ | Invalid Ship Itinerary Sequence
+ | 28
+ | Invalid Port of Call Code/Name
+ | 29
+ | Invalid Port of Next Call Code/Name
+ | 30
+ | Invalid Type of Packet
+ | 31
+ | Invalid HS Code
+ | 32
+ | Invalid UNO Code
+ | 33
+ | Invalid IMDG Code
+ | 34
+ | Invalid UCR Type
+ | 35
+ | Invalid UCR Code
+ | 36
+ | Invalid Transhipper Code
+ | 37
+ | Invalid Acceptance Port Code
+ | 38
+ | Invalid Receipt Port Code
+ | 39
+ | Invalid Consignor Code Type
+ | 40
+ | Invalid Consignor Code
+ | 41
+ | Invalid Buyer Code Type
+ | 42
+ | Invalid Buyer Code
+ | 43
+ | Invalid Consignor Country Code
+ | 44
+ | Invalid Buyer Country Code
+ | 45
+ | Invalid Notified Party Code Type
+ | 46
+ | Invalid Notified Party Country Code
+ | 47
+ | Re-Use the Code somewhere
+ | 48
+ | Invalid Unit of Weight
+ | 49
+ | Invalid Unit of Volume
+ | 50
+ | Invalid Currency Code
+ | 51
+ | Total Packets Can Not Be -Ve
+ | 52
+ | Gross Weight Can Not Be -Ve
+ | 53
+ | Net Weight Can Not Be -Ve
+ | 54
+ | Gross Volume Can Not Be -Ve
+ | 55
+ | Invoice Value Can Not Be -Ve
+ | 56
+ | Invalid MC Consolidated Flag For CSN
+ | 57
+ | Invalid MC Previous Declaration Value
+ | 58
+ | Invalid First Port Code
+ | 59
+ | First Port is Not Same as Port of Reporting
+ | 60
+ | Invalid Destination Port Code
+ | 61
+ | Invalid Next Port Code
+ | 62
+ | Invalid Cargo Type
+ | 63
+ | Invalid Item Type
+ | 64
+ | Invalid Cargo Movement Type
+ | 65
+ | Invalid Packet Type
+ | 66
+ | Total Packet Can Not Be -Ve
+ | 67
+ | Invalid Nature of Cargo
+ | 68
+ | Invalid Split Cargo Value
+ | 69
+ | Invalid Equipment Serial Number
+ | 70
+ | Invalid Equipment Type
+ | 71
+ | Invalid Equipment Identification
+ | 72
+ | Invalid Equipment Size
+ | 73
+ | Invalid Load Status
+ | 74
+ | Invalid Additional Hold
+ | 75
+ | Invalid Seal Type
+ | 76
+ | Invalid SOC Flag
+ | 77
+ | Invalid Status
+ | 78
+ | Total Packet Can Not Be -Ve in Equipment
+ | 79
+ | Weight Can Not Be -Ve in Equipment
+ | 80
+ | Invalid Stowage Position
+ | 81
+ | Invalid Event Date
+ | 82
+ | Container Bond Not Found For the Agent
+ | 83
+ | Invalid Destination Code
+ | 84
+ | Invalid Seal Number
+ | 85
+ | Wrong Total Number of Equipment Manifested
+ | 86
+ | Invalid Total Number of Lines
+ | 87
+ | Invalid Total Number of Passenger
+ | 88
+ | Invalid Total Number of Crew Member
+ | 89
+ | Total voyage Equipment Not Match with Tranport Equipment
+ | 90
+ | Total Lines in Vessel Not Match with Cargo Lines
+ | 91
+ | Port of Call Can Not Be Same as Next Port of Call
+ | 92
+ | Invalid Consolidator PAN
+ | 93
+ | Incorrect Reporting Event
+ | 94
+ | Master Name is Blank
+ | 95
+ | Bond Number is Blank
+ | 96
+ | Invalid Ship Type
+ | 97
+ | Cargo Description is Null
+ | 98
+ | Itinerary Sequence Should be 0 for Reporting Port
+ | 99
+ | Invalid CIN Type for CSN
+ | 100
+ | Invalid Shipping Line Bond Number
+ | 101
+ | Incorrect Starting/Reporting Port of SAM For FI
+ | 102
+ | Incorrect Starting/Reporting Port of SAM For II
+ | 103
+ | Duplicate Ship itinerary Sequence in Voyage
+ | 104
+ | MC Transport Equipment Not Declared in Voyage Equipment Details
+ | 105
+ | HC Transport Equipment Not Declared in MC Equipment Details
+ | 106
+ | Incorrect Nationality of Ship
+ | 107
+ | Incorrect Port of Registry
+ | 108
+ | Incorrect Registry Number/Date
+ | 109
+ | Incorrect Gross Tonnage
+ | 110
+ | Incorrect Net Tonnage
+ | 111
+ | Invalid Notified Party PAN
+ | 112
+ | Notified Party Name is Null
+ | 113
+ | Cargo Details Missing for Consolidated = S
+ | 114
+ | Cargo Reference Missing
+ | 115
+ | Invalid MC CargoType+CargoMvmt+Consolidated+PrevDecl Combination
+ | 116
+ | Invalid HC Consolidated Value
+ | 117
+ | Invalid HC Previous Declaration Value
+ | 118
+ | Invalid HC Comibination of CargoMvmt+CargoType+Consolidated+Previous
+ | 119
+ | IMDG Code is not Matching With UNO Code
+ | 120
+ | UNO Code is not Matching With IMDG Code
+ | 121
+ | Missing Cargo Reference Information
+ | 204
+ | Quantity in Ship Store is NULL
+ | 205
+ | Missing Equipment Information
+ | 206
+ | SAM is Already Filed Against Given Rotation Number
+ | 207
+ | SAM is Not Filed Against Given Rotation Number
+ | 208
+ | SDM is Already Filed Against Given Rotation Number
+ | 209
+ | SEI is Already Filed Against Given Rotation Number
+ | 210
+ | SDM is Not Filed Against Given Rotation Number
+ | 211
+ | SDN is Already Filed Against Given Rotation Number
+ | 122
+ | MC-MBL Details Already Exists
+ | 123
+ | HC-HBL Details Already Exists
+ | 124
+ | CIN_TYPE+CIN_NO Already Referenced
+ | 125
+ | CSN_No+CSN_Dt Already Referenced
+ | 126
+ | Invalid Cargo Type and Cargo Movement Combination
+ | 127
+ | Total Pckt> 0 for Empty Container
+ | 128
+ | Weight > 0 for Empty Container
+ | 129
+ | Invalid Accept Port Name
+ | 130
+ | Invalid Receipt Port Name
+ | 131
+ | Consignor Name is Null
+ | 132
+ | Consignor PostCode is Null
+ | 133
+ | Consignor Country SubDivision Name is Null
+ | 134
+ | Invalid Consignor Country SubDivision Code
+ | 135
+ | Consignee Name is Null
+ | 136
+ | Invalid Consignee Code Type
+ | 137
+ | Consignee PostCode is Null
+ | 138
+ | Consignee Country SubDivision Name is Null
+ | 139
+ | Invalid Consignee Country SubDivision Code
+ | 140
+ | Notified Party Name is Null
+ | 141
+ | Notified Party PostCode is Null
+ | 142
+ | Invalid Notified Party Country SubDivision Name
+ | 143
+ | Invalid Notified Party Country SubDivision Code
+ | 144
+ | Invalid Notified Party PAN
+ | 145
+ | Goods Description is NULL
+ | 146
+ | Duplicate Equipment in line+sline
+ | 147
+ | Invalid Transhipper Bond Number-TP/TG
+ | 148
+ | Incorrect Cin_Type+Cin_No in MC
+ | 149
+ | Incorrect Cin_Type+Cin_No in HC
+ | 150
+ | PAN Not Authorised To Submit Declaration
+ | 151
+ | Incorrect CSN Rep-Event Referred in MC
+ | 152
+ | Incorrect CSN Rep-Event Referred in HC
+ | 153
+ | Duplicate Equipment Id in Equipment Details in Voyage
+ | 154
+ | Duplicate IRN No in Supporting Document in Voyage
+ | 155
+ | Duplicate Call Number in Cargo Itinerary
+ | 156
+ | Duplicate Equipment Id in Voyage Equipment
+ | 157
+ | Duplicate HS Code in Cargo Items
+ | 158
+ | Consolidator PAN Should be Same as Submitter PAN
+ | 159
+ | Incorrect Cin Type in MC
+ | 160
+ | PAN Not Authorised To Submit HBL
+ | 161
+ | Incorrect Cin_Type in HC
+ | 162
+ | Invalid Cargo Type
+ | 163
+ | Missing House Cargo Details for Given Consolidated Cargo
+ | 164
+ | Mentioned MC-BL Not Matching With CSN BL
+ | 165
+ | Mentioned HC-BL Not Matching With CSN BL
+ | 166
+ | MC-Consolidator PAN is Same as Previous Consolidator PAN
+ | 167
+ | HC-Consolidator PAN is Same as Previous Consolidator PAN
+ | 168
+ | Invalid Consolidator PAN Format
+ | 169
+ | ASC Not Authorised To Submit Declaration
+ | 170
+ | Consolidator PAN Mismatch
+ | 171
+ | Previous Declaration is Not Mentioned in MC-Ref
+ | 172
+ | Previous Declaration is Not Mentioned in HC-Ref
+ | 173
+ | Invalid Persons Serial Number
+ | 174
+ | Invalid Persons Serial Number
+ | 175
+ | Invalid Passenger in Transit Indicator
+ | 176
+ | Duplicate Person Serial Number
+ | 177
+ | Incorrect Crew Rank Code
+ | 178
+ | Incorrect Persons Gender
+ | 179
+ | Incorrect Person Identity Type
+ | 180
+ | Incorrect Identity Issuing Nation
+ | 181
+ | Incorrect Birth Country Code of Person
+ | 182
+ | Person Birth Place Name is NULL
+ | 183
+ | Date of Birth of Person is NULL
+ | 184
+ | Person Family Name is NULL
+ | 185
+ | Person Nick Name is NULL
+ | 186
+ | Incorrect Person Nationality Code
+ | 187
+ | Incorrect Crew Rank Name
+ | 188
+ | Incorrect Embarkment Port Code
+ | 189
+ | Incorrect Disembarkment Port Code
+ | 190
+ | Embarkment Port Name is NULL
+ | 191
+ | Disembarkment Port Name is NULL
+ | 192
+ | Person ID Exipry Date is NULL
+ | 193
+ | Person ID Number is NULL
+ | 194
+ | Given Person Detail Not Declared
+ | 195
+ | Duplicate Serial Number in Crew Effects
+ | 196
+ | Incorrect Crew Effect Code
+ | 197
+ | Crew Effects Description is NULL
+ | 198
+ | Incorrect UQC in Crew Effects Details
+ | 199
+ | Quantity in Crew Effects is NULL
+ | 200
+ | Duplicate Serial Number in Ship Store
+ | 201
+ | Incorrect Article Code in Ship Store
+ | 202
+ | Article Name is NULL in Ship Store
+ | 203
+ | Incorrect UQC in Ship Store Details
+ | 212
+ | Rotation Number/Date Not Exists For Given Port
+ | 213
+ | Arrival Detail is Missing
+ | 214
+ | Mismatch in Total Passenger Details
+ | 215
+ | Mismatch in Total Crew Details
+ | 216
+ | Missing Passenger Details
+ | 217
+ | Total Passenger Does not Match With Passanger+Crew
+ | 218
+ | Voyage Transport Equipment Not Declared in MC Equipment Details
+ | 219
+ | Incorrect Equipment Type For Full container Ship/Cellular Vessel
+ | 220
+ | Incorrect Equipment Weight For Container Type CN
+ | 221
+ | Total Pckg Mismatch in Transport Doc/Transport Item/Transport Eqmt
+ | 222
+ | Incorrect Container Bond Flag
+ | 223
+ | Incorrect Starting/Reporting Port of SAM For FI
+ | 224
+ | Incorrect Starting/Reporting Port of SAM For II
+ | 225
+ | Pckg in MC Does Not Match With Total Pckg in HC Ref
+ | 226
+ | Incoorect Reporting Events For MesgType=F
+ | 227
+ | Incoorect Reporting Events For MesgType=A
+ | 228
+ | Invalid Reporting Events For MesgName=SACHM22
+ | 229
+ | Invalid Reporting Events For MesgName=SACHM23
+ | 230
+ | Entity/Submitter MisMatch For Amendment Message
+ | 231
+ | Pckt Type Not Match in Transport Document and Item Details
+ | 232
+ | Total Pckg Not Match With Referred Total Pckg of CSN
+ | 233
+ | Total Eqmt Not Match With Referred Total Eqmt of CSN
+ | 234
+ | Eqmt Type Not Match With Referred Eqmt Type of CSN
+ | 235
+ | EqmtId Not Match With Referred Eqmt Id of CSN
+ | 236
+ | Eqmt Size Not Match With Referred Eqmt Size of CSN
+ | 237
+ | Load Status Not Match With Referred Load Status of CSN
+ | 238
+ | SOC Flag Not Match With Referred SOC Flag of CSN
+ | 239
+ | Equipment Details Missing For Given Line+Sline No
+ | 240
+ | Itinerary Details Missing For Given Line+Sline No
+ | 241
+ | MBL/HBL Details Not Exists for Given Equipment Line+Sline No
+ | 242
+ | MBL/HBL Details Not Exists for Given Itinerary Line+Sline No
+ | 243
+ | MLO Cd of VCN Not Match with Carrier Code
+ | 244
+ | Could Not Fetch Cargo Ref Details
+ | 245
+ | SAM Can Not be Filed as Per VCN Status
+ | 246
+ | SDM Can Not be Filed as Per VCN Status
+ | 247
+ | SEI Can Not be Filed as Per VCN Status
+ | 248
+ | SDN Can Not be Filed as Per VCN Status
+ | 249
+ | Invalid MC Consolidated Flag For SAM/SDM
+ | 250
+ | Invalid HC Consolidated Flag For SAM/SDM
+ | 251
+ | Cin_Type+Cin_No in MC is Closed/Deleted
+ | 252
+ | Cin Mentioned in MC is Not Top Most CIN
+ | 253
+ | Cin_Type+Cin_No in HC is Closed/Deleted
+ | 254
+ | Cin Mentioned in HC is Not Top Most CIN
+ | 255
+ | CSN No+Date in MC Differ Port/Linked
+ | 256
+ | CSN No+Date in HC Differ Port/Linked
+ | 257
+ | Invalid Csn_No+Csn_Dt in MC Details
+ | 258
+ | Invalid Csn_No+Csn_Dt in HC Details
+ | 259
+ | Total Pckg Not Match With Referred Total Pckg of CIN
+ | 260
+ | Total Eqmt Not Match With Referred Total Eqmt of CIN
+ | 261
+ | Eqmt Type Not Match With Referred Eqmt Type of CIN
+ | 262
+ | EqmtId Not Match With Referred Eqmt Id of CIN
+ | 263
+ | MC-MBL Should Have Split Cargo = Y
+ | 264
+ | HC-HBL Should Have Split Cargo = Y
+ | 265
+ | Redundent Vessel-Object/Attribue
+ | 266
+ | Container Bond Flag Should be N
+ | 267
+ | Container Bond Flag Should be D
+ | 268
+ | Container Bond Flag Should be N
+ | 269
+ | Container Bond Flag Should be N
+ | 270
+ | Container Bond Flag Should be C
+ | 271
+ | Container Bond Flag Should be H/N
+ | 272
+ | Multiple Arrival Details
+ | 273
+ | Total Number of Passengers Can Not be -Ve
+ | 274
+ | Total Number of Crew Should be Greater than Zero
+ | 275
+ | Total Number of Persons Should be Greater than Zero
+ | 276
+ | Light House Dues Can Not be -Ve
+ | 277
+ | Total Lines Does Not Match with Total Lines in Manifest
+ | 278
+ | Total Equipment Does Not Match with Total Equipment in Manifest
+ | 279
+ | Total Lines and Equipment Not Found in SAM/SDM
+ | 280
+ | Consignor City Can Not Be Null
+ | 281
+ | Consignee City Can Not Be Null
+ | 282
+ | Notified Party City Can Not Be Null
+ | 283
+ | Carrier-ASC/ASA Not Registered in SCMTR Application
+ | 284
+ | Invalid Carrier/Submitter Code
+ | 285
+ | Invalid Destination Port Code
+ | 286
+ | Invalid Destination Port Code
+ | 287
+ | Invalid Destination Port Code
+ | 288
+ | Invalid Destination Port Code
+ | 289
+ | Invalid Destination Port Code
+ | 290
+ | Invalid Next Port Code
+ | 291
+ | Submitter of SAM and SEI Should be Same
+ | 292
+ | Submitter of SDM and SDN Should be Same
+ | 293
+ | Cin_Type+Cin_No in MC Already Referred for Given Reporting Event
+ | 294
+ | Cin_Type+Cin_No in HC Already Referred for Given Reporting Event
+ | 295
+ | Total Pckt in Empty Cntr Should be Mentioned As One
+ | 296
+ | Total Packages Can Not Be Zero for Non-Empty Container
+ | 297
+ | Serial Number is Null in Vessel/Cargo Itinerary
+ | 298
+ | Duplicate Serial Number in Vessel/Cargo Itinerary
+ | 299
+ | Duplicate EqmtSrNo in Vessel/Cargo Equipment
+ | 300
+ | SQL/Run-Time Error Occurred While Validation
+ | 301
+ | Incorrect CSN Detail in Amendment
+ | 302
+ | Incorrect Rotation Detail in Amendment
+ | 303
+ | Duplicate Amendment Request For a Record
+ | 304
+ | Only Update-U is Allowed
+ | 305
+ | Incorrect Message Type For Amendment
+ | 306
+ | Line_No+Sline_No Not Exists For Update/Delete
+ | 307
+ | Line_No+Sline_No Already Exists For Addition
+ | 308
+ | Person Details Not Exists For Update/Delete
+ | 309
+ | Person Details Aleady Exists For Addition
+ | 310
+ | Crew Serial_No Not Exists For Update/Delete
+ | 311
+ | Crew Serial No Already Exists For Addition
+ | 312
+ | Ship Store Not Exists For Update/Delete
+ | 313
+ | Ship Store Already Exists For Addition
+ | 314
+ | PNR Details Not Exists For Update/Delete
+ | 315
+ | PNR Details Already Exists For Addition
+ | 316
+ | CSN No/Date Not Exists For Amendment Request
+ | 317
+ | Rotation No/Date Not Exists For Amendment Request
+ | 318
+ | InCorrect Records in Amendment Request
+ | 319
+ | CSN Amendment is Already Pending for Approval
+ | 320
+ | CSN is Linked to Other CSN- Amendment is Not Allowed
+ | 321
+ | CSN is Closed- Amendment is Not Allowed
+ | 322
+ | SAM/SDM Amendment is Already Pending for Approval
+ | 323
+ | SAM/SDM is Closed- Amendment is Not Allowed
+ | 324
+ | CSN Amendment Fetch Error
+ | 325
+ | SAM/SDM Amendment Fetch Error
+ | 326
+ | Cin_Type+Cin_No Not Exists For Update/Delete
+ | 327
+ | VCN of CSN Does Not Match with VCN of CSN/SAM/SDM
+ | 328
+ | VCN of CSN Does Not Match with VCN of CSN/SAM/SDM
+ | 329
+ | Consolidator PAN Can Not Be Blank
+ | 330
+ | Next Port of Call of the Vessel is Not Available
+ | 331
+ | Ship Itinerary Should have Call No = 0 for Reporting Site
+ | 332
+ | Incorrect Starting/Reporting Port of SDM For FI
+ | 333
+ | Incorrect Starting/Reporting Port of SDM For II
+ | 334
+ | Incorrect Starting/Reporting Port of SDM For FI
+ | 335
+ | Incorrect Starting/Reporting Port of SDM For II
+ | 336
+ | Incorrect IRN for Persons Details
+ | 337
+ | Incorrect IRN for Crew Effects Details
+ | 338
+ | Incorrect IRN for Ship Store Details
+ | 339
+ | Ship Movement Itinerary Should be 4-1-4 Configuration
+ | 340
+ | Invalid Consignee Code Type for Cargo Type = IM
+ | 341
+ | Invalid Consignee Code Type for Cargo Type = CG
+ | 342
+ | Invalid Consignor Code Type for Cargo Type = EX
+ | 343
+ | Invalid Consignor Code Type for Cargo Type = CG
+ | 344
+ | Entity(ASC/ASA/ANC) is Not Valid
+ | 345
+ | Site is Not Live for SCMTR Messages
+ | 346
+ | Container Bond Flag Should be D
+ | 347
+ | Container Bond Flag Should be D
+ | 348
+ | Container Bond Flag Should be D
+ | 349
+ | Invalid Container Bond Flag
+ | 350
+ | CB Flag Should be N for Non Containerized Equipment
+ | 351
+ | Incorrect Submitter As Per Carrier-ASA
+ | 352
+ | Container Bond Flag Should be N
+ | 353
+ | BL of One ASC/ASA is Allowed in a CSN
+ | 354
+ | Special Charecter Not Allowed in MBL No
+ | 355
+ | Special Charecter Not Allowed in HBL No
+ | 356
+ | Special Charecter Not Allowed in Cntr No
+ | 357
+ | Incorrect CTD Country
+ | 358
+ | IGM Already Submitted for PortCd+ImoCd+VesselCd+VoyageNo
+ | 359
+ | Redundent House Details for BL
+ | 360
+ | Consolidator-PAN should of Actual Consolidator
+ | 361
+ | Invalid CFS Movement Bond Number - TR/GB
+ | 362
+ | Container Bond Flag Should be D
+ | 363
+ | Bl Can not have Line Number as Zero-0
+ | 364
+ | HBl Can not have Sub-Line Number as Zero-0
+ | 365
+ | Cargo Movement Should be LC As Per Receipt Port
+ | 366
+ | Cargo Movement Can Not Be LC As Per Receipt Port
+ | 367
+ | Incorrect Port of Call in Itinerary as per Reporting Port
+ | 368
+ | Incorrect Port of Call in Itinerary as per Reporting Port
+ | 370
+ | Redundent House Details for BL
+ | 400
+ | To Be Defined
+ | 401
+ | Mandatory Object Declaration Reference is Missing
+ | 402
+ | Mandatory Object Authorised Person is Missing
+ | 403
+ | Mandatory Object Vessel Details is Missing
+ | 404
+ | Mandatory Object Voyage Details is Missing
+ | 405
+ | Mandatory Object TM_Ship Itinerary is Missing
+ | 406
+ | Mandatory Object Arrival/Departure Details is Missing
+ | 407
+ | Mandatory Object TM_Transport Equipment is Missing
+ | 408
+ | Mandatory Object TM_Supporting Documents is Missing
+ | 409
+ | Mandatory Object TM_Additional Declaration is Missing
+ | 410
+ | Mandatory Object Person Details is Missing
+ | 411
+ | Mandatory Object Person Identity is Missing
+ | 412
+ | Mandatory Object Crew Effect is Missing
+ | 413
+ | Mandatory Object Visa Details is Missing
+ | 414
+ | Mandatory Object Ship Stores is Missing
+ | 415
+ | Mandatory Object MC_Supplementary Declaration is Missing
+ | 416
+ | Mandatory Object MC_Supporting Documents is Missing
+ | 417
+ | Mandatory Object MC_Reference is Missing
+ | 418
+ | Mandatory Object MC_Previous Declaration is Missing
+ | 419
+ | Mandatory Object MC_Location Customs is Missing
+ | 420
+ | Mandatory Object MC_Transshipper is Missing
+ | 421
+ | Mandatory Object MC_Transport Document is Missing
+ | 422
+ | Mandatory Object MC_Item Details is Missing
+ | 423
+ | Mandatory Object MC_Transport Equipment is Missing
+ | 424
+ | Mandatory Object MC_itinerary is Missing
+ | 425
+ | Mandatory Object MC_Additional Declaration is Missing
+ | 426
+ | Mandatory Object MC_Transport Msr is Missing
+ | 427
+ | Mandatory Object HC_Declaration Reference is Missing
+ | 428
+ | Mandatory Object HC_Previous Reference is Missing
+ | 429
+ | Mandatory Object HC_Transport Document is Missing
+ | 430
+ | Mandatory Object HC_Transshipper is Missing
+ | 431
+ | Mandatory Object HC_Item Details is Missing
+ | 432
+ | Mandatory Object HC_Location Customs is Missing
+ | 433
+ | Mandatory Object HC_Transport Equipment is Missing
+ | 434
+ | Mandatory Object HC_Additional Declaration is Missing
+ | 435
+ | Mandatory Object HC_itinerary is Missing
+ | 436
+ | Mandatory Object HC_Supporting Documents is Missing
+ | 437
+ | Mandatory Object HC_TransportMsr is Missing
+ | 438
+ | Mandatory Object HC_Supplementary Declaration is Missing
+ | 439
+ | To Be Defined
+ | 440
+ | To Be Defined
+ | 441
+ | Object Declaration Reference is Redundent
+ | 442
+ | Object Authorised Person is Redundent
+ | 443
+ | Object Vessel Details is Redundent
+ | 444
+ | Object Voyage Details is Redundent
+ | 445
+ | Object TM_Ship Itinerary is Redundent
+ | 446
+ | Object Arrival/Departure Details is Redundent
+ | 447
+ | Object TM_Transport Equipment is Redundent
+ | 448
+ | Object TM_Supporting Documents is Redundent
+ | 449
+ | Object TM_Additional Declaration is Redundent
+ | 450
+ | Object Person Details is Redundent
+ | 451
+ | Object Person Identity is Redundent
+ | 452
+ | Object Crew Effect is Redundent
+ | 453
+ | Object Visa Details is Redundent
+ | 454
+ | Object Ship Stores is Redundent
+ | 455
+ | Object MC_Supplementary Declaration is Redundent
+ | 456
+ | Object MC_Supporting Documents is Redundent
+ | 457
+ | Object MC_Reference is Redundent
+ | 458
+ | Object MC_Previous Declaration is Redundent
+ | 459
+ | Object MC_Location Customs is Redundent
+ | 460
+ | Object MC_Transshipper is Redundent
+ | 461
+ | Object MC_Transport Document is Redundent
+ | 462
+ | Object MC_Item Details is Redundent
+ | 463
+ | Object MC_Transport Equipment is Redundent
+ | 464
+ | Object MC_itinerary is Redundent
+ | 465
+ | Object MC_Additional Declaration is Redundent
+ | 466
+ | Object MC_Transport Msr is Redundent
+ | 467
+ | Object HC_Declaration Reference is Redundent
+ | 468
+ | Object HC_Previous Reference is Redundent
+ | 469
+ | Object HC_Transport Document is Redundent
+ | 470
+ | Object HC_Transshipper is Redundent
+ | 471
+ | Object HC_Item Details is Redundent
+ | 472
+ | Object HC_Location Customs is Redundent
+ | 473
+ | Object HC_Transport Equipment is Redundent
+ | 474
+ | Object HC_Additional Declaration is Redundent
+ | 475
+ | Object HC_itinerary is Redundent
+ | 476
+ | Object HC_Supporting Documents is Redundent
+ | 477
+ | Object HC_TransportMsr is Redundent
+ | 478
+ | Object HC_Supplementary Declaration is Redundent
+ | 600
+ | To Be Defined
+ | 611
+ | Out of Charge is Already Issued
+ | 999
+ | Reserved for Internal Use for Amendment
+ | 9901
+ | scmtr_pckg.sql,Ver:3.0.3,patch
+ | 
+Trade Scenarios Mapping Tables
+SUBSTR(SRNO,1,2)
+ | OBJ_NAME
+ | SUBSTR(SRNO,1,2)
+ | OBJ_NAME
+ | 21
+ | MC_Supplementary Declaration
+ | 41
+ | HC_Declaration Reference
+ | 22
+ | MC_Supporting Documents
+ | 42
+ | HC_Previous Reference
+ | 23
+ | MC_Reference
+ | 43
+ | HC_Transport Document
+ | 24
+ | MC_Previous Declaration
+ | 44
+ | HC_Transshipper
+ | 25
+ | MC_Location Customs
+ | 45
+ | HC_Item Details
+ | 26
+ | MC_Transshipper
+ | 46
+ | HC_Location Customs
+ | 27
+ | MC_Transport Document
+ | 47
+ | HC_Transport Equipment
+ | 28
+ | MC_Item Details
+ | 48
+ | HC_Additional Declaration
+ | 29
+ | MC_Transport Equipment
+ | 49
+ | HC_itinerary
+ | 30
+ | MC_itinerary
+ | 50
+ | HC_Supporting Documents
+ | 31
+ | MC_Additional Declaration
+ | 51
+ | HC_TransportMsr
+ | 32
+ | MC_Transport Msr
+ | 52
+ | HC_Supplementary Declaration
+ | Sr. 
+No.
+ | Cargo Type
+ | Consolidated flag
+ | Previous declaration
+ | OBJ_TYPE
+ | Cargo Movement
+ | Object Require
+ | 
+ | IM
+ | S
+ | N
+ | M
+ | LC
+ | 25/27/28/29/30/32/23
+ | 
+ | IM
+ | S
+ | N
+ | M
+ | DT
+ | 23/25/27/28/29/30/32
+ | 
+ | IM
+ | S
+ | N
+ | M
+ | TI
+ | 23/25/26/27/28/29/30/32
+ | 
+ | IM
+ | S
+ | Y
+ | M
+ | LC
+ | 23/24/25/29
+ | 
+ | IM
+ | S
+ | Y
+ | M
+ | DT
+ | 23/24/25/29
+ | 
+ | IM
+ | S
+ | Y
+ | M
+ | TI
+ | 23/24/25/29
+ | 
+ | IM
+ | H
+ | N
+ | H
+ | LC
+ | 41/43/45/46/47/49/51
+ | 
+ | IM
+ | H
+ | N
+ | H
+ | DT
+ | 41/43/45/46//47//49/51
+ | 
+ | IM
+ | H
+ | N
+ | H
+ | TI
+ | 41/43/44/45/46/47/49/51
+ | 
+ | IM
+ | H
+ | Y
+ | H
+ | LC
+ | 41/42/46
+ | 
+ | IM
+ | H
+ | Y
+ | H
+ | DT
+ | 41/42/46
+ | 
+ | IM
+ | H
+ | Y
+ | H
+ | TI
+ | 41/42/46
+ | 
+ | IM
+ | C
+ | N
+ | M
+ | LC
+ | 23/25/27/29/30/32
+ | 
+ | IM
+ | C
+ | N
+ | M
+ | DT
+ | 23/25/27/29/30/32
+ | 
+ | IM
+ | C
+ | N
+ | M
+ | TI
+ | 23/25/26/27/29/30/32
+ | 
+ | IM
+ | C
+ | C
+ | M
+ | LC
+ | 23/24/25/27/29/30/32
+ | 
+ | IM
+ | C
+ | C
+ | M
+ | DT
+ | 23/24/25/27/29/30/32
+ | 
+ | IM
+ | C
+ | C
+ | M
+ | TI
+ | 23/24/25/26/27/29/30/32
+ | 
+ | IM
+ | C
+ | C
+ | H
+ | LC
+ | 41/42/43/46/47/49/51
+ | 
+ | IM
+ | C
+ | C
+ | H
+ | DT
+ | 41/42/43/46/47/49/51
+ | 
+ | IM
+ | C
+ | C
+ | H
+ | TI
+ | 41/42/43/44/46/47/49/51
+ | 
+ | IM
+ | C
+ | Y
+ | M
+ | LC
+ | 23/24/25/29
+ | 
+ | IM
+ | C
+ | Y
+ | M
+ | DT
+ | 23/24/25/29
+ | 
+ | IM
+ | C
+ | Y
+ | M
+ | TI
+ | 23/24/25/29
+ | 
+ | IM
+ | C
+ | Y
+ | H
+ | LC
+ | 41/42/46/47
+ | 
+ | IM
+ | C
+ | Y
+ | H
+ | DT
+ | 41/42/46/47
+ | 
+ | IM
+ | C
+ | Y
+ | H
+ | TI
+ | 41/42/46/47
+ | 
+ | RN
+ | R
+ | N
+ | M
+ | NA
+ | 23/25/29/32
+ | 
+ | IM
+ | S
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | IM
+ | H
+ | C
+ | X
+ | X
+ | Not Possible
+ | 
+ | EX
+ | S
+ | N
+ | X
+ | X
+ |  Not Possible
+ | 
+ | EX
+ | S
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | EX
+ | H
+ | N
+ | X
+ | X
+ |  Not Possible
+ | 
+ | EX
+ | H
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | EX
+ | H
+ | Y
+ | H
+ | TI
+ | 41/42/46/47/51
+ | 
+ | EX
+ | H
+ | Y
+ | H
+ | FT
+ | 41/42/46/47/51
+ | 
+ | EX
+ | H
+ | Y
+ | H
+ | TC
+ | 41/42/46/47/51
+ | 
+ | EX
+ | C
+ | S
+ | X
+ | X
+ |  Not Possible
+ | 
+ | EX
+ | S
+ | S
+ | M
+ | TI
+ | 23/24/25/26/27/28/29/30/32
+ | 
+ | EX
+ | S
+ | S
+ | M
+ | FT
+ | 23/24/25/26/27/28/29/30/32
+ | 
+ | EX
+ | S
+ | S
+ | M
+ | TC
+ | 23/24/25/26/27/28/29/30/32
+ | 
+ | EX
+ | S
+ | Y
+ | M
+ | TI
+ | 23/24/25/29/32
+ | 
+ | EX
+ | S
+ | Y
+ | M
+ | FT
+ | 23/24/25/29/32
+ | 
+ | EX
+ | S
+ | Y
+ | M
+ | TC
+ | 23/24/25/29/32
+ | 
+ | EX
+ | H
+ | S
+ | H
+ | TI 
+ | 41/42/43/44/46/47/51
+ | 
+ | EX
+ | H
+ | S
+ | H
+ | FT
+ | 41/42/43/45/46/47/49/51
+ | 
+ | EX
+ | H
+ | S
+ | H
+ | TC
+ | 41/42/43/44/46/47/51
+ | 
+ | EX
+ | C
+ | N
+ | M
+ | TI
+ | 23/25/26/27/29/30/32
+ | 
+ | EX
+ | C
+ | N
+ | M
+ | FT
+ | 23/25/26/27/29/30/32
+ | 
+ | EX
+ | C
+ | N
+ | M
+ | TC
+ | 23/25/26/27/29/30/32
+ | 
+ | EX
+ | C
+ | C
+ | M
+ | TI
+ | 23/24/25/26/27/29/30/32
+ | 
+ | EX
+ | C
+ | C
+ | M
+ | FT
+ | 23/24/25/27/29/30/32
+ | 
+ | EX
+ | C
+ | C
+ | M
+ | TC
+ | 23/24/25/26/27/29/30/32
+ | 
+ | EX
+ | C
+ | C
+ | H
+ | TI
+ | 41/42/43/44/46/47/51
+ | 
+ | EX
+ | C
+ | C
+ | H
+ | FT
+ | 41/42/43/46/47/49/51
+ | 
+ | EX
+ | C
+ | C
+ | H
+ | TC
+ | 41/42/43/44/46/47/51
+ | 
+ | EX
+ | C
+ | Y
+ | M
+ | TI
+ | 23/24/25/29/32
+ | 
+ | EX
+ | C
+ | Y
+ | M
+ | FT
+ | 23/24/25/29/32
+ | 
+ | EX
+ | C
+ | Y
+ | M
+ | TC
+ | 23/24/25/29/32
+ | 
+ | EX
+ | C
+ | Y
+ | H
+ | TI
+ | 41/42/46/47/51
+ | 
+ | EX
+ | C
+ | Y
+ | H
+ | FT
+ | 41/42/46/47/51
+ | 
+ | EX
+ | C
+ | Y
+ | H
+ | TC
+ | 41/42/46/47/51
+ | 
+ | EX
+ | R
+ | N
+ | M
+ | NA
+ | 23/25/29/32
+ | 
+ | EX
+ | H
+ | B
+ | H
+ | TI
+ | 41/42/43/44/46/47/51
+ | 
+ | EX
+ | H
+ | B
+ | H
+ | FT
+ | 41/42/47/51
+ | 
+ | EX
+ | H
+ | B
+ | H
+ | TC
+ | 41/42/43/44/46/47/51
+ | 
+ | TR
+ | S
+ | N
+ | M
+ | FT
+ | 23/25/26/27/29/30/32
+ | 
+ | TR
+ | S
+ | N
+ | M
+ | TC
+ | 23/25/26/27/28/29/30/32
+ | 
+ | TR
+ | S
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | TR
+ | S
+ | Y
+ | M
+ | FT
+ | 23/24/25/29
+ | 
+ | TR
+ | S
+ | Y
+ | M
+ | TC
+ | 23/24/25/29
+ | 
+ | TR
+ | H
+ | N
+ | H
+ | TC
+ | 41/43/44/45/46/47/49/51
+ | 
+ | TR
+ | H
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | TR
+ | H
+ | Y
+ | H
+ | TC
+ | 41/42/46/47/49/51
+ | 
+ | TR
+ | C
+ | N
+ | M
+ | TC
+ | 23/25/26/27/29/30/32
+ | 
+ | TR
+ | C
+ | C
+ | M
+ | TC
+ | 23/24/25/26/27/29/30/32
+ | 
+ | TR
+ | C
+ | C
+ | H
+ | TC
+ | 41/42/43/44/46/47/49/51
+ | 
+ | TR
+ | C
+ | Y
+ | M
+ | TC
+ | 23/24/25/29
+ | 
+ | TR
+ | C
+ | Y
+ | H
+ | TC
+ | 41/42/46/47
+ | 
+ | CG
+ | S
+ | N
+ | M
+ | LC
+ | 23/25/27/28/29/30/32
+ | 
+ | CG
+ | S
+ | N
+ | M
+ | DT
+ | 23/25/27/28/29/30/32
+ | 
+ | CG
+ | S
+ | N
+ | M
+ | TI
+ | 23/25/26/27/28/29/30/32
+ | 
+ | CG
+ | S
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | CG
+ | S
+ | Y
+ | M
+ | LC
+ | 23/24/25/29/32
+ | 
+ | CG
+ | S
+ | Y
+ | M
+ | DT
+ | 23/24/25/29/32
+ | 
+ | CG
+ | S
+ | Y
+ | M
+ | TI
+ | 23/24/25/29/32
+ | 
+ | CG
+ | H
+ | N
+ | H
+ | LC
+ | 41/42/43/45/46/47/49/51 
+ | 
+ | CG
+ | H
+ | N
+ | H
+ | DT
+ | 41/42/43/45/46/47/49/51
+ | 
+ | CG
+ | H
+ | N
+ | H
+ | TI
+ | 41/42/43/44/45/46/47/49/51
+ | 
+ | CG
+ | H
+ | C
+ | X
+ | X
+ |  Not Possible
+ | 
+ | CG
+ | H
+ | Y
+ | H
+ | LC
+ | 41/42/46/47/49/51
+ | 
+ | CG
+ | H
+ | Y
+ | H
+ | DT
+ | 41/42/46/47/49/51
+ | 
+ | CG
+ | H
+ | Y
+ | H
+ | TI
+ | 41/42/46/47/49/51
+ | 
+ | CG
+ | C
+ | N
+ | M
+ | LC
+ | 23/25/27/29/30/32
+ | 
+ | CG
+ | C
+ | N
+ | M
+ | DT
+ | 23/25/27/29/30/32
+ | 
+ | CG
+ | C
+ | N
+ | M
+ | TI
+ | 23/25/26/27/29/30/32
+ | 
+ | CG
+ | C
+ | C
+ | M
+ | LC
+ | 23/24/25/27/29/30/32
+ | 
+ | CG
+ | C
+ | C
+ | M
+ | DT
+ | 23/24/25/27/29/30/32
+ | 
+ | CG
+ | C
+ | C
+ | M
+ | TI
+ | 23/24/25/26/27/29/30/32
+ | 
+ | CG
+ | C
+ | C
+ | H
+ | LC
+ | 41/42/43/46/47/49/51
+ | 
+ | CG
+ | C
+ | C
+ | H
+ | DT
+ | 41/42/43/46/47/49/51
+ | 
+ | CG
+ | C
+ | C
+ | H
+ | TI
+ | 41/42/43/44/46/47/49/51
+ | 
+ | CG
+ | C
+ | Y
+ | M
+ | LC
+ | 23/24/25/29/32
+ | 
+ | CG
+ | C
+ | Y
+ | M
+ | DT
+ | 23/24/25/29/32
+ | 
+ | CG
+ | C
+ | Y
+ | M
+ | TI
+ | 23/24/25/29/32
+ | 
+ | CG
+ | C
+ | Y
+ | H
+ | LC
+ | 41/42/46/47/51
+ | 
+ | CG
+ | C
+ | Y
+ | H
+ | DT
+ | 41/42/46/47/51
+ | 
+ | CG
+ | C
+ | Y
+ | H
+ | TI
+ | 41/42/46/47/51
+ | 
+MCIN / PCIN Generation Scenarios Table
+S.N. 
+ | Cargo Type
+ | Consolidated flag
+ | Previous declaration
+ | Cargo Movement
+ | Identifier to be Declared
+ | Identifier to be Generated
+ | 1
+ | IM
+ | S
+ | N
+ | LC, DT, TI
+ |  
+ | PCIN
+ | 2
+ | IM
+ | S
+ | Y
+ | LC,DT,TI
+ | PCIN
+ |  
+ | 3
+ | IM
+ | H
+ | N
+ | LC,DT,TI
+ |  
+ | PCIN
+ | 4
+ | IM
+ | H
+ | Y
+ | LC,DT,TI
+ | PCIN
+ |  
+ | 5
+ | IM
+ | C
+ | N
+ | LC,DT,TI
+ |  
+ | MCIN
+ | 6
+ | IM
+ | C
+ | C
+ | LC,DT,TI
+ |  
+ | MCIN
+ | 7
+ | IM
+ | C
+ | Y
+ | LC,DT,TI
+ | MCIN
+ |  
+ | 8
+ | RN
+ | R
+ | N
+ | NA
+ |  
+ |  
+ | 9
+ | IM
+ | S
+ | C
+ | Not Possible
+ |  
+ |  
+ | 10
+ | IM
+ | H
+ | C
+ | Not Possible
+ |  
+ |  
+ | 11
+ | EX
+ | S
+ | N
+ | Not Possible
+ |  
+ |  
+ | 12
+ | EX
+ | S
+ | C
+ | Not Possible
+ |  
+ |  
+ | 13
+ | EX
+ | H
+ | N
+ | Not Possible
+ |  
+ |  
+ | 14
+ | EX
+ | H
+ | C
+ | Not Possible
+ |  
+ |  
+ | 15
+ | EX
+ | H
+ | Y
+ | TI,FT,TC
+ | PCIN
+ |  
+ | 16
+ | EX
+ | C
+ | S
+ | Not Possible
+ |  
+ |  
+ | 17
+ | EX
+ | S
+ | S
+ | TI,FT,TC
+ | PCIN OF SB
+ |  
+ | 18
+ | EX
+ | S
+ | Y
+ | TI,FT,TC
+ | PCIN OF SB
+ |  
+ | 19
+ | EX
+ | H
+ | S
+ | TI,FT,TC
+ | PCIN OF SB
+ |  
+ | 20
+ | EX
+ | C
+ | N
+ | TI,FT,TC
+ |  
+ | MCIN
+ | 21
+ | EX
+ | C
+ | C
+ | TI,FT,TC
+ |  
+ | MCIN
+ | 22
+ | EX
+ | C
+ | Y
+ | TI,FT,TC
+ | MCIN
+ |  
+ | 23
+ | EX
+ | R
+ | N
+ | TI,FT,TC
+ |  
+ |  
+ | 24
+ | EX
+ | H
+ | B
+ | TI,FT,TC
+ | PCIN OF SB
+ |  
+ | 25
+ | EX
+ | H
+ | R
+ | TI,FT,TC
+ | PCIN OF SB
+ |  
+ | 26
+ | TR
+ | S
+ | N
+ | FT, TC
+ |  
+ | PCIN
+ | 27
+ | TR
+ | S
+ | C
+ | Not Possible
+ |  
+ |  
+ | 28
+ | TR
+ | S
+ | Y
+ | TC, FT
+ | PCIN
+ |  
+ | 29
+ | TR
+ | H
+ | N
+ | TC
+ |  
+ | PCIN
+ | 30
+ | TR
+ | H
+ | C
+ | Not Possible
+ |  
+ |  
+ | 31
+ | TR
+ | H
+ | Y
+ | TC
+ | PCIN
+ | NO
+ | 32
+ | TR
+ | C
+ | N
+ | TC
+ |  
+ | MCIN
+ | 33
+ | TR
+ | C
+ | C
+ | TC
+ | CSN
+ | MCIN
+ | 34
+ | TR
+ | C
+ | Y
+ | TC
+ | MCIN
+ |  
+ | 35
+ | CG
+ | S
+ | N
+ | LC,DT,TI
+ |  
+ | PCIN
+ | 36
+ | CG
+ | S
+ | C
+ | Not Possible
+ |  
+ |  
+ | 37
+ | CG
+ | S
+ | Y
+ | LC,DT,TI
+ | PCIN
+ |  
+ | 38
+ | CG
+ | H
+ | N
+ | LC,DT,TI
+ |  
+ | PCIN
+ | 39
+ | CG
+ | H
+ | C
+ | Not Possible
+ |  
+ |  
+ | 40
+ | CG
+ | H
+ | Y
+ | LC,DT,TI
+ | PCIN
+ |  
+ | 41
+ | CG
+ | C
+ | N
+ | LC,DT,TI
+ |  
+ | MCIN
+ | 42
+ | CG
+ | C
+ | C
+ | LC,DT,TI
+ | CSN
+ | MCIN
+ | 43
+ | CG
+ | C
+ | Y
+ | LC,DT,TI
+ | MCIN
+ |  
+ | 

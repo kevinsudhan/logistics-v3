@@ -21,6 +21,18 @@ export const COMPANY = {
   website: "www.aashishlogisticsglobal.com",
   gstin: "33ABDCA2229C1ZD",
   gst: "GSTIN: 33ABDCA2229C1ZD",
+  /**
+   * The same address, in the parts Customs asks for (the CSN for ICEGATE,
+   * lib/icegateCsn.ts): a street line of at most 70 characters, the city, the
+   * state, the PIN code.
+   */
+  postal: {
+    street: "NO.55, 3B, 3RD FLOOR, W-BLOCK, 3RD MAIN ROAD, ANNA NAGAR",
+    city: "CHENNAI",
+    state: "TAMIL NADU",
+    postcode: "600040",
+    country: "IN",
+  },
 };
 
 /** The logo for mail: the lockup on flat navy (#0F213A), 640px wide for sharp display at 300. */

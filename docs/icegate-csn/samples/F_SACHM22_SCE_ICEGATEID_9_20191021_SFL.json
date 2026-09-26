@@ -1,0 +1,33 @@
+{
+	"headerField": {
+		"senderID": "ICEGATEID",
+		"receiverID": "INNSA1",
+		"versionNo": "1102",
+		"indicator": "T",
+		"messageID": "SACHM22",
+		"sequenceOrControlNumber": 7,
+		"date": "20191028",
+		"time": "T12:00",
+		"reportingEvent": "SCE"
+	},
+
+	"errorDetails": {
+		"status": "Schema validation failure",
+		"errorCode": "ERR100",
+		"errorMessage": [{
+				"level": "error",
+				"schema": {
+					"loadingURI": "#",
+					"pointer": "/properties/sequenceOrControlNumber"
+				},
+				"instance": {
+					"pointer": "/sequenceOrControlNumber"
+				},
+				"domain": "validation",
+				"keyword": "minimum",
+				"message": "numeric instance is lower than the required minimum (minimum: 1, found: 0)",
+				"minimum": 1,
+				"found": 0
+			}]
+}	
+}

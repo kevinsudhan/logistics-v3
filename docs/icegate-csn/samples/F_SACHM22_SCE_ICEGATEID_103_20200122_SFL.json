@@ -1,0 +1,33 @@
+{
+  "headerField" : {
+    "senderID" : "ICEGATEID",
+    "receiverID" : "INSAA1",
+    "versionNo" : "SCE1102",
+    "indicator" : "P",
+    "messageID" : "SACHM22",
+    "sequenceOrControlNumber" : 103,
+    "date" : "20200122",
+    "time" : "T16:48",
+    "reportingEvent" : ""
+  },
+  "errorDetails" : {
+    "status" : "Schema validation failure",
+    "errorCode" : "ERR100",
+    "errorMessage" : [ {
+      "level" : "error",
+      "schema" : {
+        "loadingURI" : "#",
+        "pointer" : "/properties/headerField/properties/reportingEvent"
+      },
+      "instance" : {
+        "pointer" : "/headerField/reportingEvent"
+      },
+      "domain" : "validation",
+      "keyword" : "minLength",
+      "message" : "string \"\" is too short (length: 0, required minimum: 1)",
+      "value" : "",
+      "found" : 0,
+      "minLength" : 1
+    } ]
+  }
+}

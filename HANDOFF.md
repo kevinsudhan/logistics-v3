@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **096**, so the next one is `097-….sql`.
+  migration filename (§6). The last migration is **097**, so the next one is `098-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -162,7 +162,7 @@ flag on, it also has invoices and costs.
 
 ## 4. Data model — 93 migrations
 
-`supabase-v2/001…096`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…097`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -188,6 +188,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `097` | the CSN for ICEGATE: `icegate_settings` (one row: ICEGATE ID, desk PAN, authorised person's PAN, port of reporting; staff read, admins update), `consoles.csn_draft` (the form as saved), `csn_files` (every file made, job number from `csn_job_seq`, never reused) and `csn_file_new(console, event, indicator, houses)` which numbers and names the file `F_SACHM22_<event>_<ICEGATE ID>_<job>_<yyyymmdd>_DEC.json` on India's date |
 | `096` | the last security-advisor findings: the 13 functions without a fixed `search_path` get `''` (each read first: built-ins and `public.`-qualified names only); the 14 reporting views get **`security_invoker = true`**, so they read as the person asking and the tables' RLS holds. Only `partner_reply_log` changed in effect: employees now see their own replies, as 045 and replyLog.ts intended (through the owner-rights view they saw everyone's). Verified by snapshotting every view as each of the 5 staff before and after: no other difference |
 | `095` | Connect Outlook from inside the CRM: `private.outlook_pending` (a one-time note per connect: state hash, sign-in, PKCE verifier, page to return to; deleted with its sign-in, refused after 15 minutes, taken once); `outlook_pending_put / _take`, service role only |
 | `094` | Outlook stays connected: `private.outlook_links` (one row per Supabase sign-in, keyed by `auth.sessions.id` **on delete cascade**, so a sign-out deletes it; the refresh token sealed by the function); `outlook_link_put / _get / _drop`, service role only; cron `araxys-v2-outlook-links-prune` (22:30 UTC) drops rows unused for 3 days (tabs closed without signing out). The `private` schema is outside the API and the backup |
@@ -594,6 +595,35 @@ screen.
     From/Sent/To/Cc/Subject header. Forward goes through Graph `createForward` (`forwardTracked`),
     so the original's attachments and inline pictures travel. Bcc is on every send path, and the
     compose window can be made bigger.
+- **The CSN for ICEGATE, import consoles (097, 26 Sep).** An import console now has a "CSN for
+  ICEGATE" panel under its cargo manifest (`components/ConsoleCsn.tsx`). It makes the Cargo Summary
+  Notification the desk files as consol agent 72 hours before arrival: the carrier's master B/L as a
+  consolidated line (`C`, previous declaration `N`) with every house B/L under it (`H`, `N`),
+  reporting event SCE, message SACHM22, version SCE1102, filed as submitter type `ANC` on the desk's
+  PAN.
+  - **The specification is CBIC's own**, in `docs/icegate-csn/` (the MIG for "Notified Sea Carriers
+    other than ASC/ASA", v1.6, 14 Aug 2026, with its schemas and Customs' sample files). Check the
+    ICEGATE MIG page for a newer version before changing anything.
+  - **`lib/icegateCsn.ts`:**
+    - `draftFor` fills the form from the console, each job's house B/L (the received one on an
+      import), its CFS code, the boxes, the origin agent, and the desk (`COMPANY.postal`).
+    - `buildCsn` writes ICEGATE's JSON.
+    - `csnProblems` lists what ICEGATE would refuse. It runs the official schema over the file
+      (`schemaErrors`, covering every keyword the schema uses) plus the rules the guide states in
+      words: IEC for an import consignee, UN/LOCODEs, HS codes, ZZZZZ/ZZZ for non-hazardous cargo,
+      container numbers and ISO size-types.
+  - **Tests:** `scripts/tests/icegateCsn.test.ts` checks the checker against Customs' sample files,
+    and builds a two-house console into a file that passes the schema.
+  - **The file has no `digSign` block:** ICEGATE's signing utility adds it from the filer's Class III
+    certificate on their PC. Then it is uploaded on ICEGATE (web upload or SMTP). ICEGATE answers
+    with an SFL (structure failed) or an ACK with error codes, listed in section 7 of the guide.
+  - **What the desk must still type per console:** the vessel's IMO number and the voyage call number
+    (VCN) from the line's agent, plus anything a house B/L lacked (most often the importer's IEC).
+    Once, an administrator sets the desk's ICEGATE ID, PAN, authorised person's PAN and port of
+    reporting in the panel.
+  - **The CSN number that comes back** is recorded in the panel, on the console and every job's import
+    customs record, which clears the jobs' "CSN due" alerts (088).
+  - **Not built yet:** amendments (SCA), exports (SCX), reading ICEGATE's ACK file back in.
 - **Passwords (26 Sep).** Auth settings: at least 10 characters, with letters and a number
   (`password_min_length` 10, `password_required_characters` letters:digits). The staff-accounts
   function and the Staff accounts screen check the same rule first, so the admin reads a plain
@@ -754,6 +784,7 @@ There are 63 commits. Grouped:
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
+| CSN for ICEGATE (097) | see `git log` | An import console makes the CSN file in CBIC's format, checked against the official schema, numbered and named as ICEGATE expects, for the desk to sign and upload; the CSN number is recorded back on every job |
 | Mail editor with Outlook's formatting | see `git log` | Font, size, colours, highlight, lists, alignment, links, pictures, tables; the editor shows exactly what the recipient's Outlook shows; paste from Word/Excel/Outlook keeps its look; Reply all, Forward (with the attachments) and Bcc |
 | Connect Outlook to your own mailbox (095) | see `git log` | Password logins connect Outlook from the Mail page without signing in again, and only to their own mailbox: info@ cannot connect aashish@ |
 | Outlook stays connected (094) | see `git log` | No more "sign in again" an hour after signing in: the server renews the Microsoft token silently for as long as the person stays signed in |

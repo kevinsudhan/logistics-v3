@@ -1,0 +1,141 @@
+{
+   	"$schema": "http://json-schema.org/draft-04/schema#",
+   	"type": "object",
+	"versionNo": "SCE1102",  	
+   	"properties": {
+   		"headerField": {
+   			"type": "object",
+   			"required": [
+   				"senderID",
+   				"receiverID",
+   				"versionNo",
+   				"indicator",
+   				"messageID",
+   				"sequenceOrControlNumber",
+   				"date",
+   				"time",
+   				"reportingEvent"
+   			],
+   			"properties": {
+   				"senderID": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 30,
+   					"description": "ICEGATE ID"
+   				},
+   				"receiverID": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 30,
+   					"description": "Port code where declared"
+   				},
+   				"versionNo": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 7,
+   					"description": "ICEGATE version being used: Default value 1.0"
+   				},
+   				"indicator": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 1,
+   					"description": "test (T) or production (P) indicator"
+   				},
+   				"messageID": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 7,
+   					"description": "Default value: IECHE01"
+   				},
+   				"sequenceOrControlNumber": {
+   					"type": "number",
+   					"minimum": 1.0,
+   					"maximum": 9999999.0,
+   					"description": "unique value that can be used to uniquely identify the document at User End"
+   				},
+   				"date": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"maxLength": 8,
+   					"pattern": "^[0-9]{4}(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])$",
+   					"description": "Date of transmission of message: YYYYMMDD Format"
+   				},
+   				"time": {
+   					"type": "string",
+   					"pattern": "^([T])([0-1][0-9]|[2][0-3]):([0-5][0-9])$",
+   					"description": "Time of transmission of message"
+   				},
+   				"reportingEvent": {
+   					"type": "string",
+   					"minOccurs": "1",
+   					"description": "Default value: ES",
+   					"maxLength": 4
+   				}
+   			}
+   		},
+   		"errorDetails": {
+   			"type": "object",
+   			"required": [
+   				"status",
+   				"errorCode",
+   				"errorMessage"
+   			],
+   			"properties": {
+   				"status": {
+   					"type": "string"
+   				},
+   				"errorCode": {
+   					"type": "string"
+   				},
+   				"errorMessage": {
+   					"type": "array",
+   					"items": {
+   						"type": "object",
+   						"properties": {
+   							"schema": {
+   								"type": "object",
+   								"properties": {
+   									"loadingURI": {
+   										"type": "string"
+   									},
+   									"pointer": {
+   										"type": "string"
+   									}
+   								}
+   							},
+   							"instance": {
+   								"type": "object",
+   								"properties": {
+   									"pointer": {
+   										"type": "string"
+   									}
+   								}
+   							},
+   							"domain": {
+   								"type": "string"
+   							},
+   							"keyword": {
+   								"type": "string"
+   							},
+   							"message": {
+   								"type": "string"
+   							},
+   							"value": {
+   								"type": "string"
+   							},
+   							"found": {
+   								"type": "number"
+   							},
+   							"maxLength": {
+   								"type": "number"
+   							}
+   						}
+   					}
+   				}
+   			}
+   		}
+   	},
+   	"required": ["headerField",
+   		"errorDetails"
+   	]
+   }

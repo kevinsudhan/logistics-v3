@@ -1,0 +1,247 @@
+{
+    "headerField": {
+        "senderID": "SOMETESTUSER",
+        "receiverID": "INBOM1",
+        "versionNo": "SCE1102",
+        "indicator": "T",
+        "messageID": "SACHM22",
+        "sequenceOrControlNumber": 6055,
+        "date": "20200701",
+        "time": "T12:00",
+        "reportingEvent": "SCA"
+    },
+    "master": {
+        "decRef": {
+            "msgTyp": "A",
+            "prtofRptng": "INBOM1",
+            "jobNo": 6055,
+            "jobDt": "20200701",
+            "rptngEvent": "SCA",
+            "csnNmbr": 1000126,
+            "csnDt": "20200721",
+            "amendment": "U"
+        }, 
+        "authPrsn": {
+            "sbmtrTyp": "ANC",
+            "sbmtrCd": "AAACP9522H",
+            "authReprsntvCd": "AXTPD0731B",
+            "amendment": "U"
+        },
+        "vesselDtls": {
+            "modeOfTrnsprt": "1",
+            "typOfTrnsprtMeans": "10",
+            "trnsprtMeansId": "9241205",
+            "amendment": "U"
+        },
+        "voyageDtls": {
+            "cnvnceRefNmbr": "2001003",
+            "totalNoOfTrnsprtEqmtMnfsted": 4,
+            "totalNmbrOfLines": 1,
+            "amendment": "U"
+        },
+        "mastrCnsgmtDec": [{
+            "MCRef": {
+                "lineNo": 1,
+                "mstrBlNo": "MBL20200707003",
+                "mstrBlDt": "20200302",
+                "consolidatedIndctr": "R",
+                "prevDec": "N",
+                "consolidatorPan": "PAN:AAHFG2237N",
+                "amendment": "U"
+            },
+            "trnsprtEqmt": [{
+                "eqmtSeqNo": 1,
+                "eqmtId": "ACEU12345777",
+                "eqmtTyp": "CN",
+                "eqmtSize": "4000",
+                "eqmtLoadStatus": "FCL",
+                "adtnlEqmtHold": " ",
+                "eqmtSealTyp": "BTSL",
+                "eqmtSealNmbr": "123ED7773",
+                "otherEqmtId": " ",
+                "socFlag": "N",
+                "cntrAgntCd": "AAACP9522H",
+                "cntrWeight": 8800,
+                "totalNmbrOfPkgs": 400,
+                "amendment": "U"
+            }, {
+                "eqmtSeqNo": 2,
+                "eqmtId": "ACEU1238995688",
+                "eqmtTyp": "CN",
+                "eqmtSize": "4000",
+                "eqmtLoadStatus": "FCL",
+                "adtnlEqmtHold": " ",
+                "eqmtSealTyp": "BTSL",
+                "eqmtSealNmbr": "123E6D0003",
+                "otherEqmtId": " ",
+                "socFlag": "N",
+                "cntrAgntCd": "AAACP9522H",
+                "cntrWeight": 8800,
+                "totalNmbrOfPkgs": 300,
+               "amendment": "U"
+            },{
+                "eqmtSeqNo": 3,
+                "eqmtId": "ACEUNEW8995688",
+                "eqmtTyp": "CN",
+                "eqmtSize": "4000",
+                "eqmtLoadStatus": "FCL",
+                "adtnlEqmtHold": " ",
+                "eqmtSealTyp": "BTSL",
+                "eqmtSealNmbr": "123E6D0009",
+                "otherEqmtId": " ",
+                "socFlag": "N",
+                "cntrAgntCd": "AAACP9522H",
+                "cntrWeight": 8800,
+                "totalNmbrOfPkgs": 350,
+               "amendment": "U"
+            },{
+                "eqmtSeqNo": 4,
+                "eqmtId": "ACEU12345773",
+                "eqmtTyp": "CN",
+                "eqmtSize": "4000",
+                "eqmtLoadStatus": "FCL",
+                "adtnlEqmtHold": " ",
+                "eqmtSealTyp": "BTSL",
+                "eqmtSealNmbr": "123ED7373",
+                "otherEqmtId": " ",
+                "socFlag": "N",
+                "cntrAgntCd": "AAACP9522H",
+                "cntrWeight": 8800,
+                "totalNmbrOfPkgs": 400,
+                "amendment": "S"
+            }],
+            "trnsprtDocMsr": {
+                "nmbrOfPkgs": 1450,
+                "typsOfPkgs": "PKG",
+                "marksNoOnPkgs": "HBL0000012",
+                "grossWeight": 9000.0,
+                "netWeight": 9000.0,
+                "unitOfWeight": "KGS",
+                "grossVolume": 14500,
+                "unitOfVolume": "LTR",
+                "invoiceValueOfCnsgmt": 1650000,
+                "crncyCd": "INR",
+                "amendment": "U"
+            },
+            "supRef": {
+                "cinTyp": "CSN",
+                "csnSbmtdTyp": "CSN",
+                "csnSbmtdBy": "AAMCA1989R",
+                "csnRptngTyp": "SCE",
+                "csnSiteId": "INBOM1",
+                "csnNmbr": 1000126,
+                "csnDt": "20200721",
+                "amendment": "U"
+            },
+            "houseCargoDec": [{
+                "HCRef": {
+                    "subLineNo": 3,
+                    "blNo": "MBL000O2030079933",
+                    "blDt": "20191225",
+                    "consolidatedIndctr": "H",
+                    "consolidatorPan": "PAN:AAACP9522H",
+                    "prevDec": "N",
+                    "amendment": "S"
+                },
+                "locCstm": {
+                    "firstPrtOfEntry": "INBOM1",
+                    "destPrt": "INBOM1",
+                    "nxtPrtOfUnlading": "INBOM1",
+                    "typOfCrgo": "IM",
+                    "itemTyp": "OT",
+                    "crgoMvmt": "LC",
+                    "natrOfCrgo": "C",
+                    "amendment": "S"
+                },
+                "trnsprtDoc": {
+                    "prtOfAcptCdd": "DECUX",
+                    "prtOfAcptName": "CUXHAVEN",
+                    "prtOfReceiptCdd": "INBOM1",
+                    "prtOfReceiptName": "BOMBAY",
+                    "cnsgnrsName": "TEST CONSIGNOR1",
+                    "cnsgnrStreetAddress": "TEST STREET3",
+                    "cnsgnrCity": "BERLIN",
+                    "cnsgnrCntrySubDivName": "BERLIN",
+                    "cnsgnrCntrySubDivCd": "BE",
+                    "cnsgnrCntryCd": "DE",
+                    "cnsgnrPstcd": "54321",
+                    "cnsgnesName": "TEST CONSIGNEE3",
+                    "cnsgnesCd": "AQWSD1244C",
+                    "typOfCd": "IEC",
+                    "cnsgneStreetAddress": "TEST CONSIGNEE STREET3",
+                    "cnsgneCity": "MUMBAI",
+                    "cnsgneCntrySubDivName": "MAHARASHTRA",
+                    "cnsgneCntrySubDiv": "27",
+                    "cnsgneCntryCd": "IN",
+                    "cnsgnePstcd": "660000",
+                    "nameOfAnyOtherNotfdParty": "TEST NOTIFIED3",
+                    "panOfNotfdParty": "VFGBH1235M",
+                    "typOfNotfdPartyCd": "PAN",
+                    "notfdPartyStreetAddress": "TEST NOTIFIED STREET3",
+                    "notfdPartyCity": "MUMBAI",
+                    "notfdPartyCntrySubDivName": "MAHARASHTRA",
+                    "notfdPartyCntrySubDiv": "27",
+                    "notfdPartyCntryCd": "IN",
+                    "notfdPartyPstcd": "660000",
+                    "goodsDescAsPerBl": "ERASERS",
+                    "amendment": "S"
+                },
+                "itemDtls": [{
+                    "crgoItemSeqNmbr": 1,
+                    "hsCd": "401692",
+                    "crgoItemDesc": "EraserS",
+                    "unoCd": "ZZZZ",
+                    "imdgCd": "ZZZ",
+                    "nmbrOfPkgs": 400,
+                    "typOfPkgs": "PKG",
+                    "amendment": "S"
+                }],
+                "trnsprtEqmt": [{
+                    "eqmtSeqNo": 1,
+                    "eqmtId": "ACEU12345773",
+                    "eqmtTyp": "CN",
+                    "eqmtSize": "4000",
+                    "eqmtLoadStatus": "FCL",
+                    "adtnlEqmtHold": " ",
+                    "eqmtSealTyp": "BTSL",
+                    "eqmtSealNmbr": "123ED7373",
+                    "otherEqmtId": " ",
+                    "socFlag": "N",
+                    "cntrAgntCd": "AAACP9522H",
+                    "cntrWeight": 8800,
+                    "totalNmbrOfPkgs": 400,
+                    "amendment": "S"
+                }],
+
+                "itnry": [{
+                    "prtOfCallSeqNmbr": 1,
+                    "modeOfTrnsprt": "1",
+                    "prtOfCallCdd": "DECUX",
+                    "prtOfCallName": "CUXHAVEN",
+                    "nxtPrtOfCallCdd": "INBOM1",
+                    "nxtPrtOfCallName": "BOMBAY",
+                    "amendment": "S"
+                }],
+
+                "trnsprtDocMsr": {
+                    "nmbrOfPkgs": 400,
+                    "typsOfPkgs": "PKG",
+                    "marksNoOnPkgs": "HBL50077SCE",
+                    "grossWeight": 3000.0,
+                    "netWeight": 3000.0,
+                    "unitOfWeight": "KGS",
+                    "grossVolume": 4000,
+                    "unitOfVolume": "LTR",
+                    "invoiceValueOfCnsgmt": 500000,
+                    "crncyCd": "INR",
+                    "amendment": "S"
+                }
+            }]
+        }]
+    },
+    "digSign": {
+        "startSignature": "abcddbjbcdj",
+        "startCertificate": "bgceGKGBAYUSCBGYI",
+        "signerVersion": "V009SB"
+    }
+}

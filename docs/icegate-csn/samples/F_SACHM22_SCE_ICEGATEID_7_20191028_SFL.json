@@ -1,0 +1,33 @@
+{
+	"headerField": {
+		"senderID": "ICEGATEID",
+		"receiverID": "INNSA1",
+		"versionNo": "1102",
+		"indicator": "T",
+		"messageID": "SACHM22",
+		"sequenceOrControlNumber": 7,
+		"date": "20191028",
+		"time": "T12:00",
+		"reportingEvent": "SCE"
+	},
+
+	"errorDetails": {
+		"status": "Schema validation failure",
+		"errorCode": "ERR100",
+		"errorMessage": [{
+			"level": "error",
+			"schema": {
+				"loadingURI": "#",
+				"pointer": "/properties/master/properties/decRef/properties/jobNo"
+			},
+			"instance": {
+				"pointer": "/master/decRef/jobNo"
+			},
+			"domain": "validation",
+			"keyword": "type",
+			"message": "instance type (string) does not match any allowed primitive type (allowed: [\"integer\",\"number\"])",
+			"found": "string",
+			"expected": ["integer", "number"]
+		}]
+	}
+}

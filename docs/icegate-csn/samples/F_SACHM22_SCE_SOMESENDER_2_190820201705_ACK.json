@@ -1,0 +1,115 @@
+
+{
+  "headerField" : {
+    "senderID" : "SOMESENDER",
+    "receiverID" : "INMUN1",
+    "versionNo" : "SCE1102",
+    "indicator" : "T",
+    "messageID" : "SACHM22",
+    "date" : "20200819",
+    "time" : "T14:06",
+    "sequenceOrControlNumber" : "2",
+    "reportingEvent" : "SCE"
+  },
+  "master" : {
+    "decRef" : {
+      "msgTyp" : "F",
+      "prtofRptng" : "INMUN1",
+      "jobNo" : "2",
+      "jobDt" : "20200819",
+      "rptngEvent" : "SCE",
+      "csn_no" : "1000007",
+      "csn_dt" : "20200819",
+      "decRefErrorCode" : [ {
+        "pathName" : "/master/decRef",
+        "errorCode" : "000",
+        "errorMessage" : "Successful"
+      } ]
+    },
+    "authPrsnErrorCode" : [ {
+      "pathName" : "/master/authPrsn",
+      "errorCode" : "000",
+      "errorMessage" : "Successful"
+    } ],
+    "vesselDtlsErrorCode" : [ {
+      "pathName" : "/master/vesselDtls",
+      "errorCode" : "000",
+      "errorMessage" : "Successful"
+    } ],
+    "voyageDtlsErrorCode" : [ {
+      "pathName" : "/master/voyageDtls",
+      "errorCode" : "000",
+      "errorMessage" : "Successful"
+    } ],
+    "mastrCnsgnmtDec" : [ {
+      "MCRef" : {
+        "lineNo" : "1",
+        "MCRefErrorCode" : [ {
+          "pathName" : "/master/mastrCnsgmtDec/MCRef",
+          "errorCode" : "000",
+          "errorMessage" : "Successfull"
+        } ]
+      },
+      "prevRefErrorCode" : [ {
+        "pathName" : "/master/mastrCnsgmtDec/prevRef",
+        "errorCode" : "000",
+        "errorMessage" : "Successfull"
+      } ],
+      "locCstmErrorCode" : [ {
+        "pathName" : "/master/mastrCnsgmtDec/locCstm",
+        "errorCode" : "000",
+        "errorMessage" : "Successfull"
+      } ],
+      "trnshprErrorCode" : [ {
+        "pathName" : "/master/mastrCnsgmtDec/trnshpr",
+        "errorCode" : "000",
+        "errorMessage" : "Successfull"
+      } ],
+      "trnsprtDocErrorCode" : [ {
+        "pathName" : "/master/mastrCnsgmtDec/trnsprtDoc",
+        "errorCode" : "000",
+        "errorMessage" : "Successfull"
+      } ],
+      "trnsprtDocmsrErrorCode" : [ {
+        "pathName" : "/master/mastrCnsgmtDec/trnsprtDocMsr",
+        "errorCode" : "000",
+        "errorMessage" : "Successfull"
+      } ],
+      "itemDtls" : [ {
+        "crgoItemSeqNmbr" : "1",
+        "itemDtlsErrorCode" : [ {
+          "pathName" : "/master/mastrCnsgmtDec/itemDtls",
+          "errorCode" : "000",
+          "errorMessage" : "Successfull"
+        } ]
+      } ],
+      "trnsprteqmt" : [ {
+        "eqmtSeqNo" : "1",
+        "trnsprtEqpmtErrorCode" : [ {
+          "pathName" : "/master/mastrCnsgmtDec/trnsprtEqmt",
+          "errorCode" : "000",
+          "errorMessage" : "Successfull"
+        } ]
+      } ],
+      "itnry" : [ {
+        "prtOfCallSeqNmbr" : "1",
+        "itnryErrorCode" : [ {
+          "pathName" : "/master/mastrCnsgmtDec/itnry",
+          "errorCode" : "000",
+          "errorMessage" : "Successfull"
+        } ]
+      } ],
+      "mcResponse" : {
+        "cinTyp" : "PCIN",
+        "mcinPcin" : "20PC100819172764500"
+      }
+    } ]
+  }
+,
+"digSign":
+{
+"startSignature":"BDk8ifFiJrDNUFa70Jsz0X0euR727oOZpOorkoPow3XK4LMiXJjKN++8Q+zxg2BHO72zb5MPEUjtDKNjqUDSZT982isow78QrBoex+wG850UGGW34c7jPNTUzClcf27YR8UUG7P6pJSWyn2qd2H063yszYRh1a2JJRf2RRtEr8Kp7vYfZKWR1eapezzAWqWXKboxpT2pqnns6DrrvT65N+KDzI3h0Ye4pZxqWOQvjiJyAcndLWFUy+kV5ye+1BbtwztsEmpz2n9C7rnB97qI971UyJu32XIXNQDwEM+92ouJzqQciAm6N8Wfm71KkQI5cXswbmwcxEqiGaI175FDaQ==",
+"startCertificate":"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",
+"signerVersion":"1.0"
+}
+}

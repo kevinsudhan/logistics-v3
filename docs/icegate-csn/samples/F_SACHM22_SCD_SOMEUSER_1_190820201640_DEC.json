@@ -1,0 +1,127 @@
+{
+  "headerField" : {
+    "senderID" : "SOMEUSER",
+    "receiverID" : "INMUN1",
+    "versionNo" : "SCE1102",
+    "indicator" : "T",
+    "messageID" : "SACHM22",
+    "sequenceOrControlNumber" : 1,
+    "date" : "20200819",
+    "time" : "T13:30",
+    "reportingEvent" : "SCE"
+  },
+  "master" : {
+    "decRef" : {
+      "msgTyp" : "F",
+      "prtofRptng" : "INMUN1",
+      "jobNo" : 1,
+      "jobDt" : "20200819",
+      "rptngEvent" : "SCE"
+    },
+    "authPrsn" : {
+      "sbmtrTyp" : "ASA",
+      "sbmtrCd" : "AADCC3951G",
+      "authReprsntvCd" : "ASRPK2423Q"
+    },
+    "vesselDtls" : {
+      "modeOfTrnsprt" : "1",
+      "typOfTrnsprtMeans" : "10",
+      "trnsprtMeansId" : "9618587"
+    },
+    "voyageDtls" : {
+      "cnvnceRefNmbr" : "INMUN120201796",
+      "totalNoOfTrnsprtEqmtMnfsted" : 1,
+      "totalNmbrOfLines" : 1
+    },
+    "mastrCnsgmtDec" : [ {
+      "MCRef" : {
+        "lineNo" : 1,
+        "mstrBlNo" : "AKI0283735",
+        "mstrBlDt" : "20200719",
+        "consolidatedIndctr" : "S",
+        "prevDec" : "N",
+        "consolidatorPan" : "PAN:AADCC3951G"
+      },
+      "locCstm" : {
+        "firstPrtOfEntry" : "LKCMB",
+        "destPrt" : "CDMAT",
+        "nxtPrtOfUnlading" : "CGPNR",
+        "typOfCrgo" : "TR",
+        "itemTyp" : "OT",
+        "crgoMvmt" : "FT",
+        "natrOfCrgo" : "C"
+       },
+	    "trnshpr": {
+          "trnshprCd": "AADCC3951G", 
+          "trnshprBond": "2000067135"
+        },
+      "trnsprtDoc" : {
+        "prtOfAcptCdd" : "PKBQM",
+        "prtOfAcptName" : "Karachi-Muhammad Bin Qasim",
+        "prtOfReceiptCdd" : "CDMAT",
+        "prtOfReceiptName" : "Matadi",
+        "cnsgnrsName" : "ZEAL TEXTILE (PVT) LTD              ",
+        "cnsgnrStreetAddress" : "PLOT NO.10.11 & 12 SECTOR B-VIPHASE-1KARACHI EXPORT PROCESSING ZONE,",
+        "cnsgnrCity" : "KARACHI",
+        "cnsgnrCntrySubDivName" : "KARACHI",
+        "cnsgnrCntryCd" : "PK",
+        "cnsgnesName" : "M/S. ETS.LUCKY STAR",
+        "cnsgneStreetAddress" : "AV MAMA EMO BATIMA PALZZB4 DRC.",
+        "cnsgneCity" : "LUBUMBASHI",
+        "cnsgneCntrySubDivName" : "LUBUMBASHI",
+        "cnsgneCntryCd" : "CD",
+        "nameOfAnyOtherNotfdParty" : "TRADE DEPOT GENERAL TRADING LLC",
+        "notfdPartyStreetAddress" : "DUBAI UAEK0004.",
+        "notfdPartyCity" : "DUBAI",
+        "notfdPartyCntrySubDivName" : "DUBAI",
+        "notfdPartyCntryCd" : "AE",
+        "goodsDescAsPerBl" : " FREIGHT PREPAID         ** PORT OF DISCHARGE MATADI PLACE OF DELIVERY KINSHASA DESCRIPTION OF GOO DS USED CLOTHING GRADE C 542 BALES 1 X 40FT HC FCL/CY KEPZ-N-EXA-81000  19-52072-2020 BUREAU VERITAS INSPECTION BIVAC # COD 2020-222319-01 N.W T; 21,680 KGS   "
+      },
+      "trnsprtDocMsr" : {
+        "nmbrOfPkgs" : 542,
+        "typsOfPkgs" : "PKG",
+        "marksNoOnPkgs" : " NIL         ** NIL    ",
+        "grossWeight" : 26132.0,
+        "netWeight" : 22222.0,
+        "unitOfWeight" : "KGS"
+      },
+      "itemDtls" : [ {
+        "crgoItemSeqNmbr" : 1,
+        "hsCd" : "630900",
+        "crgoItemDesc" : "CLOTHES",
+        "unoCd" : "ZZZZZ",
+        "imdgCd" : "ZZZ",
+        "nmbrOfPkgs" : 542,
+        "typOfPkgs" : "PKG"
+      } ],
+      "trnsprtEqmt" : [ {
+        "eqmtSeqNo" : 1,
+        "eqmtId" : "TEMU7391242",
+        "eqmtTyp" : "CN",
+        "eqmtSize" : "4400",
+        "eqmtLoadStatus" : "FCL",
+        "eqmtSealTyp" : "BTSL",
+        "eqmtSealNmbr" : "G7985468",
+        "socFlag" : "N",
+        "cntrAgntCd" : "",
+        "cntrWeight" : 26132.0,
+        "totalNmbrOfPkgs" : 542
+      } ],
+      "itnry" : [ {
+        "prtOfCallSeqNmbr" : 1,
+        "prtOfCallCdd" : "PKBQM",
+        "prtOfCallName" : "Karachi-Muhammad Bin Qasim",
+        "nxtPrtOfCallCdd" : "CGPNR",
+        "nxtPrtOfCallName" : "Pointe Noire",
+        "modeOfTrnsprt" : "1"
+      } ]
+    } ]
+  }
+,
+"digSign":
+{
+"startSignature":"INKLwjuVYxbH8O2zalc+f9k2y5Iykuf+q1X8JytljEhjZWkqA94r5qZi6tV2F3fuaF0wiku3KzgbSw9ioBbriFhCkAdRXC52XTt24xXqqjdItDGZW+rRRjyM4/J47NkxRzWSDrkfFs4qn7EUjgv+M0fgq4A7nYq7S9cMAY+CFHD1N3h/NoUMNdzYuuL/5cjjgRFPzUoRuLxX2cXX5HHeBgRZ1U2XB3FjuZedmf47zG9YP7m/ZOVS/RkY2srT4v9+IP3gpc6/mFJkuEjNQy8SiP8jA8JHXZRZxiy5dryyYKu61hdD8casshilm3PO8z3XfVayLkm80vN6DPR8V55O5Q==",
+"startCertificate":"MIIFXDCCBESgAwIBAgIII4JEiwIODlwwDQYJKoZIhvcNAQELBQAwczELMAkGA1UEBhMCSU4xIjAgBgNVBAoTGVNpZnkgVGVjaG5vbG9naWVzIExpbWl0ZWQxDzANBgNVBAsTBlN1Yi1DQTEvMC0GA1UEAxMmU2FmZVNjcnlwdCBzdWItQ0EgZm9yIFJDQUkgQ2xhc3MzIDIwMTQwHhcNMTkwNDE3MTAyODM1WhcNMjEwNDE3MTAyODM1WjCCASExCzAJBgNVBAYTAklOMS8wLQYDVQQKEyZDTUEgQ0dNIEFHRU5DSUVTIElORElBIFBSSVZBVEUgTElNSVRFRDEQMA4GA1UEERMHNDAwMDcwMjEUMBIGA1UECBMLTWFoYXJhc2h0cmExSTBHBgNVBBQTQDhmOGYwZGIwMjY5NTJmZGE1YWI4NDVmMDRiNjZhYjExM2IzMWU1ZjgzYzhkYmVmM2Y0ZmExMjhjNzYxMGYwN2UxSTBHBgNVBAUTQDMyZWVmMzI5NzY0ODk1YjYwODExMzY5OGQxMmY3ZDUxNDYxMTU5ZDFkMDcxNzNiOTczMzFjOWQ0ZmFlNTA5YWUxIzAhBgNVBAMTGlNIUklQQUQgR1VOQURISVNIIEtBVEFSQU5FMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlHpgYP5Xqi7I6brduMLzghbRh7toXQAw9As+pmecSDghDpJd2Nz2jrn2rnDDpFF9ndnEJ5PDZQgVlVFMfcB9I8L8lu/Ykm9w5vVMsrNv+ZdYGPySnK5Ku/eY7ssX/HZrGkj6YUnXDuvq4rzhMMX8V1BEukIw4b9GQ93afbIvJrnwU/4zx2dGM46b2lZcNnewekDIgO4W2Owe7x91q/8+2jnQj2SY/xomIX3ph4JFwfxZyMzs4NG7SaA/xj3iShu74HBylGZIILLx/Q3qFeike9032ZZtoBI08sWEnVDX7wln8k1P/bcESdWpaGPwo6RLbS101/WG34p97upzlXhSCwIDAQABo4IBQjCCAT4wDgYDVR0PAQH/BAQDAgbAMBMGA1UdIwQMMAqACETAUaMKIW3iMBEGA1UdDgQKBAhNfaumKzuaIDAiBgNVHREEGzAZgRdtYnkua3NyaXBhZEBjbWEtY2dtLmNvbTBHBgNVHR8EQDA+MDygOqA4hjZodHRwOi8vY3JsLnNhZmVzY3J5cHQuY29tL1NhZmVTY3J5cHRSQ0FJQ2xhc3MzMjAxNC5jcmwwgYEGCCsGAQUFBwEBBHUwczBJBggrBgEFBQcwAoY9aHR0cHM6Ly93d3cuc2FmZXNjcnlwdC5jb20vZHJ1cGFsL2Rvd25sb2FkL1JDQUlDbGFzczMyMDE0LmNlcjAmBggrBgEFBQcwAYYaaHR0cDovL29jc3Auc2FmZXNjcnlwdC5jb20wEwYDVR0gBAwwCjAIBgZggmRkAgMwDQYJKoZIhvcNAQELBQADggEBADgMhYaWvefztYFnwGdDeSWLc7IRwrStgnz5d/nMbBIXtaNFTjaqb64IX7JK3ApfVYAZ2AuBj0peRoEh2ZxQtaS1WsSjBaD8PsBmYAZGEqSpUPjw2zz8/56/RaKHrEeWsL0EzrNqdYoq9fl4S2HESToneGmjhhZSr0QsdH9raziJH4J/L9GS0063fb9PihLJvru3UkC+irgtJFlAlWXm7xj3frR7ZCsBlLFw206If7LORUxayoerPlazOstEFHKNnXzj9K03Pz7Ew8p7vFIWgW4x/GoX55sav/BCx7MXC9CLXACNHRXLDp9bYudnXF2h6nx5lmpxYzGklbP9uWu4z0Q=",
+"signerVersion":"1.0"
+}
+}

@@ -93,6 +93,9 @@ export interface Console {
   manifest_bills: number | null;
   manifest_provisional: boolean;
 
+  /** The CSN form for ICEGATE as last saved (097, lib/icegateCsn.ts CsnDraft). */
+  csn_draft?: unknown;
+
   /** Joined in by the loaders, not columns. */
   agent_label?: string | null;
   summary?: ConsoleSummary;

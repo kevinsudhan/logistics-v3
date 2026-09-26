@@ -1,0 +1,33 @@
+{
+	"headerField": {
+		"senderID": "ICEGATEID",
+		"receiverID": "INNSA1",
+		"versionNo": "1102",
+		"indicator": "T",
+		"messageID": "SACHM22",
+		"sequenceOrControlNumber": 11,
+		"date": "20191023",
+		"time": "T12:00",
+		"reportingEvent": "SCE"
+	},
+
+	"errorDetails": {
+		"status": "Schema validation failure",
+		"errorCode": "ERR100",
+		"errorMessage": [{
+				"level": "error",
+				"schema": {
+					"loadingURI": "#",
+					"pointer": "/properties/phone_number"
+				},
+				"instance": {
+					"pointer": "/phone_number"
+				},
+				"domain": "validation",
+				"keyword": "type",
+				"message": "instance type (object) does not match any allowed primitive type (allowed: [\"array\"])",
+				"found": "object",
+				"expected": ["array"]
+			}]
+}	
+}
