@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, AlertTriangle, Check, ChevronDown, ChevronRight, Download, FileJson, FilePen, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, ChevronDown, ChevronRight, Download, FileJson, FilePen, Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { formatDate } from "../lib/dates";
 import { failureText } from "../lib/errorText";
 import { csnDue } from "../lib/receivedHbl";
 import { amendmentProblems, asFiled, buildAmendment, buildCsn, csnJson, csnProblems, type CsnContainer, type CsnDraft, type CsnHouse, type CsnItem, type CsnParty, type CsnPlace, type CsnSettings } from "../lib/icegateCsn";
-import { csnDraftFor, csnEventFor, csnFilesFor, filedDraftFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow } from "../services/icegateCsn";
+import { readCsnReply, whereInForm } from "../lib/icegateReply";
+import { applyCsnReply, csnDraftFor, csnEventFor, csnFilesFor, filedDraftFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow, type ReplyOutcome } from "../services/icegateCsn";
 import type { Console } from "../services/consoles";
 
 /**
@@ -19,6 +20,10 @@ import type { Console } from "../services/consoles";
  * desk to sign with its certificate and upload. The CSN number that comes back
  * is recorded here, on the console and every job, which clears the jobs' "CSN
  * due" alerts.
+ *
+ * ICEGATE's reply to a file (its …_ACK.json or …_SFL.json) is read in here
+ * too (100): kept on the file it answers, its errors shown where they are in
+ * the form, and on an accepted live file the CSN number and the CINs recorded.
  *
  * Once the CSN number is recorded, a change to the form becomes an amendment
  * (SCA, 099): what changed since the last live file, and only that, against
@@ -40,6 +45,9 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
   const [csnNo, setCsnNo] = useState(c.csn_no ?? "");
   const [csnDate, setCsnDate] = useState(c.csn_date ?? "");
   const [openHouse, setOpenHouse] = useState<string | null>(null);
+  /** The reply just read in, and the file whose reply is shown open. */
+  const [outcome, setOutcome] = useState<ReplyOutcome | null>(null);
+  const [openJob, setOpenJob] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open || draft) return;
@@ -125,6 +133,22 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
       save(file.file_name, buildCsn(draft, settings, { jobNo: file.job_no, date: file.date, time: file.time }));
       await afterFile(draft.indicator);
       setNote(`Made ${file.file_name}. Sign it with ICEGATE's signing utility and your Class III certificate, then upload it on ICEGATE. When the CSN number comes back, record it below.`);
+    });
+
+  const readReply = (upload: File) =>
+    act("reply", async () => {
+      if (!settings) return;
+      setOutcome(null);
+      const reply = readCsnReply(await upload.text(), upload.name);
+      const o = await applyCsnReply(c, reply, settings);
+      setOutcome(o);
+      setOpenJob(o.status === "accepted" ? null : o.file.job_no);
+      await afterFile("P");
+      if (o.recorded.some((x) => x.startsWith("CSN "))) {
+        setCsnNo(reply.csnNo);
+        setCsnDate(reply.csnDate || reply.date);
+      }
+      if (o.recorded.length) onChanged();
     });
 
   const downloadAmendment = () =>
@@ -374,7 +398,37 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
           </div>
 
           {/* ---- after ICEGATE ---- */}
-          <Block title="Record the CSN number ICEGATE issued">
+          <Block
+            title="ICEGATE's reply"
+            note="Upload the …_ACK.json or …_SFL.json ICEGATE sent back. The CRM finds the file it answers, shows what ICEGATE said, and on an accepted live file records the CSN number and the CINs."
+          >
+            <label
+              className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 text-[12px] text-text-primary hover:border-border-strong ${busy !== null ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {busy === "reply" ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Read a reply
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="sr-only"
+                disabled={busy !== null}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) readReply(f);
+                }}
+              />
+            </label>
+            {outcome && <ReplyNote outcome={outcome} />}
+            {files.length > 0 && (
+              <ul className="divide-y divide-border rounded-lg border border-border text-[12px]">
+                {files.map((f) => (
+                  <FileLine key={f.job_no} file={f} open={openJob === f.job_no} onToggle={() => setOpenJob(openJob === f.job_no ? null : f.job_no)} />
+                ))}
+              </ul>
+            )}
+          </Block>
+
+          <Block title="Record the CSN number by hand" note="When the reply came some other way.">
             <div className="flex flex-wrap items-end gap-2">
               <Text label="CSN number" value={csnNo} max={7} onChange={(v) => setCsnNo(v.replace(/\D/g, ""))} />
               <Text label="CSN date" type="date" value={csnDate} onChange={setCsnDate} />
@@ -393,16 +447,6 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
                 {busy === "record" ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Record
               </button>
             </div>
-            {files.length > 0 && (
-              <ul className="mt-2 space-y-0.5 text-[11px] text-text-muted">
-                {files.map((f) => (
-                  <li key={f.job_no}>
-                    {f.file_name} · {f.event === "SCA" ? "amendment" : "CSN"} · {f.indicator === "T" ? "test" : "live"} · {f.houses} house B/L{f.houses === 1 ? "" : "s"} ·{" "}
-                    {formatDate(f.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
-                  </li>
-                ))}
-              </ul>
-            )}
           </Block>
 
           {/* ---- amending it ---- */}
@@ -450,6 +494,82 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
 }
 
 // ---------------------------------------------------------------------------
+
+/** What the reply just read in said, and what it put on record. */
+function ReplyNote({ outcome: o }: { outcome: ReplyOutcome }) {
+  const name = o.file.file_name;
+  const n = o.file.reply?.errors.length ?? 0;
+  if (o.status === "accepted") {
+    return (
+      <div className="rounded-lg bg-bg-success px-3 py-2 text-[12px] text-text-success">
+        <p className="flex items-center gap-1.5 font-medium">
+          <Check size={13} /> ICEGATE accepted {name}.
+        </p>
+        {o.recorded.length > 0 && <p className="mt-1">Recorded: {o.recorded.join("; ")}.</p>}
+        {o.notes.map((x, k) => (
+          <p key={k} className="mt-1">
+            {x}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg bg-bg-danger px-3 py-2 text-[12px] text-text-danger">
+      <p className="flex items-center gap-1.5 font-medium">
+        <AlertCircle size={13} />
+        {o.status === "failed" ? `ICEGATE could not read ${name}: it did not match the format.` : `ICEGATE rejected ${name}: ${n} problem${n === 1 ? "" : "s"}.`}
+      </p>
+      <p className="mt-1">
+        {o.status === "failed"
+          ? "The CRM checks every file against CBIC's published schema, so a structure failure usually means ICEGATE's live format has moved on. Keep this reply for whoever maintains the CRM."
+          : "They are listed under the file below. Fix them in the form and make a new file."}
+        {o.file.event === "SCA" && o.file.indicator === "P" ? " The next amendment compares with the last live file ICEGATE did not reject, so it carries these changes again." : ""}
+      </p>
+    </div>
+  );
+}
+
+/** A file made, where ICEGATE's reply stands, and what it found wrong. */
+function FileLine({ file: f, open, onToggle }: { file: CsnFileRow; open: boolean; onToggle: () => void }) {
+  const errors = f.reply?.errors ?? [];
+  const chip =
+    f.reply_status === "accepted"
+      ? { text: `Accepted${f.reply?.csnNo && f.event !== "SCA" && f.indicator === "P" ? ` · CSN ${f.reply.csnNo}` : ""}`, tone: "bg-bg-success text-text-success" }
+      : f.reply_status === "rejected"
+        ? { text: `Rejected · ${errors.length} problem${errors.length === 1 ? "" : "s"}`, tone: "bg-bg-danger text-text-danger" }
+        : f.reply_status === "failed"
+          ? { text: "Structure failed", tone: "bg-bg-danger text-text-danger" }
+          : { text: "Awaiting reply", tone: "bg-surface-2 text-text-muted" };
+  return (
+    <li className="px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-mono text-[11px] text-text-primary">{f.file_name}</span>
+        <span className="text-[11px] text-text-muted">
+          {f.event === "SCA" ? "amendment" : "CSN"} · {f.indicator === "T" ? "test" : "live"} · {f.houses} house B/L{f.houses === 1 ? "" : "s"} ·{" "}
+          {formatDate(f.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+        </span>
+        {errors.length > 0 ? (
+          <button type="button" onClick={onToggle} className={`ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${chip.tone}`} aria-expanded={open}>
+            {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />} {chip.text}
+          </button>
+        ) : (
+          <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] ${chip.tone}`}>{chip.text}</span>
+        )}
+      </div>
+      {open && errors.length > 0 && (
+        <ul className="mt-2 space-y-1 pl-5 text-[12px] text-text-primary">
+          {errors.map((e, k) => (
+            <li key={k} className="list-disc">
+              <strong className="font-medium">{whereInForm(e, f.draft, f.event)}</strong>: {e.message}
+              {e.code && <span className="text-text-muted"> ({e.code})</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
 
 function SettingsBlock({ settings, admin, onSaved }: { settings: CsnSettings; admin: boolean; onSaved: (s: CsnSettings) => void }) {
   const [edit, setEdit] = useState<CsnSettings>(settings);

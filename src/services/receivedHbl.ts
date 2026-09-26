@@ -113,7 +113,7 @@ export async function importCustoms(shipmentId: string): Promise<CustomsRecord |
 /** The manifest numbers, starting the import customs record if the job has none yet. */
 export async function saveManifest(
   shipmentId: string,
-  patch: Partial<Pick<CustomsRecord, "igm_number" | "igm_date" | "igm_item" | "igm_subline" | "csn_no" | "csn_filed_on" | "cfs_code">>
+  patch: Partial<Pick<CustomsRecord, "igm_number" | "igm_date" | "igm_item" | "igm_subline" | "csn_no" | "csn_filed_on" | "cfs_code" | "cin_no">>
 ): Promise<CustomsRecord> {
   const existing = await importCustoms(shipmentId);
   const record = existing ?? (await startCustoms(shipmentId, "import"));

@@ -576,6 +576,7 @@ function Manifest({
         <SaveField label="CFS code" value={customs?.cfs_code ?? ""} onSave={(v) => save({ cfs_code: v.toUpperCase() || null })} disabled={busy !== null} />
         <SaveField label="CSN no." value={customs?.csn_no ?? ""} onSave={(v) => save({ csn_no: v.toUpperCase() || null })} disabled={busy !== null} />
         <SaveField label="CSN filed on" type="date" value={customs?.csn_filed_on ?? ""} onSave={(v) => save({ csn_filed_on: v || null })} disabled={busy !== null} />
+        <SaveField label={`CIN${customs?.cin_type ? ` (${customs.cin_type})` : ""}, from ICEGATE's reply`} value={customs?.cin_no ?? ""} onSave={(v) => save({ cin_no: v.toUpperCase() || null })} disabled={busy !== null} />
       </div>
       <p className="mt-2 text-[11px] text-text-muted">
         The same IGM numbers the bill of entry reads, kept on the job&rsquo;s import customs record (the <Link to={`/shipments/${s.id}/customs`} className="text-text-accent hover:underline">Customs tab</Link>).

@@ -1,6 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { COMPANY } from "../lib/company";
+import { formatDate } from "../lib/dates";
 import { draftFor, mergeDraft, type BillData, type CsnDraft, type CsnEvent, type CsnSettings, type CsnSource } from "../lib/icegateCsn";
+import type { CsnReply } from "../lib/icegateReply";
 import { shipmentsOn, updateConsole, type Console } from "./consoles";
 import { customsFor, startCustoms, updateCustoms } from "./customs";
 import { listPartners } from "./partners";
@@ -9,7 +11,8 @@ import { listPartners } from "./partners";
  * The CSN for ICEGATE, from a console (097, 098): the desk's ICEGATE identity,
  * the form as saved, a numbered file, and the CSN number once ICEGATE has
  * issued it. An import console files on entry (SCE), an export console on exit
- * (SCX). The file itself is lib/icegateCsn.ts.
+ * (SCX). The file itself is lib/icegateCsn.ts; ICEGATE's reply to it,
+ * lib/icegateReply.ts (100).
  */
 
 /** The event a console files: imports on entry, exports on exit; a cross-trade box files neither. */
@@ -129,6 +132,8 @@ export async function newCsnFile(consoleId: string, event: CsnEvent | "SCA", hou
   return data as { job_no: number; file_name: string; date: string; time: string };
 }
 
+export type ReplyStatus = "accepted" | "rejected" | "failed";
+
 export interface CsnFileRow {
   job_no: number;
   event: CsnEvent | "SCA";
@@ -136,12 +141,20 @@ export interface CsnFileRow {
   indicator: "P" | "T";
   houses: number;
   created_at: string;
+  /** The form the file was made from, as ICEGATE holds it once accepted (099). */
+  draft: CsnDraft | null;
+  /** ICEGATE's reply, once read in (100): null while it is awaited. */
+  reply_status: ReplyStatus | null;
+  reply: CsnReply | null;
+  replied_at: string | null;
 }
+
+const FILE_COLS = "job_no, console_id, event, file_name, indicator, houses, created_at, draft, reply_status, reply, replied_at";
 
 export async function csnFilesFor(consoleId: string): Promise<CsnFileRow[]> {
   const { data, error } = await supabase
     .from("csn_files")
-    .select("job_no, event, file_name, indicator, houses, created_at")
+    .select(FILE_COLS)
     .eq("console_id", consoleId)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -151,7 +164,8 @@ export async function csnFilesFor(consoleId: string): Promise<CsnFileRow[]> {
 
 /**
  * What ICEGATE holds for the console, as far as the CRM knows: the form kept
- * with the last live (P) file made for it — the CSN, or the last amendment.
+ * with the last live (P) file made for it — the CSN, or the last amendment —
+ * that ICEGATE did not reject (a reply awaited counts as accepted, 100).
  * Null when no live file was made since the CRM started keeping them (099).
  */
 export async function filedDraftFor(consoleId: string): Promise<CsnDraft | null> {
@@ -161,11 +175,83 @@ export async function filedDraftFor(consoleId: string): Promise<CsnDraft | null>
     .eq("console_id", consoleId)
     .eq("indicator", "P")
     .not("draft", "is", null)
+    .or("reply_status.is.null,reply_status.eq.accepted")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (data?.draft as CsnDraft | undefined) ?? null;
+}
+
+export interface ReplyOutcome {
+  file: CsnFileRow;
+  status: ReplyStatus;
+  /** What the reply put on record, in words. */
+  recorded: string[];
+  /** What it could not, and why. */
+  notes: string[];
+}
+
+/**
+ * ICEGATE's reply, kept on the file it answers (found by its job number), and
+ * on an accepted live file what it brings: the CSN number and date (on the
+ * console and every job, as `recordCsn`), the master line's CIN on the console,
+ * and each house's CIN on its job's customs record. A test file's reply is
+ * kept and nothing else: a test filing is not a CSN.
+ *
+ * Refused when the reply is not for this desk, not for a file made in the
+ * CRM, or for a file made on another console.
+ */
+export async function applyCsnReply(c: Console, reply: CsnReply, settings: CsnSettings): Promise<ReplyOutcome> {
+  if (!reply.jobNo) throw new Error("The reply does not say which file it answers: it has no job number.");
+  const desk = settings.icegate_id.trim().toUpperCase();
+  if (reply.sender && desk && reply.sender !== desk) throw new Error(`That reply is for sender ${reply.sender}, not this desk (${desk}).`);
+  const { data, error } = await supabase.from("csn_files").select(FILE_COLS).eq("job_no", reply.jobNo).maybeSingle();
+  if (error) throw new Error(error.message);
+  const file = data as (CsnFileRow & { console_id: string | null }) | null;
+  if (!file) throw new Error(`No CSN file with job number ${reply.jobNo} was made in the CRM. Is this the reply to a file made elsewhere?`);
+  if (file.console_id !== c.id) {
+    const other = file.console_id ? (await supabase.from("consoles").select("console_no").eq("id", file.console_id).maybeSingle()).data : null;
+    throw new Error(`That reply answers job ${file.job_no} (${file.file_name}), made on ${other?.console_no ? `console ${other.console_no}` : "another console"}. Read it in there.`);
+  }
+  if (["SCE", "SCX", "SCA"].includes(reply.event) && reply.event !== file.event) {
+    throw new Error(`That reply is for an ${reply.event} file, but job ${file.job_no} is an ${file.event}.`);
+  }
+
+  const status: ReplyStatus = reply.kind === "SFL" ? "failed" : reply.accepted ? "accepted" : "rejected";
+  const { error: kept } = await supabase.rpc("csn_file_reply", { p_job: file.job_no, p_status: status, p_reply: reply });
+  if (kept) throw new Error(kept.message);
+
+  const recorded: string[] = [];
+  const notes: string[] = [];
+  if (status === "accepted" && file.indicator === "T") notes.push("It was a test file, so nothing was put on record.");
+  if (status === "accepted" && file.indicator === "P") {
+    if (file.event !== "SCA" && reply.csnNo) {
+      const date = reply.csnDate || reply.date;
+      await recordCsn(c, reply.csnNo, date);
+      recorded.push(`CSN ${reply.csnNo}${date ? ` of ${formatDate(date, { day: "numeric", month: "short", year: "numeric" })}` : ""}, on the console and every job`);
+    }
+    if (reply.masterCin) {
+      await updateConsole(c.id, { cin_type: reply.masterCin.type, cargo_identification_no: reply.masterCin.no });
+      recorded.push(`the master line's ${reply.masterCin.type || "CIN"} ${reply.masterCin.no}, on the console`);
+    }
+    const side = csnEventFor(c) === "SCX" ? "export" : "import";
+    for (const hc of reply.houseCins) {
+      const h = file.draft?.houses.find((x, i) => (x.subLine ?? i + 1) === hc.subLine);
+      if (!h) {
+        notes.push(`House sub-line ${hc.subLine} got ${hc.type || "CIN"} ${hc.no}, but the CRM has no job for that sub-line on this file: note it by hand.`);
+        continue;
+      }
+      try {
+        const record = (await customsFor(h.shipmentId)).find((r) => r.side === side) ?? (await startCustoms(h.shipmentId, side));
+        await updateCustoms(record.id, { cin_type: hc.type || null, cin_no: hc.no });
+        recorded.push(`${hc.type || "CIN"} ${hc.no} on ${h.ref || h.shipmentId}`);
+      } catch (e) {
+        notes.push(`${h.ref || h.shipmentId}: ${hc.type || "CIN"} ${hc.no} was not recorded (${(e as Error).message}).`);
+      }
+    }
+  }
+  return { file: { ...file, reply_status: status, reply, replied_at: new Date().toISOString() }, status, recorded, notes };
 }
 
 /**

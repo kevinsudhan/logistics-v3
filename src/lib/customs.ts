@@ -47,6 +47,9 @@ export interface CustomsRecord {
   csn_no: string | null;
   csn_filed_on: string | null;
   cfs_code: string | null;
+  /** The cargo identification number Customs gave the house line, from ICEGATE's reply to our CSN (100). */
+  cin_type?: string | null;
+  cin_no?: string | null;
   be_number: string | null;
   be_date: string | null;
   be_type: "home" | "warehouse" | "ex_bond" | null;

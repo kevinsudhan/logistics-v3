@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **099**, so the next one is `100-….sql`.
+  migration filename (§6). The last migration is **100**, so the next one is `101-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -162,7 +162,7 @@ flag on, it also has invoices and costs.
 
 ## 4. Data model — 93 migrations
 
-`supabase-v2/001…099`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…100`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -188,6 +188,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `100` | ICEGATE's replies: `csn_files.reply_status` (accepted / rejected / failed), `reply` (as read), `replied_at/by`; `csn_file_reply(job, status, reply)` writes them (staff; the table stays read-only); `shipment_customs.cin_type/cin_no` for each house's CIN |
 | `099` | CSN amendments: `csn_files.draft` keeps the form each file was made from; `csn_file_new` takes it as a fifth argument (the four-argument version is dropped) and accepts the event SCA |
 | `098` | `icegate_settings.iec`: the desk's IEC for the export CSN, when it is not the PAN (the CSN uses the PAN when blank) |
 | `097` | the CSN for ICEGATE: `icegate_settings` (one row: ICEGATE ID, desk PAN, authorised person's PAN, port of reporting; staff read, admins update), `consoles.csn_draft` (the form as saved), `csn_files` (every file made, job number from `csn_job_seq`, never reused) and `csn_file_new(console, event, indicator, houses)` which numbers and names the file `F_SACHM22_<event>_<ICEGATE ID>_<job>_<yyyymmdd>_DEC.json` on India's date |
@@ -669,10 +670,35 @@ screen.
     - **A CSN filed before 099** has no kept form, so it cannot be amended from the CRM ("no
     live file on record to compare with"). File that one amendment on ICEGATE directly, or
     download a fresh live CSN file first (not uploaded) to set the baseline.
-    - **A rejected live amendment** still becomes the baseline. If ICEGATE rejects one, fix the
-    form and make the next amendment carry the change again. The CRM does not read ICEGATE's
-    replies yet.
-  - **Not built yet:** reading ICEGATE's ACK file back in.
+    - **A rejected live file is not the baseline** once its reply is read in (below): the next
+    amendment compares with the last live file ICEGATE did not reject, so it carries the change
+    again. A reply not yet read counts as accepted.
+  - **ICEGATE's replies (100, 27 Sep).** "Read a reply" on the CSN panel takes the `…_ACK.json` or
+    `…_SFL.json` ICEGATE sent back (`readCsnReply`, lib/icegateReply.ts; `applyCsnReply`,
+    services/icegateCsn.ts).
+    - **Which file it answers:** found by its job number. Refused if the reply is for another
+      sender, a job the CRM never made, a file made on another console (named), or a different
+      event. The CRM's own `_DEC` file is refused with a pointer to the right one.
+    - **The reply is walked, not path-read.** Customs' ACK samples disagree with each other and
+      with the guide's ACK schema: `mastrCnsgnmtDec`/`mastrCnsgmtDec`, `houseCargoDec`/`hcargoDec`,
+      error arrays beside or inside objects, `{}` placeholders for unchanged houses. The reader
+      takes error codes ("000"/"00" = passed), the house sub-line, and the container / item /
+      itinerary sequence from wherever they are. Codes without text get the guide's list
+      (section 7, `src/lib/icegate/ackCodes.json`, 448 codes).
+    - **Each file's status** shows in the panel: awaiting reply, accepted, rejected, structure
+      failed. Each error is pinned to the house (by its B/L number and job, from the form kept
+      with the file) and the container number.
+    - **An accepted live file records on its own:**
+      - the CSN number and date (as "Record", on the console and every job);
+      - the master line's MCIN/PCIN on the console (`cin_type`, `cargo_identification_no`);
+      - each house's CIN on its job's customs record (`cin_type`, `cin_no`; shown on the job's
+        manifest section).
+    - **Test files:** a test file's reply is kept, and nothing is recorded from it.
+    - **SFL:** the CRM checks every file against CBIC's schema first, so an SFL means ICEGATE's
+      live format differs from the published one. Keep the reply for whoever maintains the CRM.
+    - **Unconfirmed:** the reader follows Customs' 2020 samples. Check the first real ACK reads
+      as expected: the CSN number, and the CINs landing on the right jobs.
+  - **Recording by hand** stays, for a reply that came some other way.
 - **Passwords (26 Sep).** Auth settings: at least 10 characters, with letters and a number
   (`password_min_length` 10, `password_required_characters` letters:digits). The staff-accounts
   function and the Staff accounts screen check the same rule first, so the admin reads a plain
@@ -833,6 +859,7 @@ There are 63 commits. Grouped:
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
+| ICEGATE replies (100) | see `git log` | "Read a reply" takes ICEGATE's ACK or SFL, finds the file by job number, shows each error on its house and container in the desk's words, and on an accepted live file records the CSN number and date and the MCIN/PCINs; a rejected file stops being the amendment baseline |
 | CSN amendments (SCA, 099) | see `git log` | Once the CSN number is recorded, the panel lists what changed since the last live file and makes the amendment with only that, flagged U/S/D, pointing back at the CSN; houses keep their sub-lines across amendments; checked against CBIC's SCA schema |
 | CSN for exports (SCX, 098) | see `git log` | An export console makes the CSN on exit: the desk as shipper with its IEC, each house pointing at its exporter's shipping bill by PCIN, shaped by cargo movement as the guide's table says; checked against CBIC's schema |
 | CSN for ICEGATE (097) | see `git log` | An import console makes the CSN file in CBIC's format, checked against the official schema, numbered and named as ICEGATE expects, for the desk to sign and upload; the CSN number is recorded back on every job |
