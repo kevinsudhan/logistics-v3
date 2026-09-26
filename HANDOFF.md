@@ -18,7 +18,7 @@ new session should read this whole file before changing anything. §0 is the sho
 - **Before every push:** `npm test` (46 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **097**, so the next one is `098-….sql`.
+  migration filename (§6). The last migration is **098**, so the next one is `099-….sql`.
 - **Where things stand:** the tree is clean at the head in §11, everything is pushed, and
   §9 lists what is open.
 - **How the user works:** they want short, direct replies and a push after each feature.
@@ -162,7 +162,7 @@ flag on, it also has invoices and costs.
 
 ## 4. Data model — 93 migrations
 
-`supabase-v2/001…097`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…098`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -188,6 +188,7 @@ transaction).
 | `090` | the console's cargo manifest sent: `consoles.manifest_sent_at`, `manifest_sent_to`, `manifest_bills`, `manifest_provisional` |
 | `091` | self-approval of a quotation: `quotes.self_approved`, `self_approval_reason`, `self_approval_reviewed_at/by`, `self_approval_review_note`; `self_approve_quote(id, reason)` (reason ≥ 10 chars, not over a rejection) and `review_self_approval(id, withdraw, note)` (admins; withdraw only while unsent); `require_approval_to_send` lets the first through by a transaction-local flag `app.self_approving` |
 | `092` | **the anonymous key reaches nothing but the customer's two pages.** Revoked from `anon` on every public table, view and sequence. Revoked from `public, anon` on every function except `quote_by_token`, `accept_quote_by_token`, `shipment_tracking`, `shipment_track_points` and `shipment_customs_public`; `authenticated` keeps what it had, granted by name. Default privileges changed so new objects are closed too |
+| `098` | `icegate_settings.iec`: the desk's IEC for the export CSN, when it is not the PAN (the CSN uses the PAN when blank) |
 | `097` | the CSN for ICEGATE: `icegate_settings` (one row: ICEGATE ID, desk PAN, authorised person's PAN, port of reporting; staff read, admins update), `consoles.csn_draft` (the form as saved), `csn_files` (every file made, job number from `csn_job_seq`, never reused) and `csn_file_new(console, event, indicator, houses)` which numbers and names the file `F_SACHM22_<event>_<ICEGATE ID>_<job>_<yyyymmdd>_DEC.json` on India's date |
 | `096` | the last security-advisor findings: the 13 functions without a fixed `search_path` get `''` (each read first: built-ins and `public.`-qualified names only); the 14 reporting views get **`security_invoker = true`**, so they read as the person asking and the tables' RLS holds. Only `partner_reply_log` changed in effect: employees now see their own replies, as 045 and replyLog.ts intended (through the owner-rights view they saw everyone's). Verified by snapshotting every view as each of the 5 staff before and after: no other difference |
 | `095` | Connect Outlook from inside the CRM: `private.outlook_pending` (a one-time note per connect: state hash, sign-in, PKCE verifier, page to return to; deleted with its sign-in, refused after 15 minutes, taken once); `outlook_pending_put / _take`, service role only |
@@ -623,7 +624,28 @@ screen.
     reporting in the panel.
   - **The CSN number that comes back** is recorded in the panel, on the console and every job's import
     customs record, which clears the jobs' "CSN due" alerts (088).
-  - **Not built yet:** amendments (SCA), exports (SCX), reading ICEGATE's ACK file back in.
+  - **Exports too (SCX, 26 Sep).** An export console gets the same panel, filing the CSN on exit:
+    - **Master line:** the desk ships the master B/L with its IEC (`icegate_settings.iec`, else the
+      PAN) to the destination agent. It is cleared at the port of reporting (INMAA1), with the next
+      port and the final destination given as codes. Movement is TC (foreign transhipment, as in
+      Customs' sample), FT or TI.
+    - **Each house (EX / H / B):** points at the exporter's shipping bill by its PCIN
+      (`prevRef.cinTyp` "PCIN", the guide's and Customs' ACK spelling). The desk types the PCIN,
+      which the exporter's CHA has; the SB number and date are shown from the job's export customs.
+      The exporter comes from the customer record: IEC and a billing address already split into
+      parts.
+    - **By movement, per the guide's table:** on TC and TI the house also carries its transport
+      document and location; on FT only its reference, PCIN, equipment and measures. There are no
+      items or itinerary on an export house.
+    - **Transhipper:** the carrier's code and bond go on the master (and the house on TC/TI) when
+      given. Otherwise a warning, not an error.
+    - **Every container** now carries `cntrAgntCd`, empty when not known, as Customs' own sample
+      does. The panel has a column for it.
+    - **Recording the CSN number** puts it on each job's export customs record.
+    - **The export rules are less spelled out in the guide than the import ones:** `prevDec` "B" and
+      the house objects follow Customs' sample and the v1.6 tables. Make the first real SCX a test
+      file (T) or check ICEGATE's reply closely.
+  - **Not built yet:** amendments (SCA), reading ICEGATE's ACK file back in.
 - **Passwords (26 Sep).** Auth settings: at least 10 characters, with letters and a number
   (`password_min_length` 10, `password_required_characters` letters:digits). The staff-accounts
   function and the Staff accounts screen check the same rule first, so the admin reads a plain
@@ -784,6 +806,7 @@ There are 63 commits. Grouped:
 | Free time (083) | see `git log` | Free days and D&D rates per job; each box's clocks on the Containers tab; an alert on the job file header and the worklist (badge, "Free time running out" filter, urgency sort, Excel column); the terms on the arrival notice |
 | Team oversight (086, 087) | see `git log` | A live view of the desk: every mail each mailbox sent and to whom (from Outlook too), enquiries taken on, quoted and booked, job steps ticked, per person and per period. A server copy of every mailbox every 5 minutes |
 | Sign-ups closed, staff accounts, backups (093) | see `git log` | Only an admin adds staff (Staff accounts); the leaked starter password is dead; a tested nightly backup with a status card, downloads and a restore script |
+| CSN for exports (SCX, 098) | see `git log` | An export console makes the CSN on exit: the desk as shipper with its IEC, each house pointing at its exporter's shipping bill by PCIN, shaped by cargo movement as the guide's table says; checked against CBIC's schema |
 | CSN for ICEGATE (097) | see `git log` | An import console makes the CSN file in CBIC's format, checked against the official schema, numbered and named as ICEGATE expects, for the desk to sign and upload; the CSN number is recorded back on every job |
 | Mail editor with Outlook's formatting | see `git log` | Font, size, colours, highlight, lists, alignment, links, pictures, tables; the editor shows exactly what the recipient's Outlook shows; paste from Word/Excel/Outlook keeps its look; Reply all, Forward (with the attachments) and Bcc |
 | Connect Outlook to your own mailbox (095) | see `git log` | Password logins connect Outlook from the Mail page without signing in again, and only to their own mailbox: info@ cannot connect aashish@ |

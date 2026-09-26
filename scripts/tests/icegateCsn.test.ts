@@ -5,6 +5,7 @@ import {
   csnProblems,
   draftFor,
   isoSize,
+  mergeDraft,
   partyFrom,
   schemaErrors,
   ymd,
@@ -117,7 +118,7 @@ const src: CsnSource = {
     { id: "ARX-SHP-0102", ref: "ALG09102-26", bill: bill("GZL2609002", "Foshan Parts Ltd", "Kovai Looms", "0498765432", "15", "4600"), cfs_code: "INMAA1CFS1", containers: [] },
   ],
   containers: [box],
-  mblShipper: { name: "Global Consol Shanghai Ltd", address: "88 Century Avenue, Pudong\nShanghai 200120\nChina" },
+  agent: { name: "Global Consol Shanghai Ltd", address: "88 Century Avenue, Pudong\nShanghai 200120\nChina" },
   desk: {
     name: "Aashish Logistics Global Pvt Ltd",
     address: "No.55, 3B, 3rd Floor, W-Block, Anna Nagar\nChennai 600040\nIndia",
@@ -168,6 +169,84 @@ is("no port of reporting", found.includes("Settings: Port of reporting is not se
 is("an import with no IEC", found.includes("ALG09102-26: Consignee's IEC / PAN is needed on an import (the importer's IEC, or PAN if they have none)"), true);
 is("an item with no HS code", found.includes("ALG09102-26: Item 1: HS code is needed"), true);
 is("an address line over ICEGATE's 70", found.includes("ALG09101-26: Shipper's street address is 75 characters; the most is 70"), true);
+
+console.log("\nan export console: the CSN on exit (SCX)");
+const exportSrc: CsnSource = {
+  console: { mbl_number: "MAAJEA2609007", mbl_date: "2026-09-24", pol: "Chennai", pol_code: "INMAA", pod: "Jebel Ali", pod_code: "AEJEA", place_of_delivery: "Dubai", delivery_code: "AEDXB" },
+  jobs: [
+    {
+      id: "ARX-SHP-0201",
+      ref: "ALG09201-26",
+      bill: {
+        hbl_no: "ALGMAA2609011",
+        data: {
+          shipper_name: "Sri Balaji Textiles Pvt Ltd",
+          shipper_address: "No 4, Industrial Estate, Guindy\nChennai 600032\nIndia",
+          consignee_name: "Al Noor Trading LLC",
+          consignee_address: "Warehouse 12, Al Quoz Industrial 3\nDubai\nUAE",
+          notify_name: "SAME AS CONSIGNEE",
+          containers: [{ container_no: "MSKU7788990", seal_no: "ML445566", size_type: "20GP", packages: "30", package_type: "CTNS", gross_kg: "5400", cbm: "18" }],
+          marks_numbers: "SBT/DXB/01-30",
+          packages: "30",
+          description: "Cotton yarn",
+          hs_code: "5205",
+          gross_weight_kg: "5400",
+          measurement_cbm: "18",
+          date_of_issue: "24 Sep 2026",
+        },
+      },
+      cfs_code: "",
+      containers: [],
+      customer: { name: "Sri Balaji Textiles Pvt Ltd", iec: "0412345678", pan: "AAACS1234K", address: "No 4, Industrial Estate, Guindy", city: "Chennai", state: "Tamil Nadu", pincode: "600032", country: "India" },
+      sb: { number: "4537880", date: "2026-09-22" },
+    },
+  ],
+  containers: [{ container_no: "MSKU7788990", size_type: "20GP", iso_code: "", seal_type: "bolt", seal_no: "ML445566", package_count: 30, weight_kg: 5400, is_soc: false }],
+  agent: { name: "Gulf Freight Partners LLC", address: "Office 504, Al Khaleej Centre\nDubai\nUAE" },
+  desk: src.desk,
+};
+const ex = draftFor(exportSrc, { ...settings, iec: "" }, "SCX");
+is("the event is SCX, movement foreign transhipment", [ex.event, ex.movement], ["SCX", "TC"]);
+is("the desk ships the master B/L, with its PAN as IEC", [ex.consignor.name, ex.consignor.code, ex.consignor.codeType], ["AASHISH LOGISTICS GLOBAL PVT LTD", "ABDCA2229C", "IEC"]);
+is("a different IEC in the settings wins", draftFor(exportSrc, { ...settings, iec: "0400012345" }, "SCX").consignor.code, "0400012345");
+is("the destination agent receives it", [ex.consignee.name, ex.consignee.country], ["GULF FREIGHT PARTNERS LLC", "AE"]);
+is("cleared at the port of reporting, bound for Dubai via Jebel Ali", [ex.firstPort, ex.nextPort, ex.destPort], ["INMAA1", "AEJEA", "AEDXB"]);
+const eh = ex.houses[0];
+is("the exporter is the customer on file, with its IEC", [eh.consignor.name, eh.consignor.city, eh.consignor.subdivision, eh.consignor.code, eh.consignor.codeType], ["SRI BALAJI TEXTILES PVT LTD", "CHENNAI", "TAMIL NADU", "0412345678", "IEC"]);
+is("the overseas consignee, in the UAE", [eh.consignee.name, eh.consignee.country], ["AL NOOR TRADING LLC", "AE"]);
+is("the shipping bill from the job's export customs", [eh.sbNo, eh.sbDate], ["4537880", "2026-09-22"]);
+const exAsked = csnProblems(ex, settings).filter((x) => x.level === "error").map((x) => `${x.where}: ${x.field}`);
+is("left to fill: the IMO, the VCN, and the shipping bill's PCIN", exAsked, ["Master: Vessel IMO number", "Master: Voyage call number (VCN)", "ALG09201-26: PCIN of the shipping bill"]);
+ex.vesselImo = "9321483";
+ex.vcn = "INMAA120262044";
+ex.houses[0].pcin = "26PCEG0920173415400";
+is("filled in, nothing ICEGATE would refuse", csnProblems(ex, settings).filter((x) => x.level === "error"), []);
+is("the missing transhipper is only a warning", csnProblems(ex, settings).some((x) => x.field === "Transhipper code and bond" && x.level === "warning"), true);
+
+type Doc = { headerField: Record<string, unknown>; master: { decRef: Record<string, unknown>; mastrCnsgmtDec: Array<Record<string, unknown> & { MCRef: Record<string, unknown>; locCstm: Record<string, unknown>; trnsprtDoc: Record<string, unknown>; trnsprtEqmt: Array<Record<string, unknown>>; houseCargoDec: Array<Record<string, unknown> & { HCRef: Record<string, unknown>; prevRef: Record<string, unknown> }> }> } };
+const xd = buildCsn(ex, settings, { jobNo: 21, date: "20260926", time: "T15:10" }) as unknown as Doc;
+is("the export file passes CBIC's schema", schemaErrors(xd, CSN_SCHEMA, { unsigned: true }), []);
+is("header: SCX1102, event SCX", [xd.headerField.versionNo, xd.headerField.reportingEvent, xd.master.decRef.rptngEvent], ["SCX1102", "SCX", "SCX"]);
+const xm = xd.master.mastrCnsgmtDec[0];
+is("master: consolidated, fresh, cargo type EX, foreign transhipment", [xm.MCRef.consolidatedIndctr, xm.MCRef.prevDec, xm.locCstm.typOfCrgo, xm.locCstm.crgoMvmt], ["C", "N", "EX", "TC"]);
+is("master shipper's code is the desk's IEC", [xm.trnsprtDoc.cnsgnrsCd, xm.trnsprtDoc.cnsgnrCdTyp], ["ABDCA2229C", "IEC"]);
+const xh = xm.houseCargoDec[0];
+is("house: H, previously declared by shipping bill (B), pointing at its PCIN", [xh.HCRef.consolidatedIndctr, xh.HCRef.prevDec, xh.prevRef.cinTyp, xh.prevRef.mcinPcin], ["H", "B", "PCIN", "26PCEG0920173415400"]);
+is("on TC the house carries its transport document and location, but no items or itinerary", ["trnsprtDoc", "locCstm", "itemDtls", "itnry"].map((k) => k in xh), [true, true, false, false]);
+is("the exporter's IEC on the house", [(xh.trnsprtDoc as Record<string, unknown>).cnsgnrsCd, (xh.trnsprtDoc as Record<string, unknown>).cnsgnrCdTyp], ["0412345678", "IEC"]);
+is("the container agent code goes, empty when not known", xm.trnsprtEqmt[0].cntrAgntCd, "");
+ex.movement = "FT";
+const ft = (buildCsn(ex, settings, { jobNo: 22, date: "20260926", time: "T15:11" }) as unknown as Doc).master.mastrCnsgmtDec[0].houseCargoDec[0];
+is("on FT the house is only its reference, PCIN, equipment and measures", Object.keys(ft).sort(), ["HCRef", "prevRef", "trnsprtDocMsr", "trnsprtEqmt"]);
+ex.movement = "TC";
+ex.transhipper = { code: "ONE001", bond: "BND2026" };
+const withT = buildCsn(ex, settings, { jobNo: 23, date: "20260926", time: "T15:12" }) as unknown as Doc;
+is("given, the transhipper goes on the master and the house", [withT.master.mastrCnsgmtDec[0].trnshpr, withT.master.mastrCnsgmtDec[0].houseCargoDec[0].trnshpr], [{ trnshprCd: "ONE001", trnshprBond: "BND2026" }, { trnshprCd: "ONE001", trnshprBond: "BND2026" }]);
+
+console.log("\nsaved drafts");
+const savedImport = { ...draft, event: undefined };
+is("an import draft saved before exports existed still loads as an import", mergeDraft(savedImport, draftFor(src, settings, "SCE")).vesselImo, "9618587");
+is("a draft saved for the other direction is dropped", mergeDraft(savedImport, draftFor(exportSrc, settings, "SCX")).event, "SCX");
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

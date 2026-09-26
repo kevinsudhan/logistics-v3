@@ -640,8 +640,8 @@ export default function Consoles() {
                     {/* ---- the list for the agent at the other end (090) ---- */}
                     <ConsoleManifest console={c} jobs={list.length} onChanged={() => void load()} />
 
-                    {/* ---- the CSN for ICEGATE, as consol agent on an import (097) ---- */}
-                    {c.direction === "import" && <ConsoleCsn console={c} onChanged={() => void load()} />}
+                    {/* ---- the CSN for ICEGATE, as consol agent: on entry for an import, on exit for an export (097) ---- */}
+                    {(c.direction === "import" || c.direction === "export") && <ConsoleCsn console={c} onChanged={() => void load()} />}
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@ import { formatDate } from "../lib/dates";
 import { failureText } from "../lib/errorText";
 import { csnDue } from "../lib/receivedHbl";
 import { buildCsn, csnJson, csnProblems, type CsnContainer, type CsnDraft, type CsnHouse, type CsnItem, type CsnParty, type CsnPlace, type CsnSettings } from "../lib/icegateCsn";
-import { csnDraftFor, csnFilesFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow } from "../services/icegateCsn";
+import { csnDraftFor, csnEventFor, csnFilesFor, loadCsnSettings, newCsnFile, recordCsn, saveCsnDraft, saveCsnSettings, type CsnFileRow } from "../services/icegateCsn";
 import type { Console } from "../services/consoles";
 
 /**
@@ -55,6 +55,8 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
     };
   }, [open, draft, c]);
 
+  const event = csnEventFor(c) ?? "SCE";
+  const exp = event === "SCX";
   const problems = useMemo(() => (draft && settings ? csnProblems(draft, settings) : []), [draft, settings]);
   const errors = problems.filter((p) => p.level === "error");
   const due = csnDue(c.eta, null, c.csn_date);
@@ -85,7 +87,7 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
     act("download", async () => {
       if (!draft || !settings) return;
       await saveCsnDraft(c.id, draft);
-      const file = await newCsnFile(c.id, draft.houses.length, draft.indicator);
+      const file = await newCsnFile(c.id, event, draft.houses.length, draft.indicator);
       const doc = buildCsn(draft, settings, { jobNo: file.job_no, date: file.date, time: file.time });
       const url = URL.createObjectURL(new Blob([csnJson(doc)], { type: "application/json" }));
       const a = document.createElement("a");
@@ -105,6 +107,10 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
           <span className="inline-flex items-center gap-1 rounded-full bg-bg-success px-2 py-0.5 text-[11px] text-text-success">
             <Check size={11} /> CSN {c.csn_no}
             {c.csn_date ? ` · ${formatDate(c.csn_date, { day: "numeric", month: "short" })}` : ""}
+          </span>
+        ) : exp ? (
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-secondary">
+            CSN on exit: before the vessel sails{c.etd ? ` (ETD ${formatDate(c.etd, { day: "numeric", month: "short" })})` : ""}
           </span>
         ) : due.due ? (
           <span className={`rounded-full px-2 py-0.5 text-[11px] ${due.state === "overdue" ? "bg-bg-danger text-text-danger" : due.state === "soon" ? "bg-bg-warning text-text-warning" : "bg-surface-2 text-text-secondary"}`}>
@@ -135,8 +141,10 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
       ) : (
         <div className="space-y-4 rounded-card border border-border p-3">
           <p className="text-[12px] leading-relaxed text-text-secondary">
-            Import consol, CSN on entry (SCE): the master B/L as a consolidated line and each house B/L under it, in CBIC's format. Filled from the console and the
-            house B/Ls; check what is marked, fill what is missing, then make the file.
+            {exp
+              ? "Export consol, CSN on exit (SCX): the master B/L as a consolidated line, the desk as its shipper, and each house B/L under it pointing at its exporter's shipping bill by the bill's PCIN, in CBIC's format."
+              : "Import consol, CSN on entry (SCE): the master B/L as a consolidated line and each house B/L under it, in CBIC's format."}{" "}
+            Filled from the console and the house B/Ls; check what is marked, fill what is missing, then make the file.
           </p>
 
           {/* ---- the desk's ICEGATE identity ---- */}
@@ -149,26 +157,52 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
               <Text label="Voyage call number (VCN)" value={draft.vcn} max={35} upper placeholder="from the line's agent" onChange={(v) => change((d) => void (d.vcn = v))} />
               <Text label="Master B/L number" value={draft.mblNo} max={20} upper onChange={(v) => change((d) => void (d.mblNo = v))} />
               <Text label="Master B/L date" type="date" value={draft.mblDate} onChange={(v) => change((d) => void (d.mblDate = v))} />
-              <Text label="First port of entry" value={draft.firstPort} max={10} upper placeholder="INMAA" onChange={(v) => change((d) => void (d.firstPort = v))} />
-              <Text label="Next port of unlading" value={draft.nextPort} max={10} upper placeholder="INMAA" onChange={(v) => change((d) => void (d.nextPort = v))} />
-              <Text label="CFS / ICD custodian code" value={draft.destPort} max={10} upper onChange={(v) => change((d) => void (d.destPort = v))} />
+              <Text label={exp ? "Port of clearance" : "First port of entry"} value={draft.firstPort} max={10} upper placeholder={exp ? "INMAA1" : "INMAA"} onChange={(v) => change((d) => void (d.firstPort = v))} />
+              <Text label="Next port of unlading" value={draft.nextPort} max={10} upper placeholder={exp ? "AEJEA" : "INMAA"} onChange={(v) => change((d) => void (d.nextPort = v))} />
+              <Text label={exp ? "Final destination" : "CFS / ICD custodian code"} value={draft.destPort} max={10} upper placeholder={exp ? "AEJEA" : ""} onChange={(v) => change((d) => void (d.destPort = v))} />
               <label className="block text-[11px] text-text-secondary">
                 Cargo movement
                 <select value={draft.movement} onChange={(e) => change((d) => void (d.movement = e.target.value as CsnDraft["movement"]))} className="mt-1 h-8 w-full text-[12px]">
-                  <option value="LC">Local clearance (LC)</option>
-                  <option value="DT">Domestic transit (DT)</option>
-                  <option value="TI">Domestic transhipment (TI)</option>
+                  {exp ? (
+                    <>
+                      <option value="TC">Foreign transhipment (TC)</option>
+                      <option value="FT">Foreign transit (FT)</option>
+                      <option value="TI">Domestic transhipment (TI)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="LC">Local clearance (LC)</option>
+                      <option value="DT">Domestic transit (DT)</option>
+                      <option value="TI">Domestic transhipment (TI)</option>
+                    </>
+                  )}
                 </select>
               </label>
             </Grid>
+            {(exp || draft.movement === "TI") && (
+              <Grid>
+                <Text label="Transhipper code (the carrier's)" value={draft.transhipper?.code ?? ""} max={10} upper onChange={(v) => change((d) => void (d.transhipper = { code: v, bond: d.transhipper?.bond ?? "" }))} />
+                <Text label="Transhipper bond" value={draft.transhipper?.bond ?? ""} max={10} upper onChange={(v) => change((d) => void (d.transhipper = { code: d.transhipper?.code ?? "", bond: v }))} />
+              </Grid>
+            )}
             <Grid>
               <Place label="Port of acceptance" place={draft.acceptance} onChange={(p) => change((d) => void (d.acceptance = p))} />
               <Place label="Port of receipt" place={draft.receipt} onChange={(p) => change((d) => void (d.receipt = p))} />
               <Place label="Itinerary: from" place={draft.itinerary.from} onChange={(p) => change((d) => void (d.itinerary.from = p))} />
               <Place label="Itinerary: to" place={draft.itinerary.to} onChange={(p) => change((d) => void (d.itinerary.to = p))} />
             </Grid>
-            <PartyEditor title="Shipper on the master B/L (the origin agent)" party={draft.consignor} onChange={(p) => change((d) => void (d.consignor = p))} />
-            <PartyEditor title="Consignee on the master B/L (the desk)" party={draft.consignee} withCode onChange={(p) => change((d) => void (d.consignee = p))} />
+            <PartyEditor
+              title={exp ? "Shipper on the master B/L (the desk, with its IEC)" : "Shipper on the master B/L (the origin agent)"}
+              party={draft.consignor}
+              withCode={exp}
+              onChange={(p) => change((d) => void (d.consignor = p))}
+            />
+            <PartyEditor
+              title={exp ? "Consignee on the master B/L (the destination agent)" : "Consignee on the master B/L (the desk)"}
+              party={draft.consignee}
+              withCode={!exp}
+              onChange={(p) => change((d) => void (d.consignee = p))}
+            />
             <PartyEditor title="Notify party on the master B/L" party={draft.notify} onChange={(p) => change((d) => void (d.notify = p))} />
             <Grid>
               <Text label="Packages" value={draft.packages} onChange={(v) => change((d) => void (d.packages = v))} />
@@ -192,7 +226,7 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
                     {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <span className="font-medium text-text-primary">{h.hblNo || "No house B/L number"}</span>
                     <span className="text-text-muted">{h.ref}</span>
-                    <span className="truncate text-text-secondary">{h.consignee.name}</span>
+                    <span className="truncate text-text-secondary">{exp ? h.consignor.name : h.consignee.name}</span>
                     <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] ${mine.length ? "bg-bg-danger text-text-danger" : "bg-bg-success text-text-success"}`}>
                       {mine.length ? `${mine.length} to fix` : "Ready"}
                     </span>
@@ -202,14 +236,30 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
                       <Grid>
                         <Text label="House B/L number" value={h.hblNo} max={20} upper onChange={(v) => set((x) => void (x.hblNo = v))} />
                         <Text label="House B/L date" type="date" value={h.hblDate} onChange={(v) => set((x) => void (x.hblDate = v))} />
-                        <Text label="CFS / ICD custodian code" value={h.destPort} max={10} upper onChange={(v) => set((x) => void (x.destPort = v))} />
+                        {exp ? (
+                          <>
+                            <label className="block text-[11px] text-text-secondary">
+                              Shipping bill
+                              <p className="mt-1 flex h-8 items-center text-[12px] text-text-primary">
+                                {h.sbNo ? `${h.sbNo}${h.sbDate ? ` of ${formatDate(h.sbDate, { day: "numeric", month: "short", year: "numeric" })}` : ""}` : "Not on the job's export customs yet"}
+                              </p>
+                            </label>
+                            <Text label="PCIN of the shipping bill" value={h.pcin ?? ""} max={20} upper placeholder="from the exporter's CHA" onChange={(v) => set((x) => void (x.pcin = v))} />
+                          </>
+                        ) : (
+                          <Text label="CFS / ICD custodian code" value={h.destPort} max={10} upper onChange={(v) => set((x) => void (x.destPort = v))} />
+                        )}
                       </Grid>
+                      {exp && draft.movement === "FT" ? (
+                        <p className="text-[11px] text-text-muted">On foreign transit the guide asks only for the shipping bill's PCIN, the container and the measures for each house; the parties below are not sent.</p>
+                      ) : null}
                       <Grid>
                         <Place label="Port of acceptance" place={h.acceptance} onChange={(p) => set((x) => void (x.acceptance = p))} />
                         <Place label="Port of receipt" place={h.receipt} onChange={(p) => set((x) => void (x.receipt = p))} />
+                        {exp && <Text label="Final destination" value={h.destPort} max={10} upper onChange={(v) => set((x) => void (x.destPort = v))} />}
                       </Grid>
-                      <PartyEditor title="Shipper" party={h.consignor} onChange={(p) => set((x) => void (x.consignor = p))} />
-                      <PartyEditor title="Consignee (the importer)" party={h.consignee} withCode onChange={(p) => set((x) => void (x.consignee = p))} />
+                      <PartyEditor title={exp ? "Shipper (the exporter, with its IEC)" : "Shipper"} party={h.consignor} withCode={exp} onChange={(p) => set((x) => void (x.consignor = p))} />
+                      <PartyEditor title={exp ? "Consignee (overseas)" : "Consignee (the importer)"} party={h.consignee} withCode={!exp} onChange={(p) => set((x) => void (x.consignee = p))} />
                       <PartyEditor title="Notify party" party={h.notify} onChange={(p) => set((x) => void (x.notify = p))} />
                       <Grid>
                         <Text label="Packages" value={h.packages} onChange={(v) => set((x) => void (x.packages = v))} />
@@ -218,7 +268,8 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
                         <Text label="Marks and numbers" value={h.marks} max={512} onChange={(v) => set((x) => void (x.marks = v))} />
                       </Grid>
                       <Text label="Description of goods, as on the B/L" value={h.description} max={512} onChange={(v) => set((x) => void (x.description = v))} />
-                      <Items list={h.items} onChange={(list) => set((x) => void (x.items = list))} />
+                      {/* An export house carries no items: its shipping bill already describes them. */}
+                      {!exp && <Items list={h.items} onChange={(list) => set((x) => void (x.items = list))} />}
                       <Boxes list={h.containers} onChange={(list) => set((x) => void (x.containers = list))} />
                     </div>
                   )}
@@ -329,6 +380,7 @@ function SettingsBlock({ settings, admin, onSaved }: { settings: CsnSettings; ad
         <Text label="Desk PAN" value={edit.pan} upper max={10} disabled={!admin} onChange={(v) => setEdit({ ...edit, pan: v })} />
         <Text label="Authorised person's PAN" value={edit.authorised_pan} upper max={10} disabled={!admin} onChange={(v) => setEdit({ ...edit, authorised_pan: v })} />
         <Text label="Port of reporting" value={edit.port_of_reporting} upper max={6} placeholder="INMAA1" disabled={!admin} onChange={(v) => setEdit({ ...edit, port_of_reporting: v })} />
+        <Text label="Desk IEC, if not the PAN (exports)" value={edit.iec ?? ""} upper max={10} disabled={!admin} onChange={(v) => setEdit({ ...edit, iec: v })} />
       </Grid>
       {admin && (
         <div className="flex items-center gap-2">
@@ -472,7 +524,7 @@ function Boxes({ list, onChange }: { list: CsnContainer[]; onChange: (l: CsnCont
     <div>
       <p className="mb-1 text-[11px] font-medium text-text-secondary">Containers</p>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] text-[12px]">
+        <table className="w-full min-w-[800px] text-[12px]">
           <thead>
             <tr className="text-left text-[11px] text-text-muted">
               <th className="py-1 pr-2 font-normal">Container</th>
@@ -483,6 +535,7 @@ function Boxes({ list, onChange }: { list: CsnContainer[]; onChange: (l: CsnCont
               <th className="py-1 pr-2 font-normal">Packages</th>
               <th className="py-1 pr-2 font-normal">Weight kg</th>
               <th className="py-1 pr-2 font-normal">SOC</th>
+              <th className="py-1 pr-2 font-normal" title="The container agent's code (its PAN with Customs); sent empty when not known">Agent code</th>
               <th />
             </tr>
           </thead>
@@ -507,6 +560,7 @@ function Boxes({ list, onChange }: { list: CsnContainer[]; onChange: (l: CsnCont
                 <td className="py-0.5 pr-2"><input value={b.packages} onChange={(e) => set(i, { packages: e.target.value })} className="h-7 w-20 text-[12px]" /></td>
                 <td className="py-0.5 pr-2"><input value={b.weightKg} onChange={(e) => set(i, { weightKg: e.target.value })} className="h-7 w-24 text-[12px]" /></td>
                 <td className="py-0.5 pr-2"><input type="checkbox" checked={b.soc} onChange={(e) => set(i, { soc: e.target.checked })} aria-label="Shipper-owned container" /></td>
+                <td className="py-0.5 pr-2"><input value={b.agentCode ?? ""} onChange={(e) => set(i, { agentCode: e.target.value.toUpperCase() })} className="h-7 w-28 text-[12px]" placeholder="optional" /></td>
                 <td className="py-0.5">
                   <button type="button" onClick={() => onChange(list.filter((_, k) => k !== i))} className="text-text-muted hover:text-text-danger" aria-label="Remove container">
                     <Trash2 size={13} />
@@ -519,7 +573,7 @@ function Boxes({ list, onChange }: { list: CsnContainer[]; onChange: (l: CsnCont
       </div>
       <button
         type="button"
-        onClick={() => onChange([...list, { no: "", size: "", load: "LCL", sealType: "BTSL", seal: "", soc: false, weightKg: "", packages: "" }])}
+        onClick={() => onChange([...list, { no: "", size: "", load: "LCL", sealType: "BTSL", seal: "", soc: false, weightKg: "", packages: "", agentCode: "" }])}
         className="mt-1 inline-flex items-center gap-1 text-[12px] text-text-accent hover:underline"
       >
         <Plus size={12} /> Add a container
