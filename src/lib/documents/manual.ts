@@ -1,6 +1,6 @@
 import type { jsPDF } from "jspdf";
 import { fieldDef } from "../../data/requestFields";
-import { emptyHbl, missingForIssue, type HblData, type ReleaseMode } from "../hbl";
+import { emptyHbl, missingForIssue, RELEASE_LABEL, RELEASE_MODES, type HblData, type ReleaseMode } from "../hbl";
 import { emptyHawb, missingForOriginal, type HawbData } from "../hawb";
 import { DOCUMENTS } from "./registry";
 import { documentFilename, documentNo, labelFor, readiness } from "./data";
@@ -70,7 +70,7 @@ type ShipmentSection =
 
 const SECTION_TITLE: Record<ShipmentSection, string> = {
   bills: "Bills of lading",
-  parties: "Shipper and consignee",
+  parties: "Parties",
   customer: "Customer",
   route: "Route and carriage",
   arrival: "Arrival",
@@ -101,13 +101,21 @@ const options = (values: string[]) => values.map((v) => ({ value: v, label: v })
  */
 const FIELDS: Record<DataKey, FieldMeta> = {
   blNumber: { section: "bills", placeholder: "HBL/26-27/0001" },
-  masterBlNumber: { section: "bills", hint: "The carrier's bill the house bill sits under, where it differs." },
+  blDate: { section: "bills", input: "date" },
+  masterBlNumber: { section: "bills", hint: "The carrier's bill the house bill sits under (the OBL), where it differs." },
+  masterBlDate: { section: "bills", input: "date" },
+  bookingNumber: { section: "bills" },
 
   shipperName: { section: "parties" },
+  shipperAddress: { section: "parties", input: "textarea", wide: true },
   shipperGstinIec: { section: "parties" },
   consigneeName: { section: "parties" },
   consigneeAddress: { section: "parties", input: "textarea", wide: true },
   consigneeCountry: { section: "parties" },
+  consigneeGstin: { section: "parties", placeholder: "33AAACT1234A1Z5", hint: "Its state code is printed from its first two digits." },
+  notifyName: { section: "parties", hint: "The consignee's customs broker, copied on the arrival notice." },
+  notifyAddress: { section: "parties", input: "textarea", wide: true },
+  notifyGstin: { section: "parties" },
 
   company: { section: "customer" },
   customerName: { section: "customer" },
@@ -115,20 +123,30 @@ const FIELDS: Record<DataKey, FieldMeta> = {
 
   origin: { section: "route", placeholder: "CHENNAI" },
   destination: { section: "route", placeholder: "JEBEL ALI" },
+  finalDestination: { section: "route", hint: "Where it is delivered, when beyond the port of discharge." },
   carrier: { section: "route" },
+  serviceType: { section: "route", input: "select" },
   containerType: { section: "route", placeholder: "40HC" },
   containerId: { section: "route", placeholder: "PCIU1234567" },
+  sealNumber: { section: "route" },
   sailingDate: { section: "route", input: "date" },
   etaDate: { section: "route", input: "date" },
+  finalEtaDate: { section: "route", input: "date" },
 
   vessel: { section: "arrival" },
   voyage: { section: "arrival" },
   portOfLoading: { section: "arrival" },
   igmNumber: { section: "arrival" },
   igmDate: { section: "arrival", input: "date" },
+  igmItemNo: { section: "arrival", hint: "The IGM line the Bill of Entry is filed against." },
+  igmSubItemNo: { section: "arrival" },
   cfsName: { section: "arrival" },
+  cfsAddress: { section: "arrival", input: "textarea", wide: true },
   freeTimeText: { section: "arrival", placeholder: "14 days demurrage, 7 days detention" },
+  releaseMode: { section: "arrival", input: "select", hint: "What the consignee must hand over to take delivery." },
+  freightTerms: { section: "arrival", input: "select" },
 
+  marksNumbers: { section: "cargo", placeholder: "N/M" },
   cargoDescription: { section: "cargo", input: "textarea", wide: true },
   cargoType: { section: "cargo", placeholder: "General, reefer, DG" },
   hsCode: { section: "cargo" },
@@ -148,6 +166,9 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   incoterm: { section: "commercial", input: "select" },
   paymentTerms: { section: "commercial", placeholder: "Advance, 30 days, against documents" },
   letterOfCredit: { section: "commercial", input: "yesno" },
+  poNumber: { section: "commercial" },
+  invoiceRef: { section: "commercial" },
+  salesRef: { section: "commercial" },
 
   temperatureSetpointC: { section: "handling", input: "number", unit: "°C" },
   preCoolingRequired: { section: "handling", input: "yesno" },
@@ -174,6 +195,9 @@ const VGM_METHODS = ["Method 1: the packed container weighed", "Method 2: the co
 function optionsFor(key: DataKey) {
   if (key === "incoterm") return [{ value: "", label: "Not named" }, ...options(fieldDef("incoterm")?.options ?? [])];
   if (key === "vgmMethod") return [{ value: "", label: "Not stated" }, ...options(VGM_METHODS)];
+  if (key === "serviceType") return [{ value: "", label: "Not stated" }, ...options(["FCL", "LCL"])];
+  if (key === "freightTerms") return [{ value: "", label: "Not stated" }, ...options(["Prepaid", "Collect"])];
+  if (key === "releaseMode") return [{ value: "", label: "Not stated" }, ...RELEASE_MODES.map((r) => ({ value: r, label: RELEASE_LABEL[r] }))];
   return undefined;
 }
 
@@ -207,13 +231,12 @@ export function keysOf(spec: DocSpec): DataKey[] {
         return fill;
       },
     });
-    for (const section of spec.sections) {
-      for (const row of section.rows) {
-        try {
-          row.value(probe);
-        } catch {
-          // A row that cannot take a stand-in value still read what it read.
-        }
+    const reads = [...spec.sections.flatMap((s) => s.rows.map((r) => () => r.value(probe))), () => spec.notes?.lead?.(probe), () => spec.notes?.lines(probe)];
+    for (const read of reads) {
+      try {
+        read();
+      } catch {
+        // A row that cannot take a stand-in value still read what it read.
       }
     }
   }

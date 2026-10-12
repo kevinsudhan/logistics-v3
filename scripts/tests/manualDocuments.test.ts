@@ -14,6 +14,8 @@ import { manifestInput, masterSiInput, outturnInput, stuffingInput, cfsNominatio
 import { parseNumber, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
 import { DOCUMENTS, documentSpec } from "../../src/lib/documents/registry";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
+import { renderDocument } from "../../src/lib/documents/render";
+import type { jsPDF } from "jspdf";
 
 /** The Manual documents page: typing a document in by hand (12 Oct 2026). */
 
@@ -28,10 +30,13 @@ const has = (label: string, list: readonly string[], want: string[]) => is(label
 
 console.log("the fields a document prints, read from the document");
 const an = documentSpec("arrival-notice")!;
-has("the CAN: its B/L, ETA, consignee and the arrival particulars", keysOf(an), [
-  "blNumber", "masterBlNumber", "consigneeName", "consigneeAddress", "destination", "etaDate",
-  "vessel", "voyage", "portOfLoading", "igmNumber", "igmDate", "cfsName", "freeTimeText",
-  "containerId", "containerType", "cargoDescription", "packageCount", "packageType", "grossWeightKg", "freightAmountInr",
+has("the CAN: everything an import desk's CAN carries", keysOf(an), [
+  "notifyName", "notifyAddress", "notifyGstin", "consigneeName", "consigneeAddress", "consigneeCountry", "consigneeGstin", "shipperName", "shipperAddress",
+  "blNumber", "blDate", "masterBlNumber", "masterBlDate", "bookingNumber", "serviceType", "vessel", "voyage", "origin", "portOfLoading",
+  "destination", "etaDate", "finalDestination", "finalEtaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "cfsName", "cfsAddress",
+  "carrier", "freightTerms", "freeTimeText", "poNumber", "invoiceRef", "salesRef", "releaseMode",
+  "marksNumbers", "cargoDescription", "hsCode", "containerId", "containerType", "sealNumber", "packageCount", "packageType", "grossWeightKg", "volumeCbm",
+  "freightAmountInr",
 ]);
 const quo = documentSpec("quotation")!;
 has("both sides of a ?? and an && are found", keysOf(quo), ["company", "customerName", "origin", "destination"]);
@@ -89,9 +94,28 @@ const booking = documentDataFromBooking(
   { id: "x", enquiry_ref: "ALG09004-26", origin: "Chennai", destination: "Jebel Ali", cargo: "Yarn", piece_count: 1, volume_cbm: 1, gross_weight_kg: 1, agreed_inr: 1, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "HBL1", vessel: "MSC ANNA", etd: null, eta: "2026-10-28" },
   null
 );
-is("nothing on a booking fills the hand-typed fields", ["vessel", "voyage", "portOfLoading", "igmNumber", "igmDate", "cfsName", "vgmMethod", "vgmFacility", "vgmWeighedOn", "deliveredOn", "receivedBy"].map((k) => (booking as unknown as Record<string, unknown>)[k]), Array(11).fill(undefined));
-const anRows = an.sections.flatMap((x) => x.rows).filter((r) => ["Vessel / voyage", "Port of loading", "IGM", "Delivery from (CFS)"].includes(r.label));
-is("…and the CAN's new rows are left out when empty", anRows.map((r) => [r.optional, r.value(booking)]), Array(4).fill([true, undefined]));
+const HAND_TYPED = [
+  "vessel", "voyage", "portOfLoading", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "cfsName", "cfsAddress", "vgmMethod", "vgmFacility",
+  "vgmWeighedOn", "deliveredOn", "receivedBy", "blDate", "masterBlDate", "bookingNumber", "serviceType", "shipperAddress", "consigneeGstin",
+  "notifyName", "notifyAddress", "notifyGstin", "finalDestination", "finalEtaDate", "releaseMode", "freightTerms", "marksNumbers", "sealNumber",
+  "poNumber", "invoiceRef", "salesRef",
+];
+is("nothing on a booking fills the hand-typed fields", HAND_TYPED.filter((k) => (booking as unknown as Record<string, unknown>)[k] !== undefined), []);
+/** The fields one row reads, as keysOf finds them. */
+const readsOf = (row: { value: (d: never) => unknown }) => {
+  const read = new Set<string>();
+  for (const fill of [undefined, 1]) {
+    try {
+      row.value(new Proxy({}, { get: (_, k) => (typeof k === "string" && read.add(k), fill) }) as never);
+    } catch {
+      // as keysOf
+    }
+  }
+  return [...read];
+};
+const typedOnly = an.sections.flatMap((x) => x.rows).filter((r) => readsOf(r).every((k) => HAND_TYPED.includes(k)));
+is("…and the CAN's rows of them are optional, so a job's notice leaves them out", typedOnly.filter((r) => !r.optional).map((r) => r.label), []);
+is("…which is most of them", typedOnly.length >= 15, true);
 
 console.log("\nthe console's documents");
 const con: ManualValues = {
@@ -160,6 +184,59 @@ is("by name, and by what it is for", MANUAL_DOCUMENTS.filter((x) => matches(x, "
 is("nothing typed: all of them", MANUAL_DOCUMENTS.filter((x) => matches(x, "  ")).length, MANUAL_DOCUMENTS.length);
 is("ids are unique", new Set(MANUAL_DOCUMENTS.map((x) => x.id)).size, MANUAL_DOCUMENTS.length);
 is("all twelve, the two house bills and the five console documents", MANUAL_DOCUMENTS.length, 19);
+
+console.log("\nthe signature never on a page by itself");
+const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+/** Per page: the text drawn above the footer, the signature's own lines left out. */
+async function bodies(pdf: jsPDF): Promise<string[][]> {
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf.output("arraybuffer")), verbosity: 0 }).promise;
+  const pages: string[][] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const items = (await page.getTextContent()).items as Array<{ str: string; transform: number[] }>;
+    // The footer rule is 20 mm from the foot of the page: 57 pt.
+    pages.push(items.filter((i) => i.str.trim() && i.transform[5] > 60).map((i) => i.str.trim()));
+  }
+  return pages;
+}
+const SIGNATURE = ["For AASHISH LOGISTICS GLOBAL", "Authorised signatory"];
+for (const id of ["shipping-instructions", "arrival-notice", "commercial-invoice", "booking-confirmation"]) {
+  const spec = documentSpec(id)!;
+  let alone = 0;
+  let checked = 0;
+  // The description grows a few words at a time, walking the end of the content down the page and over.
+  for (let k = 1; k <= 120; k += 2) {
+    const data = documentDataFromManual({ ...everything, cargoDescription: Array(k).fill("COTTON YARN IN BALES").join(" ") });
+    const pages = await bodies(renderDocument(spec, data));
+    checked++;
+    if (pages.some((texts) => texts.length > 0 && texts.every((t) => SIGNATURE.includes(t)))) alone++;
+  }
+  is(`${spec.shortName}: across ${checked} lengths, the signature is never alone on a page`, alone, 0);
+}
+
+console.log("\na CAN with everything a CAN carries, on one page");
+const fullCan: ManualValues = {
+  reference: "ALG09004-26", blNumber: "HBL/26-27/0042", blDate: "2026-09-28", masterBlNumber: "MAEU254781936", masterBlDate: "2026-09-28",
+  bookingNumber: "177516002885", serviceType: "LCL", shipperName: "SAMPLE TEXTILES CO LTD", shipperAddress: "NO. 8 HARBOUR ROAD, PUDONG, SHANGHAI 200120, CHINA",
+  consigneeName: "TEST IMPORTS PVT LTD", consigneeAddress: "NO. 12, 2ND STREET, GUINDY INDUSTRIAL ESTATE, CHENNAI 600032", consigneeCountry: "INDIA",
+  consigneeGstin: "33AAACT1234A1Z5", notifyName: "SAMPLE CUSTOMS BROKERS", notifyAddress: "NO. 4, NORTH BEACH ROAD, CHENNAI 600001", notifyGstin: "33AABCS9876K1Z2",
+  origin: "SHANGHAI", portOfLoading: "SHANGHAI", destination: "CHENNAI", etaDate: "2026-10-20", finalDestination: "CHENNAI", carrier: "MSC AGENCY INDIA",
+  vessel: "MSC ANNA", voyage: "FJ642W", igmNumber: "2345678", igmDate: "2026-10-18", igmItemNo: "10", igmSubItemNo: "2",
+  cfsName: "CONTINENTAL CFS", cfsAddress: "NO. 43, KADAPAKKAM VILLAGE, VICHUR HIGH ROAD, MANALI NEW TOWN, CHENNAI 600103",
+  freeTimeText: "14 days demurrage, 7 days detention", releaseMode: "original", freightTerms: "Collect", poNumber: "PO-5521", invoiceRef: "INV/26-27/0311",
+  salesRef: "1775004", marksNumbers: "N/M", cargoDescription: "COTTON FABRIC ROLLS", hsCode: "5208", containerId: "MSKU7834512", containerType: "40HC",
+  sealNumber: "SL998877", packageCount: "120", packageType: "ROLLS", grossWeightKg: "18500", volumeCbm: "62.5", freightAmountInr: "95000",
+};
+const fullPages = await bodies(renderDocument(an, documentDataFromManual(fullCan)));
+is("one page, signed on it", [fullPages.length, fullPages[0].includes("Authorised signatory")], [1, true]);
+const fullText = fullPages[0].join(" ");
+is("the particulars, by what they say", [
+  "SAMPLE CUSTOMS BROKERS", "TEST IMPORTS PVT LTD", "SAMPLE TEXTILES CO LTD", "State code 33", "HBL/26-27/0042 / 28-Sep-2026", "MAEU254781936 / 28-Sep-2026",
+  "177516002885", "LCL", "MSC ANNA / FJ642W", "2345678 dated 18-Oct-2026", "10, sub-item 2", "CONTINENTAL CFS", "MSC AGENCY INDIA", "Collect",
+  "PO-5521", "INV/26-27/0311", "1775004", "N/M", "MSKU7834512 - 40HC", "SL998877", "120 ROLLS", "18,500.000", "62.500", "Rs. 95,000",
+  "freight certificate", "One original house B/L", "PAN ABDCA2229C",
+].filter((want) => !fullText.includes(want)), []);
+is("not said how it is released: no original assumed", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, releaseMode: "" }))))[0].join(" ").includes("or our confirmation of its telex release"), true);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

@@ -8,6 +8,7 @@
  * without, and which rows it prints. The renderer is written once.
  */
 import type { RequestDetails } from "../../data/requestFields";
+import type { ReleaseMode } from "../hbl";
 
 /**
  * Everything any document might print, sourced from the extracted call fields and the
@@ -23,15 +24,29 @@ export interface DocumentData {
   blNumber?: string;
   /** The carrier's master bill the house bill sits under, where there is one (082). */
   masterBlNumber?: string;
+  // The dates of the two bills, the carrier's booking and the service, as an
+  // import desk's cargo arrival notice prints them. Like the arrival fields
+  // below, typed on the Manual documents page; no booking supplies them.
+  blDate?: string;
+  masterBlDate?: string;
+  bookingNumber?: string;
+  /** FCL, LCL. */
+  serviceType?: string;
   /** The free days granted per box, in words (083): "14 days demurrage, 7 days detention". */
   freeTimeText?: string;
 
   // parties
   shipperName?: string;
+  shipperAddress?: string;
   shipperGstinIec?: string;
   consigneeName?: string;
   consigneeAddress?: string;
   consigneeCountry?: string;
+  consigneeGstin?: string;
+  /** Who the notice also goes to on an import: the consignee's customs broker (CHA). */
+  notifyName?: string;
+  notifyAddress?: string;
+  notifyGstin?: string;
 
   // contact
   customerName?: string;
@@ -46,6 +61,9 @@ export interface DocumentData {
   containerId?: string;
   sailingDate?: string;
   etaDate?: string;
+  /** Where the cargo ends up when that is beyond the port of discharge, and when. */
+  finalDestination?: string;
+  finalEtaDate?: string;
 
   // arrival, for the cargo arrival notice and the delivery order. Typed on the
   // Manual documents page; no booking supplies them, so a job's own documents
@@ -55,10 +73,19 @@ export interface DocumentData {
   portOfLoading?: string;
   igmNumber?: string;
   igmDate?: string;
+  /** The line and sub-line on the IGM the Bill of Entry is filed against. */
+  igmItemNo?: string;
+  igmSubItemNo?: string;
   /** The CFS or terminal the cargo is delivered from. */
   cfsName?: string;
+  cfsAddress?: string;
+  /** How the house bill is released: what the consignee needs to take delivery. */
+  releaseMode?: ReleaseMode;
+  freightTerms?: "Prepaid" | "Collect";
 
   // cargo
+  marksNumbers?: string;
+  sealNumber?: string;
   cargoDescription?: string;
   cargoType?: string;
   hsCode?: string;
@@ -79,6 +106,10 @@ export interface DocumentData {
   incoterm?: string;
   paymentTerms?: string;
   letterOfCredit?: boolean;
+  /** References the customer quotes back: their order, our invoice, the salesperson's. */
+  poNumber?: string;
+  invoiceRef?: string;
+  salesRef?: string;
 
   // special handling
   temperatureSetpointC?: number;
@@ -117,11 +148,24 @@ export interface DocRow {
    * and "Master B/L: TBD" would tell the consignee something is missing.
    */
   optional?: boolean;
+  /** In a party box (a section placed "left"): the value alone, without its label — a name, an address. */
+  bare?: boolean;
+  /** In the details grid (placed "right"): the whole width rather than half — an address, a vessel. */
+  wide?: boolean;
+  /** As a column of a table (placed "table"): its share of the width, and figures to the right. */
+  width?: number;
+  align?: "right";
 }
 
 export interface DocSection {
   title: string;
   rows: DocRow[];
+  /**
+   * Where a section of a split document (`layout: "split"`) is drawn: a party
+   * box down the left, the details grid on the right, or a table across the
+   * page under both. Without it, as a band across the page, as everywhere else.
+   */
+  place?: "left" | "right" | "table";
 }
 
 /**
@@ -161,4 +205,15 @@ export interface DocSpec {
   sections: DocSection[];
   /** Fixed text printed above the signature line. */
   declaration?: string;
+  /**
+   * Drawn in two columns — the parties down the left, the details on the
+   * right, the cargo as a table across — the way a cargo arrival notice is
+   * laid out, rather than as bands. Its sections say where each goes.
+   */
+  layout?: "split";
+  /**
+   * Printed under the sections, worked out from the record: a sentence, then a
+   * list headed by `title` — what the consignee needs to do.
+   */
+  notes?: { title: string; lead?: (d: DocumentData) => string | undefined; lines: (d: DocumentData) => string[] };
 }

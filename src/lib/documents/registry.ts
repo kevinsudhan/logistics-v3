@@ -1,4 +1,6 @@
 import type { DocSpec, DocumentData } from "./types";
+import { COMPANY } from "../company";
+import { deliveryNeeds } from "../arrivalNotice";
 
 /**
  * Every document the forwarder issues, as a declaration.
@@ -25,6 +27,16 @@ const route = (d: DocumentData) =>
 const vesselVoyage = (d: DocumentData) => [d.vessel, d.voyage].filter(Boolean).join(" / ") || undefined;
 const igm = (d: DocumentData) =>
   d.igmNumber ? [d.igmNumber, d.igmDate && `dated ${d.igmDate}`].filter(Boolean).join(" ") : undefined;
+const igmItem = (d: DocumentData) =>
+  d.igmItemNo ? [d.igmItemNo, d.igmSubItemNo && `sub-item ${d.igmSubItemNo}`].filter(Boolean).join(", ") : undefined;
+const numberAndDate = (no?: string, date?: string) => (no ? [no, date].filter(Boolean).join(" / ") : undefined);
+/** A GSTIN, with the state it is registered in: its first two digits are the state code. */
+const gstin = (g?: string) => (g ? `${g}${/^\d{2}/.test(String(g)) ? `  ·  State code ${String(g).slice(0, 2)}` : ""}` : undefined);
+/** A weight or measure as a manifest prints it: 330.000. */
+const three = (n?: number) =>
+  n !== undefined ? n.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : undefined;
+/** Our PAN, for a consignee deducting tax at source: a GSTIN carries its holder's PAN as characters 3 to 12. */
+const PAN = COMPANY.gstin.slice(2, 12);
 
 /** Rows almost every document repeats. Declared once so they cannot drift apart. */
 const CARGO_ROWS = [
@@ -279,43 +291,143 @@ export const DOCUMENTS: DocSpec[] = [
 
   // ------------------------------------------------------------------ arrival
   {
+    /*
+      The cargo arrival notice (CAN), in two columns.
+      ------------------------------------------------------------------------
+      Laid out the way an import desk's CAN is: who it concerns down the left
+      (the CHA it is copied to, the consignee, the shipper), the shipment on
+      the right (the two bills, the vessel, the ports and ETA, the IGM line the
+      Bill of Entry is filed against, the CFS it is delivered from), the cargo
+      as one line across, then what the consignee has to do to take delivery.
+
+      Most of the right-hand column is optional: a job's notice prints what its
+      booking holds and leaves the rest out, rather than a column of TBD.
+    */
     id: "arrival-notice",
-    title: "ARRIVAL NOTICE",
+    title: "CARGO ARRIVAL NOTICE",
     shortName: "Arrival notice",
     purpose: "Tells the consignee the cargo has arrived and what is owed before release.",
     issuer: "desk",
     numberPrefix: "AN",
     requires: ["blNumber", "consigneeName", "destination", "etaDate"],
-    parties: true,
+    // The parties are the left column's boxes, below, not the usual pair.
+    parties: false,
+    layout: "split",
     sections: [
       {
-        title: "Arrival",
+        title: "Notify party (CHA / broker)",
+        place: "left",
         rows: [
-          { label: "B/L number", value: (d) => d.blNumber },
-          { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
-          // The vessel, the port it loaded at, the IGM and the CFS are what an
-          // import desk's cargo arrival notice (CAN) carries. Optional: nothing
-          // on a booking sets them, so they appear only where somebody has typed
-          // them, and a job's notice reads as it always has.
-          { label: "Vessel / voyage", value: vesselVoyage, optional: true },
-          { label: "Port of loading", value: (d) => d.portOfLoading, optional: true },
-          { label: "Port of discharge", value: (d) => d.destination },
-          { label: "Vessel ETA", value: (d) => d.etaDate },
-          { label: "IGM", value: igm, optional: true },
-          { label: "Free time per box", value: (d) => d.freeTimeText, optional: true },
-          { label: "Container number", value: (d) => d.containerId },
-          { label: "Container type", value: (d) => d.containerType },
-          { label: "Delivery from (CFS)", value: (d) => d.cfsName, optional: true },
+          { label: "Name", value: (d) => d.notifyName, bare: true, optional: true },
+          { label: "Address", value: (d) => d.notifyAddress, bare: true, optional: true },
+          { label: "GSTIN", value: (d) => gstin(d.notifyGstin), optional: true },
         ],
       },
-      { title: "Cargo", rows: CARGO_ROWS },
       {
+        title: "Consignee",
+        place: "left",
+        rows: [
+          { label: "Name", value: (d) => d.consigneeName, bare: true },
+          { label: "Address", value: (d) => d.consigneeAddress, bare: true },
+          { label: "Country", value: (d) => d.consigneeCountry, bare: true, optional: true },
+          { label: "GSTIN", value: (d) => gstin(d.consigneeGstin), optional: true },
+        ],
+      },
+      {
+        title: "Shipper",
+        place: "left",
+        rows: [
+          { label: "Name", value: (d) => d.shipperName, bare: true },
+          { label: "Address", value: (d) => d.shipperAddress, bare: true, optional: true },
+        ],
+      },
+      {
+        title: "Shipment details",
+        place: "right",
+        rows: [
+          { label: "House B/L", value: (d) => numberAndDate(d.blNumber, d.blDate) },
+          { label: "Service", value: (d) => d.serviceType, optional: true },
+          { label: "Master B/L (OBL)", value: (d) => numberAndDate(d.masterBlNumber, d.masterBlDate), optional: true },
+          { label: "Booking number", value: (d) => d.bookingNumber, optional: true },
+          { label: "Vessel / voyage", value: vesselVoyage, optional: true },
+          { label: "Carrier", value: (d) => d.carrier, optional: true },
+          { label: "Origin", value: (d) => d.origin, optional: true },
+          { label: "Port of loading", value: (d) => d.portOfLoading, optional: true },
+          { label: "Port of discharge", value: (d) => d.destination },
+          { label: "ETA", value: (d) => d.etaDate },
+          { label: "Final destination", value: (d) => d.finalDestination, optional: true },
+          { label: "ETA at final destination", value: (d) => d.finalEtaDate, optional: true },
+          { label: "IGM", value: igm, optional: true },
+          { label: "IGM item", value: igmItem, optional: true },
+          {
+            label: "Delivery from (CFS / warehouse)",
+            value: (d) => [d.cfsName, d.cfsAddress].filter(Boolean).join("\n") || undefined,
+            optional: true,
+            wide: true,
+          },
+          { label: "Freight", value: (d) => d.freightTerms, optional: true },
+          { label: "Free time per box", value: (d) => d.freeTimeText, optional: true },
+          { label: "PO number", value: (d) => d.poNumber, optional: true },
+          { label: "Invoice reference", value: (d) => d.invoiceRef, optional: true },
+          { label: "Sales reference", value: (d) => d.salesRef, optional: true },
+        ],
+      },
+      {
+        title: "Cargo",
+        place: "table",
+        rows: [
+          // Optional, so a job's notice (whose booking holds neither) leaves the cells blank rather than TBD.
+          { label: "Marks & numbers", value: (d) => d.marksNumbers, width: 24, optional: true },
+          {
+            label: "Description",
+            value: (d) => [d.cargoDescription, d.hsCode && `HS ${d.hsCode}`].filter(Boolean).join("\n") || undefined,
+            width: 44,
+          },
+          {
+            label: "Container",
+            value: (d) => (d.containerId ? [d.containerId, d.containerType].filter(Boolean).join(" - ") : d.containerType),
+            width: 32,
+          },
+          { label: "Seal", value: (d) => d.sealNumber, width: 22, optional: true },
+          {
+            label: "Packages",
+            value: (d) => (d.packageCount !== undefined ? `${d.packageCount} ${d.packageType ?? ""}`.trim() : undefined),
+            width: 20,
+            align: "right",
+          },
+          { label: "Gross kg", value: (d) => three(d.grossWeightKg), width: 19, align: "right" },
+          { label: "CBM", value: (d) => three(d.volumeCbm), width: 17, align: "right" },
+        ],
+      },
+      {
+        // Under the parties, where the left column has room the right does not use.
         title: "Payable before release",
+        place: "left",
         rows: [{ label: "Freight and charges", value: (d) => inr(d.freightAmountInr) }],
       },
     ],
+    notes: {
+      title: "To take delivery",
+      lead: (d) =>
+        d.etaDate
+          ? `${d.vessel ? `The vessel ${d.vessel}${d.voyage ? ` (voyage ${d.voyage})` : ""}` : "The vessel"} is expected to arrive on or about ${d.etaDate} at ${d.destination ?? "the port of discharge"}.`
+          : undefined,
+      // The same list the import desk's arrival mail sends (lib/arrivalNotice),
+      // for the way the house bill is released and whether freight is collect.
+      lines: (d) => {
+        const needs = deliveryNeeds({ release: d.releaseMode ?? null, freightCollect: d.freightTerms === "Collect" });
+        return [
+          // Not said how it is released: not assumed to need an original.
+          d.releaseMode ? needs[0] : "The house B/L as released to you: the original, duly endorsed, or our confirmation of its telex release",
+          `${needs[1]}, payable to ${COMPANY.legalName} (PAN ${PAN})`,
+          ...(d.freightTerms === "Collect" ? ["A freight certificate on your letterhead, for the assessable value"] : []),
+          needs[2],
+          needs[3],
+        ];
+      },
+    },
     declaration:
-      "Free time runs from discharge. Demurrage and detention accrue at the carrier's tariff once free time expires. Please arrange clearance and collection promptly.",
+      "Free time runs from discharge; demurrage, detention and storage beyond it are at the carrier's and the CFS's tariff. Duties, taxes, port dues, storage and detention are to the consignee's account. Cargo not cleared within thirty days of landing may be sold under section 48 of the Customs Act, 1962.",
   },
   {
     id: "delivery-order",
