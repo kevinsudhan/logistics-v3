@@ -22,6 +22,9 @@ const packages = (d: DocumentData) =>
   d.packageCount !== undefined ? `${d.packageCount} x ${d.packageType ?? "units"}` : undefined;
 const route = (d: DocumentData) =>
   d.origin && d.destination ? `${d.origin} to ${d.destination}` : undefined;
+const vesselVoyage = (d: DocumentData) => [d.vessel, d.voyage].filter(Boolean).join(" / ") || undefined;
+const igm = (d: DocumentData) =>
+  d.igmNumber ? [d.igmNumber, d.igmDate && `dated ${d.igmDate}`].filter(Boolean).join(" ") : undefined;
 
 /** Rows almost every document repeats. Declared once so they cannot drift apart. */
 const CARGO_ROWS = [
@@ -170,9 +173,11 @@ export const DOCUMENTS: DocSpec[] = [
         rows: [
           // Neither method is derivable from a phone call, so both are left for the desk
           // rather than guessed. A VGM with an invented method is a false declaration.
-          { label: "Method used", value: () => undefined },
-          { label: "Weighbridge / facility", value: () => undefined },
-          { label: "Date weighed", value: () => undefined },
+          // No record sets these: they print TBD on a job's VGM and are filled only
+          // where a person types them in from the weighing slip (Manual documents).
+          { label: "Method used", value: (d) => d.vgmMethod },
+          { label: "Weighbridge / facility", value: (d) => d.vgmFacility },
+          { label: "Date weighed", value: (d) => d.vgmWeighedOn },
         ],
       },
     ],
@@ -288,11 +293,19 @@ export const DOCUMENTS: DocSpec[] = [
         rows: [
           { label: "B/L number", value: (d) => d.blNumber },
           { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
+          // The vessel, the port it loaded at, the IGM and the CFS are what an
+          // import desk's cargo arrival notice (CAN) carries. Optional: nothing
+          // on a booking sets them, so they appear only where somebody has typed
+          // them, and a job's notice reads as it always has.
+          { label: "Vessel / voyage", value: vesselVoyage, optional: true },
+          { label: "Port of loading", value: (d) => d.portOfLoading, optional: true },
           { label: "Port of discharge", value: (d) => d.destination },
           { label: "Vessel ETA", value: (d) => d.etaDate },
+          { label: "IGM", value: igm, optional: true },
           { label: "Free time per box", value: (d) => d.freeTimeText, optional: true },
           { label: "Container number", value: (d) => d.containerId },
           { label: "Container type", value: (d) => d.containerType },
+          { label: "Delivery from (CFS)", value: (d) => d.cfsName, optional: true },
         ],
       },
       { title: "Cargo", rows: CARGO_ROWS },
@@ -320,9 +333,12 @@ export const DOCUMENTS: DocSpec[] = [
           { label: "B/L number", value: (d) => d.blNumber },
           { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
           { label: "Release to", value: (d) => d.consigneeName },
+          { label: "Vessel / voyage", value: vesselVoyage, optional: true },
+          { label: "IGM", value: igm, optional: true },
           { label: "Container number", value: (d) => d.containerId },
           { label: "Container type", value: (d) => d.containerType },
           { label: "Place of delivery", value: (d) => d.destination },
+          { label: "Delivery from (CFS)", value: (d) => d.cfsName, optional: true },
         ],
       },
       { title: "Cargo", rows: CARGO_ROWS },
@@ -419,9 +435,10 @@ export const DOCUMENTS: DocSpec[] = [
           { label: "Delivered to", value: (d) => d.consigneeName },
           { label: "Place of delivery", value: (d) => d.destination },
           { label: "Container number", value: (d) => d.containerId },
-          // Filled in at the point of delivery, never in advance.
-          { label: "Date delivered", value: () => undefined },
-          { label: "Received by (name)", value: () => undefined },
+          // Filled in at the point of delivery, never in advance: no record sets
+          // these, only a person typing them off the signed copy (Manual documents).
+          { label: "Date delivered", value: (d) => d.deliveredOn },
+          { label: "Received by (name)", value: (d) => d.receivedBy },
         ],
       },
       { title: "Cargo delivered", rows: CARGO_ROWS },

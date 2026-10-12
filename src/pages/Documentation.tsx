@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import EnquiryLink from "../components/EnquiryLink";
-import { AlertCircle, FileCheck2, FileText, RefreshCw } from "lucide-react";
+import { AlertCircle, FileCheck2, FilePen, FileText, RefreshCw } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import { DOCUMENTS } from "../lib/documents";
@@ -74,13 +74,23 @@ export default function Documentation() {
         title="Documentation"
         subtitle="What the desk can issue, and the cases it can be issued against. Every document is produced from one record — nothing is carried over from a similar shipment."
         action={
-          <button
-            onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-surface-1 text-[12px] text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
-          >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {/* For paper no job holds yet: the same documents, typed in by hand. */}
+            <Link
+              to="/documentation/manual"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-surface-1 text-[12px] text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <FilePen size={13} />
+              Type one in manually
+            </Link>
+            <button
+              onClick={() => void load()}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-surface-1 text-[12px] text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
         }
       />
 

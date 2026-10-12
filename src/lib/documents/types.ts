@@ -47,6 +47,17 @@ export interface DocumentData {
   sailingDate?: string;
   etaDate?: string;
 
+  // arrival, for the cargo arrival notice and the delivery order. Typed on the
+  // Manual documents page; no booking supplies them, so a job's own documents
+  // print exactly what they did before these existed.
+  vessel?: string;
+  voyage?: string;
+  portOfLoading?: string;
+  igmNumber?: string;
+  igmDate?: string;
+  /** The CFS or terminal the cargo is delivered from. */
+  cfsName?: string;
+
   // cargo
   cargoDescription?: string;
   cargoType?: string;
@@ -76,6 +87,17 @@ export interface DocumentData {
   msdsProvided?: boolean;
   unPackagingSpec?: string;
   carrierDgApproval?: string;
+
+  // recorded by a person at the time, never derived from a record: how the box
+  // was weighed for the VGM, and who took delivery for the POD. A job's own
+  // documents leave them TBD, to be completed by hand; the Manual documents
+  // page is where somebody holding the weighbridge slip or the signed POD types
+  // them in.
+  vgmMethod?: string;
+  vgmFacility?: string;
+  vgmWeighedOn?: string;
+  deliveredOn?: string;
+  receivedBy?: string;
 
   // provenance
   sourceNote: string;

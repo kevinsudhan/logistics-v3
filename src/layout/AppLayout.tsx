@@ -237,6 +237,7 @@ export default function AppLayout() {
       () => import("../pages/LiveRates"),
       () => import("../pages/RateMaster"),
       () => import("../pages/Documentation"),
+      () => import("../pages/ManualDocuments"),
       () => import("../pages/JobClosing"),
       () => import("../pages/Analytics"),
       () => import("../pages/Oversight"),

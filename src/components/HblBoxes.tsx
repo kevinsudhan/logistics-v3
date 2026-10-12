@@ -34,6 +34,7 @@ export default function HblBoxes({
   variant,
   express = false,
   ownMto = false,
+  manual = false,
 }: {
   d: HblData;
   set: Setter;
@@ -44,6 +45,12 @@ export default function HblBoxes({
   express?: boolean;
   /** Issued under our own MTO registration (132). */
   ownMto?: boolean;
+  /**
+   * Typed in on the Manual documents page: there is no job to fetch the boxes
+   * from and no partner list to pick the MTO from, so the boxes say to add
+   * them and the MTO is typed.
+   */
+  manual?: boolean;
 }) {
   const base = inputBase;
   const T = (k: keyof HblData, placeholder = "") => (
@@ -167,7 +174,11 @@ export default function HblBoxes({
       >
         {d.containers.length === 0 ? (
           <p className="text-[12px] text-text-muted">
-            {variant === "ours" ? "None yet. Fetch details brings in the boxes and seals from the Containers tab." : "None on the bill. A groupage B/L often names none."}
+            {manual
+              ? "None yet. Add a box for each container on the bill, or leave it with none for groupage."
+              : variant === "ours"
+                ? "None yet. Fetch details brings in the boxes and seals from the Containers tab."
+                : "None on the bill. A groupage B/L often names none."}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -330,7 +341,13 @@ export default function HblBoxes({
           </div>
         </div>
 
-        {variant === "ours" && (
+        {variant === "ours" && manual && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Labelled label="Issued under MTO (operator's name)">{T("mto_name", "AASHISH LOGISTICS GLOBAL PVT LTD")}</Labelled>
+            <Labelled label="MTO registration number">{T("mto_registration")}</Labelled>
+          </div>
+        )}
+        {variant === "ours" && !manual && (
           <p className="mt-3 text-[11.5px] text-text-muted">
             {d.mto_registration && ownMto
               ? `Issued under our own MTO registration ${d.mto_registration}.`

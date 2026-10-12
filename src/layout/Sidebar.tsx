@@ -24,6 +24,7 @@ import {
   FileDown,
   FileText,
   FilePlus,
+  FilePen,
   FileMinus,
   Scale,
   Globe,
@@ -90,7 +91,12 @@ const groups: NavGroup[] = [
       // containers held on each. A console and a booking pick their sailing here.
       { to: "/sailing-schedule", label: "Sailing schedule", icon: CalendarRange },
       { to: "/consoles", label: "Consoles", icon: Layers },
-      { to: "/documentation", label: "Documentation", icon: FileCheck2 },
+      // `end`: its subtree is Manual documents, which has its own line and
+      // should not light this one up as well.
+      { to: "/documentation", label: "Documentation", icon: FileCheck2, end: true },
+      // Temporary, while jobs are still being moved into the CRM: any
+      // document typed in by hand. It saves nothing and says so.
+      { to: "/documentation/manual", label: "Manual documents", icon: FilePen },
       // Maintenance rather than daily work, but it belongs beside the work it
       // feeds: a rate is corrected the moment somebody quoting notices it is
       // wrong, and a page they have to go looking for is corrected later or

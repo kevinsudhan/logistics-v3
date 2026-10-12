@@ -41,6 +41,19 @@ const LOCAL_LABELS: Partial<Record<DataKey, string>> = {
   stackable: "Stackable",
   uprightOnly: "Must stay upright",
   targetPriceInr: "Target price",
+  masterBlNumber: "Master B/L number",
+  freeTimeText: "Free time per box",
+  vessel: "Vessel",
+  voyage: "Voyage",
+  portOfLoading: "Port of loading",
+  igmNumber: "IGM number",
+  igmDate: "IGM date",
+  cfsName: "Delivery from (CFS)",
+  vgmMethod: "Weighing method",
+  vgmFacility: "Weighbridge / facility",
+  vgmWeighedOn: "Date weighed",
+  deliveredOn: "Date delivered",
+  receivedBy: "Received by (name)",
 };
 
 /**

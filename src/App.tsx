@@ -46,6 +46,7 @@ const ShipmentSignOff = lazy(() => import("./pages/shipment/ShipmentSignOff"));
 const ShipmentCosts = accountsPage(() => import("./pages/shipment/ShipmentCosts"));
 const Consoles = lazy(() => import("./pages/Consoles"));
 const Documentation = lazy(() => import("./pages/Documentation"));
+const ManualDocuments = lazy(() => import("./pages/ManualDocuments"));
 const Mail = lazy(() => import("./pages/Mail"));
 const EnquiriesOverview = lazy(() => import("./pages/EnquiriesOverview"));
 const Enquiries = lazy(() => import("./pages/Enquiries"));
@@ -167,6 +168,8 @@ export default function App() {
             <Route path="/containers" element={<Navigate to="/sailing-schedule" replace />} />
             <Route path="/space-containers" element={<Navigate to="/sailing-schedule" replace />} />
             <Route path="/documentation" element={<Documentation />} />
+            {/* Temporary: any document typed in by hand, for paper no job holds yet. Saves nothing. */}
+            <Route path="/documentation/manual" element={<ManualDocuments />} />
             <Route path="/mail" element={<Mail />} />
             <Route path="/intake" element={<EnquiriesOverview />} />
             <Route path="/enquiries" element={<Enquiries />} />
