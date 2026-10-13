@@ -315,8 +315,10 @@ export default function AppLayout() {
       <div className="flex-1 min-w-0 flex flex-col">
         <Topbar onOpenNav={() => setNavOpen(true)} />
         {/* Below xl the margins give 32 px of height and width back to the page (Mail's
-            height sums them: 56 + 32 at lg, 56 + 48 from xl). */}
-        <main className="flex-1 w-full max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-5 lg:py-4 xl:px-8 xl:py-6">
+            height sums them: 56 + 32 at lg, 56 + 48 from xl). With the sidebar folded to
+            its rail the page takes the whole width it gave back (13 Oct): folding it is
+            asking for room, and the 1400-px cap used to leave that room empty on the right. */}
+        <main className={`flex-1 w-full max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-5 lg:py-4 xl:px-8 xl:py-6 ${rail ? "lg:max-w-none" : ""}`}>
           {/* A page still downloading waits here, under the sidebar and top bar,
               rather than taking the whole window with it. */}
           <Suspense fallback={<PageSkeleton />}>

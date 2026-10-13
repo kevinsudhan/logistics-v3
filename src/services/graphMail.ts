@@ -6,6 +6,7 @@ import { forOutlook } from "../lib/mailHtml";
 import { kqlFor, plainText, searchTerms, snippetAround } from "../lib/searchHighlight";
 import { MAIL_COLOR, MAIL_FONT, MAIL_IMAGE_MAX, MAIL_SIZE } from "../lib/mailStyle";
 import type { BaseFolder, FolderId, MailMessage, Recipient } from "./mockMail";
+import { readForwardChain } from "./forwardChain";
 import {
   isEmbeddedImage,
   rewriteCidImages,
@@ -756,6 +757,42 @@ export async function getMessage(mailbox: string, id: string, folder: FolderId):
 export function prefetchMessage(mailbox: string, id: string, folder: FolderId): void {
   if (opened.has(id) || reading.has(id)) return;
   void getMessage(mailbox, id, folder).catch(() => {});
+}
+
+/**
+ * Which of these messages an inbox rule forwarded here, and from whose mailbox.
+ *
+ * Read from the one header that proves it, X-MS-Exchange-Inbox-Rules-Loop
+ * (services/forwardChain), which a list never carries: Graph sends headers
+ * only when asked, and asking for them on a whole page is slow. So the caller
+ * names only the messages that could be a forward, and they are asked about
+ * twenty to a $batch request, for their headers alone.
+ *
+ * A message with the header maps to the rule's mailbox, one without it to
+ * null, and one gone (moved, deleted) to null too. One the answer did not
+ * come back for — throttled, a server error — is left out, to be asked again.
+ */
+export async function ruleForwarders(ids: string[]): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  type Answer = { id: string; status: number; body?: { internetMessageHeaders?: Array<{ name: string; value: string }> } };
+  for (let i = 0; i < ids.length; i += 20) {
+    const chunk = ids.slice(i, i + 20);
+    const data = await graph<{ responses?: Answer[] }>("/$batch", {
+      method: "POST",
+      body: JSON.stringify({
+        requests: chunk.map((id, n) => ({ id: String(n), method: "GET", url: `/me/messages/${encodeURIComponent(id)}?$select=internetMessageHeaders` })),
+      }),
+    });
+    for (const r of data.responses ?? []) {
+      const id = chunk[Number(r.id)];
+      if (!id) continue;
+      if (r.status === 404) out.set(id, null);
+      if (r.status !== 200) continue;
+      const chain = readForwardChain({ internetMessageHeaders: r.body?.internetMessageHeaders ?? [] } as unknown as MailMessage);
+      out.set(id, chain?.auto ? chain.forwardedBy : null);
+    }
+  }
+  return out;
 }
 
 async function readMessage(

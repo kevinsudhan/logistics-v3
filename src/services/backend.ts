@@ -27,6 +27,7 @@ const post = <T,>(path: string, body: unknown) => mockPost(path, body) as Promis
 export type { MailMessage, Recipient, FolderId } from "./mockMail";
 import type { MailMessage, FolderId } from "./mockMail";
 import { allMessages } from "./mockMail";
+import { readForwardChain } from "./forwardChain";
 import { hasHit, plainText, searchTerms, snippetAround } from "../lib/searchHighlight";
 
 export interface MailFolder {
@@ -72,6 +73,19 @@ export const getMailMessages = async (
           (q ? `&q=${encodeURIComponent(q)}` : "") +
           (filter ? `&filter=${filter}` : "")
       );
+
+/**
+ * Which of these messages an inbox rule forwarded here, and from whose mailbox
+ * (graphMail.ruleForwarders). The in-memory mailbox carries its headers, so
+ * they are read where they are.
+ */
+export const getRuleForwarders = async (messages: MailMessage[]): Promise<Map<string, string | null>> => {
+  if (live()) return graph.ruleForwarders(messages.map((m) => m.id));
+  return new Map(messages.map((m) => {
+    const chain = readForwardChain(m);
+    return [m.id, chain?.auto ? chain.forwardedBy : null];
+  }));
+};
 
 /** Flag for follow-up, or take the flag off. */
 export const setMailFlag = async (mailbox: string, id: string, flagged: boolean) => {

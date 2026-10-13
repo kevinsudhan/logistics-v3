@@ -35,6 +35,8 @@ import {
   MinusSquare,
   ListFilter,
   Users,
+  Repeat2,
+  User as UserIcon,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ComposeMail from "../components/ComposeMail";
@@ -54,7 +56,21 @@ import Highlighted from "../components/Highlighted";
 import { searchTerms } from "../lib/searchHighlight";
 import { rememberAddresses } from "../services/addressBook";
 import { groupIntoThreads } from "../lib/threads";
-import { copiers, copyNote, inView, keepViewChoice, readViewChoice, type ViewChoice } from "../lib/ccFilter";
+import {
+  colleagues,
+  copiers,
+  copyNote,
+  EVERYTHING,
+  forwardSuspects,
+  inView,
+  keepRuleForwards,
+  keepViewChoice,
+  readRuleForwards,
+  readViewChoice,
+  type Bucket,
+  type Lens,
+  type ViewChoice,
+} from "../lib/ccFilter";
 import { useAuth } from "../lib/auth";
 import { outcomeText } from "../lib/outlookConnect";
 import type { ComposeMode } from "../lib/mailQuote";
@@ -64,6 +80,7 @@ import {
   getMailMessage,
   getMailMessages,
   getMoreMailMessages,
+  getRuleForwarders,
   prefetchMailMessage,
   searchMessages,
   setMailFlag,
@@ -95,6 +112,14 @@ const mailKey = (mailbox: string, folder: string, filter: string) => `mail:${mai
  */
 const VIEW_SCREENFUL = 25;
 const VIEW_AUTO_PAGES = 8;
+
+/** The admin's three (lib/ccFilter): what each is called, and what it holds. */
+const VIEW_LABEL: Record<Bucket, string> = { primary: "Primary", cc: "CC'd", forwarded: "Auto-forwarded" };
+const VIEW_TITLE: Record<Bucket, string> = {
+  primary: "Mail written to you: your address on the To line, and not forwarded to you by a rule",
+  cc: "Mail you were CC'd on: your address on the Cc line",
+  forwarded: "Mail you were sent without being named on it: forwarded or copied to you by a rule from a colleague's mailbox, or a Bcc",
+};
 const FOLDER_ICON: Record<string, React.ElementType> = {
   inbox: Inbox,
   sent: Send,
@@ -207,10 +232,10 @@ export default function Mail() {
   /** Outlook's Filter: everything, unread only, or flagged only. */
   const [filter, setFilter] = useState<"all" | "unread" | "flagged">("all");
   /**
-   * Mail written to the mailbox, or mail it only has a copy of, and of the
-   * copies, whose (lib/ccFilter). aashish@ is copied on all of parasuraman@'s
-   * and info@'s mail by an Exchange rule; this is how his own is found in it.
-   * Kept per mailbox in this browser, so it opens the way it was left.
+   * The admin's mail in three — Primary, CC'd, Auto-forwarded — and in the
+   * last two, whose (lib/ccFilter). aashish@ is sent all of parasuraman@'s and
+   * info@'s mail by Exchange rules; this is how his own is found in it. Kept
+   * per mailbox in this browser, so it opens the way it was left.
    */
   const [view, setViewState] = useState<ViewChoice>(() => readViewChoice(mailbox));
   const setView = (c: ViewChoice) => {
@@ -218,6 +243,19 @@ export default function Mail() {
     keepViewChoice(mailbox, c);
   };
   useEffect(() => setViewState(readViewChoice(mailbox)), [mailbox]);
+  /** Only the admin is sent other people's mail by rule: the Auto-forwarded view, and the asking behind it, are his. */
+  const isAdmin = session?.role === "admin";
+  /**
+   * Which messages an inbox rule forwarded here, by id (lib/ccFilter): the
+   * answers kept in this browser, the ones being asked for, and the ones
+   * asked for that did not come back — mail written to him for this visit.
+   */
+  const [ruleForwards, setRuleForwards] = useState<Map<string, string | null>>(() => readRuleForwards(mailbox));
+  const [checking, setChecking] = useState<ReadonlySet<string>>(() => new Set());
+  const unanswered = useRef(new Set<string>());
+  useEffect(() => setRuleForwards(readRuleForwards(mailbox)), [mailbox]);
+  const mailboxNow = useRef(mailbox);
+  mailboxNow.current = mailbox;
   /** A line at the foot of the screen saying what just happened (deleted, draft saved). */
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -571,29 +609,66 @@ export default function Mail() {
   /** The To-me and CC views mean something only for mail received; not for Sent and Drafts. */
   const ccApplies = folder !== "sent" && folder !== "drafts";
   const ccActive = !searching && ccApplies && view.view !== "all";
+  const lens = useMemo<Lens>(() => ({ mailbox, forwards: ruleForwards, checking }), [mailbox, ruleForwards, checking]);
   /** The rows as drawn: a message each when searching, a conversation each otherwise. */
   const rows = useMemo(() => {
     if (searching) return messages.map((m) => ({ key: m.id, m, group: [m] }));
     // A conversation is shown when any message in it is one the view is for.
     const all = conversations
       .map((t) => ({ key: t.conversationId, m: t.messages[t.messages.length - 1], group: t.messages }))
-      .filter((r) => !ccActive || r.group.some((m) => inView(m, mailbox, view)));
+      .filter((r) => !ccActive || r.group.some((m) => inView(m, lens, view)));
     if (folder !== "inbox" || !returnedOf.size) return all;
     // Back from snooze, on top: Outlook keeps a moved message's received date,
     // so it would otherwise sit wherever that date puts it.
     const back = (r: (typeof all)[number]) => r.group.some((m) => returnedOf.has(m.id));
     return [...all.filter(back), ...all.filter((r) => !back(r))];
-  }, [searching, messages, conversations, folder, returnedOf, ccActive, view, mailbox]);
-  /** Whose mail this mailbox has copies of, in the mail loaded: the choices for "whose mail". */
-  const copies = useMemo(() => copiers(messages, mailbox), [messages, mailbox]);
-  const ourPeople = copies.filter((p) => p.ours);
-  const otherPeople = copies.filter((p) => !p.ours);
-  const chosen = view.person ? copies.find((p) => p.address === view.person) : undefined;
+  }, [searching, messages, conversations, folder, returnedOf, ccActive, view, lens]);
+  /** In CC'd, who copied the mailbox; in Auto-forwarded, whose mail it is: the picker's choices, from the mail loaded. */
+  const picking = view.view === "cc" || view.view === "forwarded" ? view.view : null;
+  const copies = useMemo(() => (picking ? copiers(messages, lens, picking) : []), [messages, lens, picking]);
+  /** ALG's own people only — the staff and our addresses in the mail — with how much of the view is theirs. */
+  const pickable = useMemo(() => (picking ? colleagues(copies, people, mailbox) : []), [picking, copies, people, mailbox]);
+  const chosen = view.person ? pickable.find((p) => p.address === view.person) : undefined;
   /** How far back the list reaches: what a view has been looked for in. */
   const oldestLoaded = useMemo(
     () => messages.reduce<string | null>((o, m) => (!o || m.receivedDateTime < o ? m.receivedDateTime : o), null),
     [messages]
   );
+
+  /*
+    The messages that could be a rule's forward are asked about as they load,
+    a hundred at a time at most (lib/ccFilter, HOW A FORWARD IS TOLD). While
+    they are, they are in no view but everything; one whose answer does not
+    come back stays mail written to him rather than being hidden.
+  */
+  useEffect(() => {
+    if (!mailbox || !isAdmin || !ccApplies) return;
+    const ask = forwardSuspects(messages, lens).filter((m) => !unanswered.current.has(m.id)).slice(0, 100);
+    if (!ask.length) return;
+    const ids = ask.map((m) => m.id);
+    const box = mailbox;
+    setChecking((prev) => new Set([...prev, ...ids]));
+    void getRuleForwarders(ask)
+      .catch(() => new Map<string, string | null>())
+      .then((found) => {
+        if (mailboxNow.current !== box) return;
+        ids.forEach((id) => !found.has(id) && unanswered.current.add(id));
+        if (!found.size) return;
+        setRuleForwards((prev) => {
+          const next = new Map(prev);
+          found.forEach((by, id) => next.set(id, by));
+          keepRuleForwards(box, next);
+          return next;
+        });
+      })
+      .finally(() =>
+        setChecking((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        })
+      );
+  }, [messages, lens, mailbox, isAdmin, ccApplies]);
 
   /*
     A view is read off the mail loaded — Outlook cannot list by recipient — and
@@ -1413,67 +1488,55 @@ export default function Mail() {
               {ccApplies && (
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                  {(["direct", "copied"] as const).map((v) => (
+                  {((isAdmin ? ["primary", "cc", "forwarded"] : ["primary", "cc"]) as Bucket[]).map((v) => (
                     <button
                       key={v}
                       type="button"
                       // Pressed again, it is off: back to everything.
-                      onClick={() => setView(view.view === v ? { view: "all", person: null, direction: "any" } : { view: v, person: null, direction: "any" })}
+                      onClick={() => setView(view.view === v ? EVERYTHING : { view: v, person: null, direction: "any" })}
                       aria-pressed={view.view === v}
-                      title={
-                        v === "direct"
-                          ? "Mail written to you: your address on the To line"
-                          : "Mail you were copied on: on the Cc line, or not named at all (a rule's copy of a colleague's mail, a Bcc, a group)"
-                      }
+                      title={VIEW_TITLE[v]}
                       className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
                         view.view === v ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
                       }`}
                     >
-                      {v === "copied" && <Users size={11} />}
-                      {v === "direct" ? "To me" : "CC & BCC"}
+                      {v === "cc" && <Users size={11} />}
+                      {v === "forwarded" && <Repeat2 size={11} />}
+                      {VIEW_LABEL[v]}
                     </button>
                   ))}
                 </>
               )}
             </div>
-            {ccActive && view.view === "copied" && (
+            {ccActive && picking && (
               /*
-                Whose mail: our own mailboxes first — the ones copied here by
-                rule — then outside senders. Of one of ours, both ways or one.
+                CC'd: which of ours copied him. Auto-forwarded: whose mail it
+                is — of one of ours, both ways or one. ALG's people only:
+                outside senders are hundreds, and are not who is looked for.
               */
               <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1.5 text-[11.5px]">
                 <label className="text-text-muted" htmlFor="mail-whose">
-                  Whose mail
+                  {picking === "cc" ? "CC'd by" : "Whose mail"}
                 </label>
-                <select
-                  id="mail-whose"
-                  value={view.person ?? ""}
-                  onChange={(e) => setView({ view: "copied", person: e.target.value || null, direction: "any" })}
-                  className="h-6 min-w-0 max-w-[14rem] flex-1 truncate rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
-                >
-                  <option value="">Anyone&apos;s</option>
-                  {ourPeople.length > 0 && (
-                    <optgroup label="Our mailboxes">
-                      {ourPeople.map((p) => (
-                        <option key={p.address} value={p.address}>
-                          {p.name} ({p.sent + p.received})
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {otherPeople.length > 0 && (
-                    <optgroup label="Outside senders">
-                      {otherPeople.map((p) => (
-                        <option key={p.address} value={p.address}>
-                          {p.name} ({p.sent})
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {/* Kept when chosen but not in the mail now loaded, rather than silently dropped. */}
-                  {view.person && !chosen && <option value={view.person}>{view.person}</option>}
-                </select>
-                {view.person && (!chosen || chosen.ours) && (
+                <div className="relative min-w-0 max-w-[14rem] flex-1">
+                  <UserIcon size={12} className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
+                  <select
+                    id="mail-whose"
+                    value={view.person ?? ""}
+                    onChange={(e) => setView({ view: picking, person: e.target.value || null, direction: "any" })}
+                    className="h-6 w-full truncate rounded-md border border-border bg-surface-1 pl-6 pr-1.5 text-[11.5px] text-text-primary"
+                  >
+                    <option value="">Everyone</option>
+                    {pickable.map((p) => (
+                      <option key={p.address} value={p.address}>
+                        {p.name} ({picking === "cc" ? p.sent : p.sent + p.received})
+                      </option>
+                    ))}
+                    {/* Kept when chosen but not in the list now, rather than silently dropped. */}
+                    {view.person && !chosen && <option value={view.person}>{view.person}</option>}
+                  </select>
+                </div>
+                {picking === "forwarded" && view.person && (!chosen || chosen.ours) && (
                   <select
                     value={view.direction}
                     onChange={(e) => setView({ ...view, direction: e.target.value as ViewChoice["direction"] })}
@@ -1549,13 +1612,20 @@ export default function Mail() {
                 </>
               ) : (
                 <span>
-                  {view.view === "direct"
-                    ? "Nothing written to you"
-                    : view.person
-                      ? `None of ${chosen?.name ?? view.person}'s mail`
-                      : "Nothing you were copied on"}
-                  {oldestLoaded ? ` since ${formatDate(oldestLoaded, { day: "numeric", month: "short", year: "numeric" })}` : ""}.
-                  {nextLink && " Look further back below."}
+                  {checking.size > 0 && view.view !== "cc"
+                    ? `Checking ${checking.size} message${checking.size === 1 ? "" : "s"} for auto-forwards…`
+                    : view.view === "primary"
+                      ? "Nothing written to you"
+                      : view.view === "cc"
+                        ? view.person
+                          ? `Nothing ${chosen?.name ?? view.person} CC'd you on`
+                          : "Nothing you were CC'd on"
+                        : view.person
+                          ? `None of ${chosen?.name ?? view.person}'s mail forwarded to you`
+                          : "Nothing auto-forwarded to you"}
+                  {checking.size > 0 && view.view !== "cc"
+                    ? ""
+                    : `${oldestLoaded ? ` since ${formatDate(oldestLoaded, { day: "numeric", month: "short", year: "numeric" })}` : ""}.${nextLink ? " Look further back below." : ""}`}
                 </span>
               )}
             </div>
@@ -1578,7 +1648,7 @@ export default function Mail() {
                     onCheck={(shift) => toggleCheck(t.conversationId, shift)}
                     snoozedUntil={snoozeOf.get(newest.id)?.until}
                     backFromSnooze={t.messages.some((x) => returnedOf.has(x.id))}
-                    copyNote={ccApplies && view.view !== "direct" ? copyNote(newest, mailbox) : null}
+                    copyNote={ccApplies && view.view !== "primary" ? copyNote(newest, lens) : null}
                     onOpen={() => void open(newest, t.messages)}
                     onWarm={() => prefetchMailMessage(mailbox, newest.id, newest.folder)}
                     onChanged={() => void load()}
@@ -1595,6 +1665,11 @@ export default function Mail() {
           */}
           {messages.length > 0 && (
             <div className="border-t border-border px-3 py-2">
+              {ccActive && view.view !== "cc" && checking.size > 0 && rows.length > 0 && (
+                <p className="flex items-center justify-center gap-1.5 pb-1 text-[11px] text-text-muted">
+                  <Loader2 size={11} className="animate-spin" /> Checking {checking.size} message{checking.size === 1 ? "" : "s"} for auto-forwards
+                </p>
+              )}
               {ccActive && nextLink && (
                 <p className="pb-1 text-center text-[11px] text-text-muted">
                   {rows.length} of {conversations.length} conversations
