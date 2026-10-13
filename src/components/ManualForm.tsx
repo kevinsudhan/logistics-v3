@@ -67,9 +67,30 @@ function TableSection({
       <Plus size={12} /> {table.addLabel}
     </button>
   );
+  // A set adds the lines not already there, by what the first column says: two of "B/L fee" would be billed twice.
+  const first = table.columns[0].key;
+  const addSet = (set: ManualRow[]) => {
+    const have = new Set(rows.map((r) => (r[first] ?? "").trim().toLowerCase()));
+    onChange([...rows, ...set.filter((r) => !have.has((r[first] ?? "").trim().toLowerCase())).map((r) => ({ ...blankRow(table), ...r }))]);
+  };
   return (
     <Section title={section.title} action={rows.length > 0 ? add : undefined}>
       {(section.note || table.hint) && <p className="-mt-1 mb-3 text-[11.5px] text-text-muted">{section.note ?? table.hint}</p>}
+      {table.presets && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="mr-0.5 text-[11.5px] text-text-muted">Add the usual:</span>
+          {table.presets.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => addSet(p.rows)}
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface-1 px-2.5 text-[11.5px] text-text-secondary hover:border-border-strong hover:text-text-primary"
+            >
+              <Plus size={11} /> {p.label}
+            </button>
+          ))}
+        </div>
+      )}
       {rows.length === 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border-strong px-3 py-3">
           <span className="text-[12px] text-text-muted">None yet.</span>
@@ -154,6 +175,7 @@ function FieldBox({ field: f, value, onChange, compact = false }: { field: Manua
         value={value}
         placeholder={f.placeholder}
         onChange={(e) => onChange(e.target.value)}
+        list={f.suggestions ? `${id}-list` : undefined}
         aria-invalid={unreadable || undefined}
         className={`${cls} ${input === "number" ? "tabular-nums" : ""}`}
       />
@@ -170,6 +192,13 @@ function FieldBox({ field: f, value, onChange, compact = false }: { field: Manua
         )}
       </label>
       {control}
+      {f.suggestions && (
+        <datalist id={`${id}-list`}>
+          {f.suggestions.map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
+      )}
       {unreadable ? (
         <p className="mt-1 text-[11px] text-text-danger">Not a number: it would print as nothing.</p>
       ) : (

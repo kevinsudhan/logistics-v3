@@ -56,7 +56,7 @@ export function viewDocument(spec: DocSpec, data: DocumentData): boolean {
 
 /** Readiness for every document against one record, for the UI list. */
 export function documentStatuses(data: DocumentData) {
-  return DOCUMENTS.map((spec) => ({ spec, ...readiness(data, spec.requires) }));
+  return DOCUMENTS.map((spec) => ({ spec, ...readiness(data, spec.requires, spec.check) }));
 }
 
 /**

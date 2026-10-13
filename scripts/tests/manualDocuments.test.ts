@@ -237,6 +237,41 @@ is("the particulars, by what they say", [
   "freight certificate", "One original house B/L", "PAN ABDCA2229C",
 ].filter((want) => !fullText.includes(want)), []);
 is("not said how it is released: no original assumed", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, releaseMode: "" }))))[0].join(" ").includes("or our confirmation of its telex release"), true);
+is("in rupees when rupees are chosen", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, currency: "INR" }))))[0].join(" ").includes("Rs. 95,000"), true);
+
+console.log("\nthe currency, on every document that prints a sum");
+const fieldKeys = (id: string) => (manualDocument(id) as FormDoc).sections.flatMap((s) => (s.fields ?? []).map((f) => f.key));
+is("asked where there is money", ["quotation", "booking-confirmation", "commercial-invoice", "freight-invoice"].map((id) => fieldKeys(id).includes("currency")), [true, true, true, true]);
+is("not asked where there is none", ["vgm-declaration", "proof-of-delivery"].map((id) => fieldKeys(id).includes("currency")), [false, false]);
+is("dollars until rupees are chosen", [emptyState().shipment.currency, documentDataFromManual({}).currency, documentDataFromManual({ currency: "INR" }).currency], ["USD", "USD", "INR"]);
+
+console.log("\nthe freight invoice, charge by charge");
+const fi = manualDocument("freight-invoice") as FormDoc;
+const chargeTable = fi.sections.find((s) => s.table?.key === "charges")?.table;
+is("has a charges table, with the usual sets", chargeTable?.presets?.map((p) => p.label), ["FCL export", "LCL export", "FCL import", "LCL import", "Air export"]);
+is("the LCL set", chargeTable?.presets?.find((p) => p.label === "LCL export")?.rows.map((r) => [r.charge, r.basis]), [
+  ["Ocean freight", "Container"], ["CFS charges", "W/M"], ["LCL THC", "W/M"], ["Consolidation / stuffing", "W/M"], ["B/L fee", "B/L"], ["Customs clearance", "Shipment"],
+]);
+const invoice: ManualValues = {
+  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", currency: "USD",
+  charges: [
+    { charge: "Ocean freight", basis: "W/M", quantity: "4.5", rate: "60", gst: "", sac: "" },
+    { charge: "CFS charges", basis: "", quantity: "4.5", rate: "12", gst: "18", sac: "" },
+    { charge: "B/L fee", basis: "", quantity: "", rate: "", gst: "18", sac: "" },
+    { charge: "", basis: "", quantity: "", rate: "", gst: "", sac: "" },
+  ],
+};
+const lines = documentDataFromManual(invoice).charges!;
+is("blank lines left out; SAC and basis from the list; no quantity is one", lines.map((l) => [l.charge, l.sac, l.basis, l.quantity]), [
+  ["Ocean freight", "996521", "W/M", 4.5], ["CFS charges", "996719", "W/M", 4.5], ["B/L fee", "996799", "B/L", 1],
+]);
+is("a line with no rate keeps it a draft", missingOf(fi, { ...emptyState(), shipment: invoice }), ["Rate for B/L fee"]);
+const priced = { ...invoice, charges: (invoice.charges as Array<Record<string, string>>).map((r) => (r.charge === "B/L fee" ? { ...r, rate: "50" } : r)) };
+is("every line priced: nothing outstanding", missingOf(fi, { ...emptyState(), shipment: priced }), []);
+const fiText = (await bodies(fi.render(priced))).flat().join(" ");
+is("the lines and totals on the invoice", ["CHARGES", "AMOUNT (USD)", "GST (USD)", "996719", "270.00", "54.00", "9.72", "Taxable value", "374.00", "18.72", "392.72"].filter((w) => !fiText.includes(w)), []);
+is("not the freight twice", fiText.includes("Ocean freight USD"), false);
+is("without lines, the one freight figure, as before", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

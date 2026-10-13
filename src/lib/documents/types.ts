@@ -132,13 +132,27 @@ export interface DocumentData {
 
   // provenance
   sourceNote: string;
-  /** What the money fields are in: rupees unless said. Manual documents are typed in US dollars. */
+  /** What the money fields are in: rupees unless said. A manual document says which. */
   currency?: "INR" | "USD";
+  /** The charges, line by line, where they were itemised (a manual freight invoice); otherwise the one freight figure. */
+  charges?: ChargeLine[];
   raw: RequestDetails;
 }
 
+/** One line of an itemised invoice, in the document's currency. */
+export interface ChargeLine {
+  charge: string;
+  sac?: string;
+  /** What the quantity counts: Container, W/M, B/L, Kg. */
+  basis?: string;
+  quantity?: number;
+  rate?: number;
+  /** GST on the line, as a percentage; none when not given. */
+  gstPercent?: number;
+}
+
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "raw">;
+export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "raw">;
 
 export interface DocRow {
   label: string;
@@ -218,4 +232,11 @@ export interface DocSpec {
    * list headed by `title` — what the consignee needs to do.
    */
   notes?: { title: string; lead?: (d: DocumentData) => string | undefined; lines: (d: DocumentData) => string[] };
+  /** Drawn after the sections as a table with totals, under this heading, when the record itemises its charges. */
+  charges?: { title: string };
+  /**
+   * What it still needs that a list of fields cannot say — a rate on every
+   * charge line, say — by label, added to what `requires` finds missing.
+   */
+  check?: (d: DocumentData) => string[];
 }

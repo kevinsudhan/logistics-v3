@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
-import type { DocRow, DocSection, DocSpec, DocumentData } from "./types";
+import type { ChargeLine, DocRow, DocSection, DocSpec, DocumentData } from "./types";
+import { chargeTotals, currencyCode, docFigure, lineAmount, lineGst } from "./charges";
 import { documentNo, readiness } from "./data";
 import {
   BRAND,
@@ -117,7 +118,7 @@ type Colour = [number, number, number];
 
 function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPushed: boolean } {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const { ready, missingLabels } = readiness(data, spec.requires);
+  const { ready, missingLabels } = readiness(data, spec.requires, spec.check);
   const split = spec.layout === "split";
   const signs = spec.issuer === "desk";
 
@@ -375,6 +376,8 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     y += 4 * fit.gap;
   }
 
+  if (spec.charges && data.charges?.length && !split) drawCharges(spec.charges.title, data.charges);
+
   // The declaration, as the band layout sets it full width.
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7.6);
@@ -629,6 +632,114 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       x += w;
     });
     y += HEAD_H + cellH + 5 * fit.gap;
+  }
+
+  /**
+   * The charges, a line each, ruled as a table, with the totals under the
+   * figures. The GST columns are left out when no line carries GST — an
+   * export invoice in dollars, say — rather than printed as a column of noughts.
+   * A line with no rate shows TBD where its figures go, and so do the totals:
+   * a total of some of the lines is not the total.
+   */
+  function drawCharges(title: string, lines: ChargeLine[]) {
+    const cur = currencyCode(data);
+    const taxed = lines.some((l) => l.gstPercent);
+    const figure = (n: number | undefined) => (n === undefined ? TBD : docFigure(data, n));
+    type Col = { head: string; w: number; right?: boolean; cell: (l: ChargeLine, i: number) => string };
+    const cols: Col[] = [
+      { head: "#", w: 0.5, cell: (_, i) => String(i + 1) },
+      { head: "Charge", w: 3.4, cell: (l) => l.charge },
+      { head: "SAC", w: 1.2, cell: (l) => l.sac ?? "" },
+      { head: "Basis", w: 1.3, cell: (l) => l.basis ?? "" },
+      { head: "Qty", w: 0.8, right: true, cell: (l) => (l.quantity ?? 1).toLocaleString("en-US", { maximumFractionDigits: 3 }) },
+      { head: `Rate (${cur})`, w: 1.5, right: true, cell: (l) => figure(l.rate) },
+      { head: `Amount (${cur})`, w: 1.7, right: true, cell: (l) => figure(lineAmount(l)) },
+      ...(taxed
+        ? [
+            { head: "GST %", w: 0.8, right: true, cell: (l: ChargeLine) => (l.gstPercent ? `${l.gstPercent}%` : "-") },
+            { head: `GST (${cur})`, w: 1.4, right: true, cell: (l: ChargeLine) => figure(lineGst(l)) },
+            { head: `Total (${cur})`, w: 1.7, right: true, cell: (l: ChargeLine) => figure(lineAmount(l) === undefined ? undefined : lineAmount(l)! + lineGst(l)!) },
+          ]
+        : []),
+    ];
+    const weight = cols.reduce((t, c) => t + c.w, 0);
+    const widths = cols.map((c) => (c.w / weight) * CONTENT_W);
+    const HEAD_H = 6.4;
+    const LINE = 3.6;
+
+    const header = () => {
+      let x = MARGIN;
+      fill(TINT);
+      stroke(RULE);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN, y, CONTENT_W, HEAD_H, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.6);
+      set(MUTED);
+      cols.forEach((c, i) => {
+        doc.text(c.head.toUpperCase(), c.right ? x + widths[i] - 1.6 : x + 1.6, y + 4.2, { align: c.right ? "right" : "left" });
+        x += widths[i];
+      });
+      y += HEAD_H;
+    };
+
+    ensure(9.4 + HEAD_H + 8);
+    sectionBar(title);
+    y += 9.4;
+    header();
+
+    doc.setFontSize(7.8);
+    lines.forEach((l, n) => {
+      const cells = cols.map((c, i) => {
+        doc.setFont("helvetica", i === 1 ? "bold" : "normal");
+        return doc.splitTextToSize(c.cell(l, n), widths[i] - 3.2) as string[];
+      });
+      const h = Math.max(...cells.map((c) => c.length)) * LINE + 2.6;
+      if (ensure(h + 1)) header();
+      let x = MARGIN;
+      cols.forEach((c, i) => {
+        const tbd = cells[i][0] === TBD;
+        doc.setFont("helvetica", tbd ? "italic" : i === 1 ? "bold" : "normal");
+        set(tbd ? FAINT : INK);
+        let ly = y + 4;
+        for (const t of cells[i]) {
+          doc.text(t, c.right ? x + widths[i] - 1.6 : x + 1.6, ly, { align: c.right ? "right" : "left" });
+          ly += LINE;
+        }
+        x += widths[i];
+      });
+      y += h;
+      stroke([238, 239, 233]);
+      doc.setLineWidth(0.15);
+      doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+      doc.setLineWidth(0.2);
+    });
+
+    // The totals, under the figures, the last in bold.
+    const totals = chargeTotals(lines);
+    const rows: Array<[string, number | undefined]> = taxed
+      ? [
+          ["Taxable value", totals?.taxable],
+          ["GST", totals?.gst],
+          [`Total (${cur})`, totals?.total],
+        ]
+      : [[`Total (${cur})`, totals?.total]];
+    ensure(rows.length * 5 + 4);
+    y += 4.6;
+    const valueX = PAGE_W - MARGIN - 1.6;
+    const labelX = valueX - 42;
+    rows.forEach(([label, value], i) => {
+      const last = i === rows.length - 1;
+      doc.setFont("helvetica", last ? "bold" : "normal");
+      doc.setFontSize(last ? 9 : 8.2);
+      set(last ? INK : MUTED);
+      doc.text(label, labelX, y, { align: "right" });
+      doc.setFont("helvetica", value === undefined ? "italic" : "bold");
+      set(value === undefined ? FAINT : INK);
+      doc.text(figure(value), valueX, y, { align: "right" });
+      y += last ? 5.4 : 4.6;
+    });
+    y += 4 * fit.gap;
   }
 
   /**

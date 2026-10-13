@@ -9,7 +9,9 @@ import { docDate } from "./letterhead";
 import { hblFileName, renderHblPdf, type HblPrint } from "./hblPdf";
 import { hawbFileName, renderHawbPdf } from "./hawbPdf";
 import { CONSOLE_DOCUMENTS } from "./manualConsole";
+import { CHARGE_SETS, chargeHead, INVOICE_BASES, INVOICE_CHARGES } from "./charges";
 import {
+  lines,
   parseNumber,
   parseYesNo,
   text,
@@ -21,7 +23,7 @@ import {
   type ManualStore,
   type ManualValues,
 } from "./manualForm";
-import type { DataKey, DocSpec, DocumentData } from "./types";
+import type { ChargeLine, DataKey, DocSpec, DocumentData } from "./types";
 
 /**
  * Documents typed in by hand (Documentation → Manual documents).
@@ -93,6 +95,11 @@ interface FieldMeta {
 
 const options = (values: string[]) => values.map((v) => ({ value: v, label: v }));
 
+const IN_CURRENCY = "In the currency chosen under Document.";
+
+/** The fields that are sums of money: a document printing one says which currency it is in. */
+const MONEY_KEYS: DataKey[] = ["freightAmountInr", "targetPriceInr", "invoiceValueInr"];
+
 /**
  * Every field a registry document can print, and how it is typed.
  *
@@ -160,9 +167,9 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   stackable: { section: "cargo", input: "yesno" },
   uprightOnly: { section: "cargo", input: "yesno" },
 
-  freightAmountInr: { section: "commercial", input: "number", unit: "USD" },
-  targetPriceInr: { section: "commercial", input: "number", unit: "USD" },
-  invoiceValueInr: { section: "commercial", input: "number", unit: "USD" },
+  freightAmountInr: { section: "commercial", input: "number", hint: IN_CURRENCY },
+  targetPriceInr: { section: "commercial", input: "number", hint: IN_CURRENCY },
+  invoiceValueInr: { section: "commercial", input: "number", hint: IN_CURRENCY },
   incoterm: { section: "commercial", input: "select" },
   paymentTerms: { section: "commercial", placeholder: "Advance, 30 days, against documents" },
   letterOfCredit: { section: "commercial", input: "yesno" },
@@ -256,11 +263,74 @@ const REFERENCE: ManualField = {
   hint: "Printed as the document's reference; the B/L number, where typed, numbers it instead.",
 };
 
+/** Dollars or rupees, for every shipment document that prints a sum: they share it, as they share the rest. */
+const CURRENCY: ManualField = {
+  key: "currency",
+  label: "Currency",
+  input: "select",
+  options: [
+    { value: "USD", label: "USD — US dollars" },
+    { value: "INR", label: "INR — Indian rupees" },
+  ],
+  hint: "Every rate and charge on the document is in this.",
+};
+
+/**
+ * The charges of an itemised invoice, a line each.
+ *
+ * Picked from the list (lib/documents/charges) or typed as they are; the SAC
+ * and the basis come from the list when left empty, so picking a charge is
+ * enough to price it.
+ */
+const CHARGES_SECTION: ManualSection = {
+  title: "Charges",
+  note: "A line per charge, in the document's currency. Pick a charge or type your own; SAC and basis fill in from the list when left blank. No quantity is one. Itemised, these replace the single freight rate.",
+  table: {
+    key: "charges",
+    label: "Charges",
+    lineLabel: "Charge",
+    addLabel: "Add a charge",
+    columns: [
+      { key: "charge", label: "Charge", placeholder: "Ocean freight", suggestions: INVOICE_CHARGES.map((h) => h.label) },
+      { key: "basis", label: "Basis", placeholder: "Container, W/M, B/L", suggestions: INVOICE_BASES },
+      { key: "quantity", label: "Quantity", input: "number", placeholder: "1" },
+      { key: "rate", label: "Rate", input: "number", required: true },
+      { key: "gst", label: "GST %", input: "number", placeholder: "None" },
+      { key: "sac", label: "SAC", placeholder: "From the list" },
+    ],
+    presets: CHARGE_SETS.map((set) => ({
+      label: set.label,
+      rows: set.charges.map((c) => {
+        const h = chargeHead(c);
+        return { charge: c, basis: h?.basis ?? "", quantity: "", rate: "", gst: "", sac: "" };
+      }),
+    })),
+  },
+};
+
+/** What was typed on the charge lines, as the invoice prints them; a line with nothing typed is left out. */
+function chargesOf(v: ManualValues): ChargeLine[] {
+  return lines(v, "charges").map((r, i) => {
+    const name = (r.charge ?? "").trim();
+    const h = chargeHead(name);
+    const quantity = parseNumber(r.quantity);
+    return {
+      charge: name || `Charge ${i + 1}`,
+      sac: (r.sac ?? "").trim() || h?.sac,
+      basis: (r.basis ?? "").trim() || h?.basis,
+      quantity: quantity ?? 1,
+      rate: parseNumber(r.rate),
+      gstPercent: parseNumber(r.gst),
+    };
+  });
+}
+
 /** The form for one registry document: its fields, in sections, required ones marked. */
 export function sectionsFor(spec: DocSpec): ManualSection[] {
   const keys = keysOf(spec);
+  const money = Boolean(spec.charges) || keys.some((k) => MONEY_KEYS.includes(k));
   return [
-    { title: "Document", fields: [REFERENCE] },
+    { title: "Document", fields: money ? [REFERENCE, CURRENCY] : [REFERENCE] },
     ...SECTION_ORDER.map((section) => ({
       title: SECTION_TITLE[section],
       fields: keys
@@ -278,6 +348,7 @@ export function sectionsFor(spec: DocSpec): ManualSection[] {
           })
         ),
     })).filter((s) => s.fields.length > 0),
+    ...(spec.charges ? [CHARGES_SECTION] : []),
   ];
 }
 
@@ -310,8 +381,9 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
     // Numbered as a job's are: by the B/L once there is one, the reference until then.
     documentNumber: data.blNumber || reference || "TBD",
     sourceNote: MANUAL_SOURCE_NOTE,
-    // Rates typed here are in US dollars, and print as such.
-    currency: "USD",
+    // Dollars unless rupees were chosen: what the page has always typed in.
+    currency: text(v, "currency") === "INR" ? "INR" : "USD",
+    charges: chargesOf(v),
     raw: {} as DocumentData["raw"],
   };
 }
@@ -343,7 +415,7 @@ const fromRegistry = (spec: DocSpec): FormDoc => ({
   sections: sectionsFor(spec),
   render: (v) => renderDocument(spec, documentDataFromManual(v)),
   fileName: (v) => documentFilename(spec, documentDataFromManual(v)),
-  missing: (v) => readiness(documentDataFromManual(v), spec.requires).missingLabels,
+  missing: (v) => readiness(documentDataFromManual(v), spec.requires, spec.check).missingLabels,
   documentNo: (v) => documentNo(spec, documentDataFromManual(v)),
 });
 
@@ -425,7 +497,7 @@ const todayIst = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slic
 
 export function emptyStore<K extends ManualStore>(store: K): ManualState[K] {
   const fresh: { [S in ManualStore]: () => ManualState[S] } = {
-    shipment: () => ({}),
+    shipment: () => ({ currency: "USD" }),
     console: () => ({ freight_terms: "prepaid" }),
     hbl: () => ({ data: emptyHbl(), hblNo: "", release: "original", originals: 3, print: "draft" }),
     hawb: () => ({ data: { ...emptyHawb(), currency: "USD" }, hawbNo: "", hawbDate: todayIst(), kind: "draft" }),

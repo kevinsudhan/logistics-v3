@@ -38,6 +38,8 @@ export interface ManualField {
   hint?: string;
   /** Takes the whole row of the grid: an address, a description. */
   wide?: boolean;
+  /** Offered as it is typed (a text field): anything else can still be typed. */
+  suggestions?: string[];
 }
 
 /** Lines of something — the boxes, the house bills — typed as a table. */
@@ -49,6 +51,8 @@ export interface ManualTable {
   columns: ManualField[];
   addLabel: string;
   hint?: string;
+  /** Sets of lines added in one go, as a starting point to fill in: "LCL export". */
+  presets?: Array<{ label: string; rows: ManualRow[] }>;
 }
 
 export interface ManualSection {

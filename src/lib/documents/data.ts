@@ -371,16 +371,17 @@ export const documentFilename = (spec: { numberPrefix: string; id: string }, dat
   `${documentNo(spec, data)}-${spec.id}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
 
 /** Which of a document's required fields are still outstanding. */
-export function readiness(data: DocumentData, requires: DataKey[]) {
+export function readiness(data: DocumentData, requires: DataKey[], check?: (d: DocumentData) => string[]) {
   const missing = requires.filter((k) => {
     const v = data[k];
     return v === undefined || v === null || v === "";
   });
+  const also = check?.(data) ?? [];
   return {
-    ready: missing.length === 0,
+    ready: missing.length === 0 && also.length === 0,
     missing,
-    missingLabels: missing.map(labelFor),
+    missingLabels: [...missing.map(labelFor), ...also],
     have: requires.length - missing.length,
-    need: requires.length,
+    need: requires.length + also.length,
   };
 }

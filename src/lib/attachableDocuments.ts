@@ -49,7 +49,7 @@ export function attachablesFrom(
   amountInr: number | null
 ): Attachable[] {
   const data = documentDataFromEnquiry(enquiry, customer, amountInr);
-  return DOCUMENTS.filter((spec) => readiness(data, spec.requires).ready).map((spec) => ({
+  return DOCUMENTS.filter((spec) => readiness(data, spec.requires, spec.check).ready).map((spec) => ({
     id: spec.id,
     label: spec.shortName,
     make: () => documentBytes(spec, data),

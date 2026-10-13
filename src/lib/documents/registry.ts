@@ -1,6 +1,8 @@
 import type { DocSpec, DocumentData } from "./types";
 import { COMPANY } from "../company";
 import { deliveryNeeds } from "../arrivalNotice";
+import { chargesOutstanding, docMoney } from "./charges";
+import { labelFor } from "./data";
 
 /**
  * Every document the forwarder issues, as a declaration.
@@ -17,13 +19,7 @@ import { deliveryNeeds } from "../arrivalNotice";
  * for.
  */
 
-/** A sum in the document's currency: "Rs. 1,25,000" from a job, "USD 1,250.50" typed by hand. */
-const money = (d: DocumentData, n?: number) =>
-  n === undefined
-    ? undefined
-    : d.currency === "USD"
-      ? `USD ${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
-      : `Rs. ${n.toLocaleString("en-IN")}`;
+const money = docMoney;
 const kg = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN")} kg` : undefined);
 const yesNo = (b?: boolean) => (b === undefined ? undefined : b ? "Yes" : "No");
 const packages = (d: DocumentData) =>
@@ -511,7 +507,9 @@ export const DOCUMENTS: DocSpec[] = [
     purpose: "What the customer owes us for the forwarding service.",
     issuer: "desk",
     numberPrefix: "FI",
-    requires: ["freightAmountInr", "origin", "destination"],
+    requires: ["origin", "destination"],
+    // The freight as one figure, or the charges line by line with a rate on each.
+    check: (d) => (d.charges?.length ? chargesOutstanding(d) : d.freightAmountInr === undefined ? [labelFor("freightAmountInr")] : []),
     parties: false,
     sections: [
       {
@@ -523,16 +521,18 @@ export const DOCUMENTS: DocSpec[] = [
         ],
       },
       {
-        title: "Charges",
+        title: "Shipment",
         rows: [
           { label: "Route", value: route },
           { label: "B/L number", value: (d) => d.blNumber },
           { label: "Container", value: (d) => d.containerType },
-          { label: "Ocean freight", value: (d) => money(d, d.freightAmountInr) },
+          // Itemised, the lines below say it; the one figure as well would be counting it twice.
+          { label: "Ocean freight", value: (d) => (d.charges?.length ? undefined : money(d, d.freightAmountInr)), optional: true },
           { label: "Payment terms", value: (d) => d.paymentTerms },
         ],
       },
     ],
+    charges: { title: "Charges" },
     declaration:
       "Payable per the terms stated. Local charges, duties and taxes at destination are payable by the consignee unless the Incoterm provides otherwise.",
   },
