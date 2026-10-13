@@ -1519,12 +1519,12 @@ export default function Mail() {
                   {picking === "cc" ? "CC'd by" : "Whose mail"}
                 </label>
                 <div className="relative min-w-0 max-w-[14rem] flex-1">
-                  <UserIcon size={12} className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
+                  <UserIcon size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
                   <select
                     id="mail-whose"
                     value={view.person ?? ""}
                     onChange={(e) => setView({ view: picking, person: e.target.value || null, direction: "any" })}
-                    className="h-6 w-full truncate rounded-md border border-border bg-surface-1 pl-6 pr-1.5 text-[11.5px] text-text-primary"
+                    className="h-7 w-full truncate rounded-md border border-border bg-surface-1 py-0 pl-7 pr-2 text-[12px] leading-none text-text-primary"
                   >
                     <option value="">Everyone</option>
                     {pickable.map((p) => (
@@ -1541,7 +1541,7 @@ export default function Mail() {
                     value={view.direction}
                     onChange={(e) => setView({ ...view, direction: e.target.value as ViewChoice["direction"] })}
                     aria-label="Which way"
-                    className="h-6 rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
+                    className="h-7 rounded-md border border-border bg-surface-1 px-2 py-0 text-[12px] leading-none text-text-primary"
                   >
                     <option value="any">In and out{chosen ? ` (${chosen.sent + chosen.received})` : ""}</option>
                     <option value="received">Received by them{chosen ? ` (${chosen.received})` : ""}</option>
