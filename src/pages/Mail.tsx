@@ -54,7 +54,7 @@ import Highlighted from "../components/Highlighted";
 import { searchTerms } from "../lib/searchHighlight";
 import { rememberAddresses } from "../services/addressBook";
 import { groupIntoThreads } from "../lib/threads";
-import { ccSenders, inCcView, type CcView } from "../lib/ccFilter";
+import { copiers, copyNote, inView, keepViewChoice, readViewChoice, type ViewChoice } from "../lib/ccFilter";
 import { useAuth } from "../lib/auth";
 import { outcomeText } from "../lib/outlookConnect";
 import type { ComposeMode } from "../lib/mailQuote";
@@ -88,6 +88,13 @@ import { peek, put } from "../lib/queryCache";
 
 /** Where a folder's list is kept between opens (lib/queryCache). */
 const mailKey = (mailbox: string, folder: string, filter: string) => `mail:${mailbox}:${folder}:${filter}`;
+
+/**
+ * While a view is on, older pages are fetched by themselves until it has this
+ * many conversations to show, or this many pages have been looked through.
+ */
+const VIEW_SCREENFUL = 25;
+const VIEW_AUTO_PAGES = 8;
 const FOLDER_ICON: Record<string, React.ElementType> = {
   inbox: Inbox,
   sent: Send,
@@ -200,12 +207,17 @@ export default function Mail() {
   /** Outlook's Filter: everything, unread only, or flagged only. */
   const [filter, setFilter] = useState<"all" | "unread" | "flagged">("all");
   /**
-   * Mail the mailbox was copied on (Cc or Bcc) or sent to directly, and of the
-   * copied, only what one person copied it on (lib/ccFilter). Outlook cannot
-   * filter on recipients, so this is read off the mail already loaded.
+   * Mail written to the mailbox, or mail it only has a copy of, and of the
+   * copies, whose (lib/ccFilter). aashish@ is copied on all of parasuraman@'s
+   * and info@'s mail by an Exchange rule; this is how his own is found in it.
+   * Kept per mailbox in this browser, so it opens the way it was left.
    */
-  const [ccView, setCcView] = useState<CcView>("all");
-  const [ccFrom, setCcFrom] = useState<string | null>(null);
+  const [view, setViewState] = useState<ViewChoice>(() => readViewChoice(mailbox));
+  const setView = (c: ViewChoice) => {
+    setViewState(c);
+    keepViewChoice(mailbox, c);
+  };
+  useEffect(() => setViewState(readViewChoice(mailbox)), [mailbox]);
   /** A line at the foot of the screen saying what just happened (deleted, draft saved). */
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -230,6 +242,8 @@ export default function Mail() {
   const lastChecked = useRef<string | null>(null);
   /** Whether older pages have been loaded, which a background refresh would throw away. */
   const morePages = useRef(false);
+  /** Older pages fetched by themselves for the view on screen, since the list was last read from the top. */
+  const autoPages = useRef(0);
   /** When the list was last fetched, so a refresh on returning to the tab is not one per click. */
   const lastLoad = useRef(0);
   const searching = Boolean(query);
@@ -385,6 +399,7 @@ export default function Mail() {
       put(`mail:${mailbox}:folders`, f.folders);
       setLoading(false);
       morePages.current = false;
+      autoPages.current = 0;
       // Everyone on screen is someone the compose window can suggest.
       rememberAddresses(
         m.messages.flatMap((x) => [x.from?.emailAddress, ...x.toRecipients.map((r) => r.emailAddress), ...x.ccRecipients.map((r) => r.emailAddress)])
@@ -416,15 +431,17 @@ export default function Mail() {
     New mail arrives by itself, as it does in Outlook: the list is fetched again
     every minute while the page is in view, and on coming back to the tab. It
     used to change only when somebody pressed Refresh, so a customer's reply
-    could sit unseen above a list that looked current. Not while searching, and
-    not once older pages have been loaded — a refresh would put the list back
-    to its first page under the reader.
+    could sit unseen above a list that looked current. Not while searching.
+    Once older pages are loaded — by hand, or by a view looking further back —
+    the newest page is merged in on top rather than the list going back to its
+    first page under the reader (13 Oct).
   */
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState !== "visible" || query || morePages.current) return;
+      if (document.visibilityState !== "visible" || query) return;
       if (Date.now() - lastLoad.current < 20_000) return;
-      void load();
+      if (morePages.current) void refreshTop();
+      else void load();
     };
     const every = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
@@ -456,6 +473,25 @@ export default function Mail() {
       live = false;
     };
   }, [composing]);
+
+  /**
+   * The newest page again, merged over the list: new mail on top, what changed
+   * in it (read, flagged) updated, the older pages below kept as they are.
+   */
+  async function refreshTop() {
+    const req = loadReq.current;
+    lastLoad.current = Date.now();
+    try {
+      const m = await getMailMessages(mailbox, folder, undefined, filter === "all" ? undefined : filter);
+      if (req !== loadReq.current) return;
+      const fresh = new Set(m.messages.map((x) => x.id));
+      setMessages((prev) => [...m.messages, ...prev.filter((x) => !fresh.has(x.id))]);
+      const q = await intakeByMessage(m.messages.map((x) => x.id));
+      if (req === loadReq.current) setQueued((prev) => new Map([...prev, ...q]));
+    } catch {
+      // A missed refresh is the next minute's.
+    }
+  }
 
   /**
    * Appends the next page.
@@ -532,24 +568,50 @@ export default function Mail() {
    * answers were two rows that nothing tied together.
    */
   const conversations = useMemo(() => groupIntoThreads(messages), [messages]);
-  /** The rows as drawn: a message each when searching, a conversation each otherwise. */
-  /** The copied and sent-direct views mean something only for mail received; not for Sent and Drafts. */
+  /** The To-me and CC views mean something only for mail received; not for Sent and Drafts. */
   const ccApplies = folder !== "sent" && folder !== "drafts";
-  const ccActive = !searching && ccApplies && ccView !== "all";
+  const ccActive = !searching && ccApplies && view.view !== "all";
+  /** The rows as drawn: a message each when searching, a conversation each otherwise. */
   const rows = useMemo(() => {
     if (searching) return messages.map((m) => ({ key: m.id, m, group: [m] }));
     // A conversation is shown when any message in it is one the view is for.
     const all = conversations
       .map((t) => ({ key: t.conversationId, m: t.messages[t.messages.length - 1], group: t.messages }))
-      .filter((r) => !ccActive || r.group.some((m) => inCcView(m, mailbox, ccView, ccFrom)));
+      .filter((r) => !ccActive || r.group.some((m) => inView(m, mailbox, view)));
     if (folder !== "inbox" || !returnedOf.size) return all;
     // Back from snooze, on top: Outlook keeps a moved message's received date,
     // so it would otherwise sit wherever that date puts it.
     const back = (r: (typeof all)[number]) => r.group.some((m) => returnedOf.has(m.id));
     return [...all.filter(back), ...all.filter((r) => !back(r))];
-  }, [searching, messages, conversations, folder, returnedOf, ccActive, ccView, ccFrom, mailbox]);
-  /** Who copied this mailbox, in the mail loaded: the choices for "copied by". */
-  const ccPeople = useMemo(() => ccSenders(messages, mailbox), [messages, mailbox]);
+  }, [searching, messages, conversations, folder, returnedOf, ccActive, view, mailbox]);
+  /** Whose mail this mailbox has copies of, in the mail loaded: the choices for "whose mail". */
+  const copies = useMemo(() => copiers(messages, mailbox), [messages, mailbox]);
+  const ourPeople = copies.filter((p) => p.ours);
+  const otherPeople = copies.filter((p) => !p.ours);
+  const chosen = view.person ? copies.find((p) => p.address === view.person) : undefined;
+  /** How far back the list reaches: what a view has been looked for in. */
+  const oldestLoaded = useMemo(
+    () => messages.reduce<string | null>((o, m) => (!o || m.receivedDateTime < o ? m.receivedDateTime : o), null),
+    [messages]
+  );
+
+  /*
+    A view is read off the mail loaded — Outlook cannot list by recipient — and
+    a page of a cluttered Inbox may hold two conversations it wants. So while
+    one is on, older pages are fetched by themselves until there is a
+    screenful, or a few hundred messages have been looked through; past that,
+    "Look further back" asks for more.
+  */
+  useEffect(() => {
+    autoPages.current = 0;
+  }, [folder, filter, view, mailbox]);
+  useEffect(() => {
+    if (!ccActive || loading || loadingMore || !nextLink) return;
+    if (rows.length >= VIEW_SCREENFUL || autoPages.current >= VIEW_AUTO_PAGES) return;
+    autoPages.current++;
+    void loadMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ccActive, loading, loadingMore, nextLink, rows.length]);
   // A selection only ever names rows that are on screen.
   useEffect(() => {
     setChecked((prev) => {
@@ -566,8 +628,6 @@ export default function Mail() {
     setSearch("");
     setQuery("");
     setFilter("all");
-    setCcView("all");
-    setCcFrom(null);
     setMoreOpen(false);
     setFolder(id);
   }
@@ -1334,6 +1394,7 @@ export default function Mail() {
               </button>
             </div>
           ) : !searching && (
+            <>
             <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5 text-[11.5px]" role="group" aria-label="Show">
               {(["all", "unread", "flagged"] as const).map((f) => (
                 <button
@@ -1352,50 +1413,81 @@ export default function Mail() {
               {ccApplies && (
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                  {(["copied", "direct"] as const).map((v) => (
+                  {(["direct", "copied"] as const).map((v) => (
                     <button
                       key={v}
                       type="button"
                       // Pressed again, it is off: back to everything.
-                      onClick={() => {
-                        setCcView((cur) => (cur === v ? "all" : v));
-                        setCcFrom(null);
-                      }}
-                      aria-pressed={ccView === v}
+                      onClick={() => setView(view.view === v ? { view: "all", person: null, direction: "any" } : { view: v, person: null, direction: "any" })}
+                      aria-pressed={view.view === v}
                       title={
-                        v === "copied"
-                          ? "Mail you were copied on: on the Cc line, or blind-copied (not on To or Cc; mail to a group you are in shows here too)"
-                          : "Mail sent to you directly: your address on the To line"
+                        v === "direct"
+                          ? "Mail written to you: your address on the To line"
+                          : "Mail you were copied on: on the Cc line, or not named at all (a rule's copy of a colleague's mail, a Bcc, a group)"
                       }
                       className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
-                        ccView === v ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
+                        view.view === v ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
                       }`}
                     >
                       {v === "copied" && <Users size={11} />}
-                      {v === "copied" ? "CC & BCC" : "Not CC"}
+                      {v === "direct" ? "To me" : "CC & BCC"}
                     </button>
                   ))}
-                  {ccView === "copied" && (
-                    <select
-                      value={ccFrom ?? ""}
-                      onChange={(e) => setCcFrom(e.target.value || null)}
-                      aria-label="Copied by"
-                      title="Copied by"
-                      className="ml-1 h-6 min-w-0 max-w-[12rem] flex-1 truncate rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
-                    >
-                      <option value="">From anyone</option>
-                      {ccPeople.map((p) => (
-                        <option key={p.address} value={p.address}>
-                          {p.name} ({p.count})
-                        </option>
-                      ))}
-                      {/* Still chosen, but nobody in the mail now loaded: kept rather than silently dropped. */}
-                      {ccFrom && !ccPeople.some((p) => p.address === ccFrom) && <option value={ccFrom}>{ccFrom} (0)</option>}
-                    </select>
-                  )}
                 </>
               )}
             </div>
+            {ccActive && view.view === "copied" && (
+              /*
+                Whose mail: our own mailboxes first — the ones copied here by
+                rule — then outside senders. Of one of ours, both ways or one.
+              */
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1.5 text-[11.5px]">
+                <label className="text-text-muted" htmlFor="mail-whose">
+                  Whose mail
+                </label>
+                <select
+                  id="mail-whose"
+                  value={view.person ?? ""}
+                  onChange={(e) => setView({ view: "copied", person: e.target.value || null, direction: "any" })}
+                  className="h-6 min-w-0 max-w-[14rem] flex-1 truncate rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
+                >
+                  <option value="">Anyone&apos;s</option>
+                  {ourPeople.length > 0 && (
+                    <optgroup label="Our mailboxes">
+                      {ourPeople.map((p) => (
+                        <option key={p.address} value={p.address}>
+                          {p.name} ({p.sent + p.received})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {otherPeople.length > 0 && (
+                    <optgroup label="Outside senders">
+                      {otherPeople.map((p) => (
+                        <option key={p.address} value={p.address}>
+                          {p.name} ({p.sent})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {/* Kept when chosen but not in the mail now loaded, rather than silently dropped. */}
+                  {view.person && !chosen && <option value={view.person}>{view.person}</option>}
+                </select>
+                {view.person && (!chosen || chosen.ours) && (
+                  <select
+                    value={view.direction}
+                    onChange={(e) => setView({ ...view, direction: e.target.value as ViewChoice["direction"] })}
+                    aria-label="Which way"
+                    className="h-6 rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
+                  >
+                    <option value="any">In and out{chosen ? ` (${chosen.sent + chosen.received})` : ""}</option>
+                    <option value="received">Received by them{chosen ? ` (${chosen.received})` : ""}</option>
+                    <option value="sent">Sent by them{chosen ? ` (${chosen.sent})` : ""}</option>
+                  </select>
+                )}
+              </div>
+            )}
+            </>
           )}
 
           {loading && messages.length === 0 ? (
@@ -1450,13 +1542,22 @@ export default function Mail() {
               ))}
             </ul>
           ) : ccActive && rows.length === 0 ? (
-            <div className="p-4 text-[13px] text-text-muted">
-              {ccView === "direct"
-                ? "Nothing sent to you directly in the mail loaded."
-                : ccFrom
-                  ? `Nothing ${ccPeople.find((p) => p.address === ccFrom)?.name ?? ccFrom} copied you on in the mail loaded.`
-                  : "Nothing you were copied on in the mail loaded."}
-              {nextLink && " Load older mail to look further back."}
+            <div className="flex items-center gap-2 p-4 text-[13px] text-text-muted">
+              {loadingMore ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" /> Looking further back…
+                </>
+              ) : (
+                <span>
+                  {view.view === "direct"
+                    ? "Nothing written to you"
+                    : view.person
+                      ? `None of ${chosen?.name ?? view.person}'s mail`
+                      : "Nothing you were copied on"}
+                  {oldestLoaded ? ` since ${formatDate(oldestLoaded, { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+                  {nextLink && " Look further back below."}
+                </span>
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-border max-h-[calc(100vh-260px)] min-h-[300px] overflow-y-auto overscroll-contain lg:max-h-none lg:min-h-0 lg:flex-1">
@@ -1477,6 +1578,7 @@ export default function Mail() {
                     onCheck={(shift) => toggleCheck(t.conversationId, shift)}
                     snoozedUntil={snoozeOf.get(newest.id)?.until}
                     backFromSnooze={t.messages.some((x) => returnedOf.has(x.id))}
+                    copyNote={ccApplies && view.view !== "direct" ? copyNote(newest, mailbox) : null}
                     onOpen={() => void open(newest, t.messages)}
                     onWarm={() => prefetchMailMessage(mailbox, newest.id, newest.folder)}
                     onChanged={() => void load()}
@@ -1493,6 +1595,12 @@ export default function Mail() {
           */}
           {messages.length > 0 && (
             <div className="border-t border-border px-3 py-2">
+              {ccActive && nextLink && (
+                <p className="pb-1 text-center text-[11px] text-text-muted">
+                  {rows.length} of {conversations.length} conversations
+                  {oldestLoaded ? `, back to ${formatDate(oldestLoaded, { day: "numeric", month: "short" })}` : ""}
+                </p>
+              )}
               {nextLink ? (
                 <button
                   onClick={() => void loadMore()}
@@ -1500,7 +1608,7 @@ export default function Mail() {
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-60"
                 >
                   {loadingMore ? <Loader2 size={13} className="animate-spin" /> : null}
-                  {loadingMore ? "Loading…" : searching ? "More results" : "Load older mail"}
+                  {loadingMore ? (ccActive ? "Looking further back…" : "Loading…") : searching ? "More results" : ccActive ? "Look further back" : "Load older mail"}
                 </button>
               ) : (
                 <p className="py-0.5 text-center text-[11px] text-text-muted">

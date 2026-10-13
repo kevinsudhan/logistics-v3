@@ -57,6 +57,7 @@ export default function MailListRow({
   onCheck,
   snoozedUntil,
   backFromSnooze,
+  copyNote,
   onOpen,
   onWarm,
   onChanged,
@@ -90,6 +91,8 @@ export default function MailListRow({
   snoozedUntil?: string;
   /** Returned from a snooze and not opened since: pinned to the top. */
   backFromSnooze?: boolean;
+  /** Why mail the mailbox was copied on is here: "CC", or whose mail it is a copy of (lib/ccFilter). */
+  copyNote?: { label: string; title: string } | null;
   onOpen: () => void;
   /**
    * Read the message ahead of the click (7 Oct): called when the pointer rests
@@ -218,6 +221,14 @@ export default function MailListRow({
                 className="shrink-0 rounded-full border border-border bg-surface-1 px-1.5 text-[10.5px] font-medium tabular-nums leading-4 text-text-secondary"
               >
                 {count}
+              </span>
+            )}
+            {copyNote && (
+              <span
+                title={copyNote.title}
+                className="max-w-[9rem] shrink-0 truncate rounded-full border border-border bg-surface-2 px-1.5 text-[10px] leading-4 text-text-secondary"
+              >
+                {copyNote.label}
               </span>
             )}
             {backFromSnooze && (
