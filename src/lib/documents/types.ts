@@ -132,11 +132,13 @@ export interface DocumentData {
 
   // provenance
   sourceNote: string;
+  /** What the money fields are in: rupees unless said. Manual documents are typed in US dollars. */
+  currency?: "INR" | "USD";
   raw: RequestDetails;
 }
 
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "raw">;
+export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "raw">;
 
 export interface DocRow {
   label: string;

@@ -160,9 +160,9 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   stackable: { section: "cargo", input: "yesno" },
   uprightOnly: { section: "cargo", input: "yesno" },
 
-  freightAmountInr: { section: "commercial", input: "number", unit: "Rs." },
-  targetPriceInr: { section: "commercial", input: "number", unit: "Rs." },
-  invoiceValueInr: { section: "commercial", input: "number", unit: "Rs." },
+  freightAmountInr: { section: "commercial", input: "number", unit: "USD" },
+  targetPriceInr: { section: "commercial", input: "number", unit: "USD" },
+  invoiceValueInr: { section: "commercial", input: "number", unit: "USD" },
   incoterm: { section: "commercial", input: "select" },
   paymentTerms: { section: "commercial", placeholder: "Advance, 30 days, against documents" },
   letterOfCredit: { section: "commercial", input: "yesno" },
@@ -310,6 +310,8 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
     // Numbered as a job's are: by the B/L once there is one, the reference until then.
     documentNumber: data.blNumber || reference || "TBD",
     sourceNote: MANUAL_SOURCE_NOTE,
+    // Rates typed here are in US dollars, and print as such.
+    currency: "USD",
     raw: {} as DocumentData["raw"],
   };
 }
@@ -426,7 +428,7 @@ export function emptyStore<K extends ManualStore>(store: K): ManualState[K] {
     shipment: () => ({}),
     console: () => ({ freight_terms: "prepaid" }),
     hbl: () => ({ data: emptyHbl(), hblNo: "", release: "original", originals: 3, print: "draft" }),
-    hawb: () => ({ data: emptyHawb(), hawbNo: "", hawbDate: todayIst(), kind: "draft" }),
+    hawb: () => ({ data: { ...emptyHawb(), currency: "USD" }, hawbNo: "", hawbDate: todayIst(), kind: "draft" }),
   };
   return fresh[store]();
 }

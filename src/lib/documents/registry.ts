@@ -17,7 +17,13 @@ import { deliveryNeeds } from "../arrivalNotice";
  * for.
  */
 
-const inr = (n?: number) => (n !== undefined ? `Rs. ${n.toLocaleString("en-IN")}` : undefined);
+/** A sum in the document's currency: "Rs. 1,25,000" from a job, "USD 1,250.50" typed by hand. */
+const money = (d: DocumentData, n?: number) =>
+  n === undefined
+    ? undefined
+    : d.currency === "USD"
+      ? `USD ${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+      : `Rs. ${n.toLocaleString("en-IN")}`;
 const kg = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN")} kg` : undefined);
 const yesNo = (b?: boolean) => (b === undefined ? undefined : b ? "Yes" : "No");
 const packages = (d: DocumentData) =>
@@ -86,8 +92,8 @@ export const DOCUMENTS: DocSpec[] = [
         title: "Rate offered",
         rows: [
           { label: "Container type", value: (d) => d.containerType },
-          { label: "Freight rate", value: (d) => inr(d.freightAmountInr) },
-          { label: "Rate requested by customer", value: (d) => inr(d.targetPriceInr) },
+          { label: "Freight rate", value: (d) => money(d, d.freightAmountInr) },
+          { label: "Rate requested by customer", value: (d) => money(d, d.targetPriceInr) },
           { label: "Indicative sailing", value: (d) => d.sailingDate },
           { label: "Incoterm", value: (d) => d.incoterm },
         ],
@@ -111,7 +117,7 @@ export const DOCUMENTS: DocSpec[] = [
         rows: [
           { label: "Customer", value: (d) => d.company ?? d.customerName },
           ...ROUTE_ROWS,
-          { label: "Agreed freight rate", value: (d) => inr(d.freightAmountInr) },
+          { label: "Agreed freight rate", value: (d) => money(d, d.freightAmountInr) },
         ],
       },
       { title: "Cargo", rows: CARGO_ROWS },
@@ -222,7 +228,7 @@ export const DOCUMENTS: DocSpec[] = [
       {
         title: "Freight",
         rows: [
-          { label: "Freight", value: (d) => inr(d.freightAmountInr) },
+          { label: "Freight", value: (d) => money(d, d.freightAmountInr) },
           { label: "Incoterm", value: (d) => d.incoterm },
           { label: "Payment terms", value: (d) => d.paymentTerms },
         ],
@@ -403,7 +409,7 @@ export const DOCUMENTS: DocSpec[] = [
         // Under the parties, where the left column has room the right does not use.
         title: "Payable before release",
         place: "left",
-        rows: [{ label: "Freight and charges", value: (d) => inr(d.freightAmountInr) }],
+        rows: [{ label: "Freight and charges", value: (d) => money(d, d.freightAmountInr) }],
       },
     ],
     notes: {
@@ -489,8 +495,8 @@ export const DOCUMENTS: DocSpec[] = [
       {
         title: "Value & terms",
         rows: [
-          { label: "Declared invoice value", value: (d) => inr(d.invoiceValueInr) },
-          { label: "Freight rate (agreed)", value: (d) => inr(d.freightAmountInr) },
+          { label: "Declared invoice value", value: (d) => money(d, d.invoiceValueInr) },
+          { label: "Freight rate (agreed)", value: (d) => money(d, d.freightAmountInr) },
           { label: "Incoterm", value: (d) => d.incoterm },
           { label: "Payment terms", value: (d) => d.paymentTerms },
           { label: "Letter of credit", value: (d) => yesNo(d.letterOfCredit) },
@@ -522,7 +528,7 @@ export const DOCUMENTS: DocSpec[] = [
           { label: "Route", value: route },
           { label: "B/L number", value: (d) => d.blNumber },
           { label: "Container", value: (d) => d.containerType },
-          { label: "Ocean freight", value: (d) => inr(d.freightAmountInr) },
+          { label: "Ocean freight", value: (d) => money(d, d.freightAmountInr) },
           { label: "Payment terms", value: (d) => d.paymentTerms },
         ],
       },
