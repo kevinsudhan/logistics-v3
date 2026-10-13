@@ -34,6 +34,7 @@ import {
   CheckSquare,
   MinusSquare,
   ListFilter,
+  Users,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ComposeMail from "../components/ComposeMail";
@@ -53,6 +54,7 @@ import Highlighted from "../components/Highlighted";
 import { searchTerms } from "../lib/searchHighlight";
 import { rememberAddresses } from "../services/addressBook";
 import { groupIntoThreads } from "../lib/threads";
+import { ccSenders, inCcView, type CcView } from "../lib/ccFilter";
 import { useAuth } from "../lib/auth";
 import { outcomeText } from "../lib/outlookConnect";
 import type { ComposeMode } from "../lib/mailQuote";
@@ -197,6 +199,13 @@ export default function Mail() {
   const [scope, setScope] = useState<"all" | "folder">("all");
   /** Outlook's Filter: everything, unread only, or flagged only. */
   const [filter, setFilter] = useState<"all" | "unread" | "flagged">("all");
+  /**
+   * Mail the mailbox was copied on (Cc or Bcc) or sent to directly, and of the
+   * copied, only what one person copied it on (lib/ccFilter). Outlook cannot
+   * filter on recipients, so this is read off the mail already loaded.
+   */
+  const [ccView, setCcView] = useState<CcView>("all");
+  const [ccFrom, setCcFrom] = useState<string | null>(null);
   /** A line at the foot of the screen saying what just happened (deleted, draft saved). */
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -524,15 +533,23 @@ export default function Mail() {
    */
   const conversations = useMemo(() => groupIntoThreads(messages), [messages]);
   /** The rows as drawn: a message each when searching, a conversation each otherwise. */
+  /** The copied and sent-direct views mean something only for mail received; not for Sent and Drafts. */
+  const ccApplies = folder !== "sent" && folder !== "drafts";
+  const ccActive = !searching && ccApplies && ccView !== "all";
   const rows = useMemo(() => {
     if (searching) return messages.map((m) => ({ key: m.id, m, group: [m] }));
-    const all = conversations.map((t) => ({ key: t.conversationId, m: t.messages[t.messages.length - 1], group: t.messages }));
+    // A conversation is shown when any message in it is one the view is for.
+    const all = conversations
+      .map((t) => ({ key: t.conversationId, m: t.messages[t.messages.length - 1], group: t.messages }))
+      .filter((r) => !ccActive || r.group.some((m) => inCcView(m, mailbox, ccView, ccFrom)));
     if (folder !== "inbox" || !returnedOf.size) return all;
     // Back from snooze, on top: Outlook keeps a moved message's received date,
     // so it would otherwise sit wherever that date puts it.
     const back = (r: (typeof all)[number]) => r.group.some((m) => returnedOf.has(m.id));
     return [...all.filter(back), ...all.filter((r) => !back(r))];
-  }, [searching, messages, conversations, folder, returnedOf]);
+  }, [searching, messages, conversations, folder, returnedOf, ccActive, ccView, ccFrom, mailbox]);
+  /** Who copied this mailbox, in the mail loaded: the choices for "copied by". */
+  const ccPeople = useMemo(() => ccSenders(messages, mailbox), [messages, mailbox]);
   // A selection only ever names rows that are on screen.
   useEffect(() => {
     setChecked((prev) => {
@@ -549,6 +566,8 @@ export default function Mail() {
     setSearch("");
     setQuery("");
     setFilter("all");
+    setCcView("all");
+    setCcFrom(null);
     setMoreOpen(false);
     setFolder(id);
   }
@@ -1315,7 +1334,7 @@ export default function Mail() {
               </button>
             </div>
           ) : !searching && (
-            <div className="flex items-center gap-0.5 border-b border-border px-2 py-1.5 text-[11.5px]" role="group" aria-label="Show">
+            <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5 text-[11.5px]" role="group" aria-label="Show">
               {(["all", "unread", "flagged"] as const).map((f) => (
                 <button
                   key={f}
@@ -1330,6 +1349,52 @@ export default function Mail() {
                   {f === "all" ? "All" : f === "unread" ? "Unread" : "Flagged"}
                 </button>
               ))}
+              {ccApplies && (
+                <>
+                  <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                  {(["copied", "direct"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      // Pressed again, it is off: back to everything.
+                      onClick={() => {
+                        setCcView((cur) => (cur === v ? "all" : v));
+                        setCcFrom(null);
+                      }}
+                      aria-pressed={ccView === v}
+                      title={
+                        v === "copied"
+                          ? "Mail you were copied on: on the Cc line, or blind-copied (not on To or Cc; mail to a group you are in shows here too)"
+                          : "Mail sent to you directly: your address on the To line"
+                      }
+                      className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
+                        ccView === v ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
+                      }`}
+                    >
+                      {v === "copied" && <Users size={11} />}
+                      {v === "copied" ? "CC & BCC" : "Not CC"}
+                    </button>
+                  ))}
+                  {ccView === "copied" && (
+                    <select
+                      value={ccFrom ?? ""}
+                      onChange={(e) => setCcFrom(e.target.value || null)}
+                      aria-label="Copied by"
+                      title="Copied by"
+                      className="ml-1 h-6 min-w-0 max-w-[12rem] flex-1 truncate rounded-md border border-border bg-surface-1 px-1.5 text-[11.5px] text-text-primary"
+                    >
+                      <option value="">From anyone</option>
+                      {ccPeople.map((p) => (
+                        <option key={p.address} value={p.address}>
+                          {p.name} ({p.count})
+                        </option>
+                      ))}
+                      {/* Still chosen, but nobody in the mail now loaded: kept rather than silently dropped. */}
+                      {ccFrom && !ccPeople.some((p) => p.address === ccFrom) && <option value={ccFrom}>{ccFrom} (0)</option>}
+                    </select>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -1384,6 +1449,15 @@ export default function Mail() {
                 />
               ))}
             </ul>
+          ) : ccActive && rows.length === 0 ? (
+            <div className="p-4 text-[13px] text-text-muted">
+              {ccView === "direct"
+                ? "Nothing sent to you directly in the mail loaded."
+                : ccFrom
+                  ? `Nothing ${ccPeople.find((p) => p.address === ccFrom)?.name ?? ccFrom} copied you on in the mail loaded.`
+                  : "Nothing you were copied on in the mail loaded."}
+              {nextLink && " Load older mail to look further back."}
+            </div>
           ) : (
             <ul className="divide-y divide-border max-h-[calc(100vh-260px)] min-h-[300px] overflow-y-auto overscroll-contain lg:max-h-none lg:min-h-0 lg:flex-1">
               {rows.map(({ key, m: newest, group }) => {
@@ -1433,7 +1507,9 @@ export default function Mail() {
                   {searching ? (
                     `${messages.length} result${messages.length === 1 ? "" : "s"} — that is all of them.`
                   ) : (
-                    <>
+                    ccActive ? (
+                      `${rows.length} of ${conversations.length} conversation${conversations.length === 1 ? "" : "s"} shown: that is the whole folder.`
+                    ) : <>
                   {conversations.length} conversation{conversations.length === 1 ? "" : "s"}
                   {conversations.length !== messages.length ? ` (${messages.length} messages)` : ""} — that is the whole
                   folder.
