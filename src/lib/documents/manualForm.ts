@@ -40,6 +40,8 @@ export interface ManualField {
   wide?: boolean;
   /** Offered as it is typed (a text field): anything else can still be typed. */
   suggestions?: string[];
+  /** Shown only while this holds: a rate of exchange only once a line is in that currency. */
+  when?: (v: ManualValues) => boolean;
 }
 
 /** Lines of something — the boxes, the house bills — typed as a table. */
@@ -116,6 +118,9 @@ export interface FormDoc extends ManualDocBase {
 // Reading what was typed
 // ---------------------------------------------------------------------------
 
+/** The fields of a section that are on the form now: those with no `when`, and those whose `when` holds. */
+export const shownFields = (s: ManualSection, v: ManualValues) => (s.fields ?? []).filter((f) => !f.when || f.when(v));
+
 /** A field's text, trimmed; "" when it is a table or was never typed. */
 export function text(v: ManualValues, key: string): string {
   const x = v[key];
@@ -154,7 +159,7 @@ export function parseYesNo(s: string | undefined | null): boolean | undefined {
 export function unreadableNumbers(sections: ManualSection[], v: ManualValues): string[] {
   const bad: string[] = [];
   for (const s of sections) {
-    for (const f of s.fields ?? []) {
+    for (const f of shownFields(s, v)) {
       if (f.input === "number" && text(v, f.key) && parseNumber(text(v, f.key)) === undefined) bad.push(f.label);
     }
     if (s.table) {
@@ -172,7 +177,7 @@ export function unreadableNumbers(sections: ManualSection[], v: ManualValues): s
 
 /** The required fields of a form with nothing in them, by label. */
 export function emptyRequired(sections: ManualSection[], v: ManualValues): string[] {
-  return sections.flatMap((s) => (s.fields ?? []).filter((f) => f.required && !text(v, f.key)).map((f) => f.label));
+  return sections.flatMap((s) => shownFields(s, v).filter((f) => f.required && !text(v, f.key)).map((f) => f.label));
 }
 
 /** A blank line for a table: every column empty. */

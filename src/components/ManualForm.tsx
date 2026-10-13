@@ -4,6 +4,7 @@ import { Section } from "./HblBoxes";
 import {
   blankRow,
   parseNumber,
+  shownFields,
   type ManualField,
   type ManualRow,
   type ManualSection,
@@ -31,13 +32,14 @@ export default function ManualForm({
   return (
     <>
       {sections.map((s) =>
-        s.table ? (
+        // A section of fields none of which is called for yet is not drawn at all.
+        !s.table && shownFields(s, values).length === 0 ? null : s.table ? (
           <TableSection key={s.title} section={s} table={s.table} rows={asRows(values[s.table.key])} onChange={(rows) => onChange(s.table!.key, rows)} />
         ) : (
           <Section key={s.title} title={s.title}>
             {s.note && <p className="-mt-1 mb-3 text-[11.5px] text-text-muted">{s.note}</p>}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {(s.fields ?? []).map((f) => (
+              {shownFields(s, values).map((f) => (
                 <FieldBox key={f.key} field={f} value={typeof values[f.key] === "string" ? (values[f.key] as string) : ""} onChange={(v) => onChange(f.key, v)} />
               ))}
             </div>

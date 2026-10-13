@@ -115,34 +115,89 @@ export const CHARGE_SETS: Array<{ label: string; charges: string[] }> = [
 ];
 
 // ---------------------------------------------------------------------------
+// Currencies
+// ---------------------------------------------------------------------------
+
+/**
+ * What a charge line can be in. Each line names its own: ocean freight comes
+ * in dollars, a delivery order in rupees, a European agent's handling in
+ * euros, and all of it is one invoice. The invoice foots in rupees, at a rate
+ * of exchange given once for each foreign currency on it.
+ */
+export const INVOICE_CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "CNY", "JPY", "HKD", "AUD", "SAR"];
+
+export const CURRENCY_NAME: Record<string, string> = {
+  INR: "Indian rupee",
+  USD: "US dollar",
+  EUR: "Euro",
+  GBP: "British pound",
+  AED: "UAE dirham",
+  SGD: "Singapore dollar",
+  CNY: "Chinese yuan",
+  JPY: "Japanese yen",
+  HKD: "Hong Kong dollar",
+  AUD: "Australian dollar",
+  SAR: "Saudi riyal",
+};
+
+/** What a charge is usually billed in: the carrier's freight and surcharges in dollars, the rest in rupees. */
+export const usualCurrency = (h: InvoiceChargeHead | undefined) => (h?.group === "freight" && h.label !== "Air freight") || h?.group === "surcharge" ? "USD" : "INR";
+
+export const lineCurrency = (l: ChargeLine) => (l.currency || "INR").toUpperCase();
+
+/** Rupees to one unit of a currency on this invoice: one for rupees, the rate given for the rest, or undefined until it is. */
+export function rateOfExchange(d: DocumentData, currency: string): number | undefined {
+  if (currency === "INR") return 1;
+  const r = d.exchangeRates?.[currency];
+  return r && r > 0 ? r : undefined;
+}
+
+/** The foreign currencies the lines are in, in the order they first appear. */
+export const foreignCurrencies = (lines: ChargeLine[]) => [...new Set(lines.map(lineCurrency).filter((c) => c !== "INR"))];
+
+// ---------------------------------------------------------------------------
 // The sums
 // ---------------------------------------------------------------------------
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** A line's amount before tax, once it has a rate; a line with no quantity typed is one of it. */
+/** A line's amount before tax, in its own currency, once it has a rate; a line with no quantity typed is one of it. */
 export function lineAmount(l: ChargeLine): number | undefined {
   if (l.rate === undefined) return undefined;
   return round2((l.quantity ?? 1) * l.rate);
 }
 
-export function lineGst(l: ChargeLine): number | undefined {
+/** The same in rupees, at the invoice's rate of exchange for the line's currency; undefined until both are known. */
+export function lineInr(l: ChargeLine, d: DocumentData): number | undefined {
   const amount = lineAmount(l);
-  if (amount === undefined) return undefined;
-  return l.gstPercent ? round2((amount * l.gstPercent) / 100) : 0;
+  const roe = rateOfExchange(d, lineCurrency(l));
+  return amount === undefined || roe === undefined ? undefined : round2(amount * roe);
 }
 
-/** The invoice's totals, or undefined while any line has no rate: a total of some of it is not the total. */
-export function chargeTotals(lines: ChargeLine[]): { taxable: number; gst: number; total: number } | undefined {
-  if (!lines.length || lines.some((l) => l.rate === undefined)) return undefined;
-  const taxable = round2(lines.reduce((t, l) => t + lineAmount(l)!, 0));
-  const gst = round2(lines.reduce((t, l) => t + lineGst(l)!, 0));
+/** GST on the line, in rupees: charged on the rupee value, as an Indian tax invoice states it. */
+export function lineGst(l: ChargeLine, d: DocumentData): number | undefined {
+  const inr = lineInr(l, d);
+  if (inr === undefined) return undefined;
+  return l.gstPercent ? round2((inr * l.gstPercent) / 100) : 0;
+}
+
+/** The invoice's totals in rupees, or undefined while any line has no rate or no rate of exchange: a total of some of it is not the total. */
+export function chargeTotals(lines: ChargeLine[], d: DocumentData): { taxable: number; gst: number; total: number } | undefined {
+  if (!lines.length || lines.some((l) => lineInr(l, d) === undefined)) return undefined;
+  const taxable = round2(lines.reduce((t, l) => t + lineInr(l, d)!, 0));
+  const gst = round2(lines.reduce((t, l) => t + lineGst(l, d)!, 0));
   return { taxable, gst, total: round2(taxable + gst) };
 }
 
-/** What an itemised invoice still needs: a rate on every line. */
+/** What an itemised invoice still needs: a rate on every line, and a rate of exchange for every foreign currency on it. */
 export function chargesOutstanding(d: DocumentData): string[] {
-  return (d.charges ?? []).filter((l) => l.rate === undefined).map((l) => `Rate for ${l.charge}`);
+  const lines = d.charges ?? [];
+  return [
+    ...lines.filter((l) => l.rate === undefined).map((l) => `Rate for ${l.charge}`),
+    ...foreignCurrencies(lines)
+      .filter((c) => rateOfExchange(d, c) === undefined)
+      .map((c) => `Rate of exchange for ${c}`),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -155,10 +210,13 @@ export function docMoney(d: DocumentData, n?: number): string | undefined {
   return d.currency === "USD" ? `USD ${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : `Rs. ${n.toLocaleString("en-IN")}`;
 }
 
-/** A figure in a column of the charges table: always to the cent or paisa, so the column lines up. */
-export function docFigure(d: DocumentData, n: number): string {
-  return n.toLocaleString(d.currency === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+/** A rupee figure in a column of the charges table: always to the paisa, so the column lines up. */
+export const rupeeFigure = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** The currency's name as a column heading says it. */
-export const currencyCode = (d: DocumentData) => (d.currency === "USD" ? "USD" : "INR");
+/** A line's rate as it was given: "USD 1,150.00", "INR 5,000.00". */
+export const rateFigure = (currency: string, n: number) =>
+  `${currency} ${n.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** A rate of exchange as it is printed: "1 USD = INR 83.50". */
+export const roeFigure = (currency: string, roe: number) =>
+  `1 ${currency} = INR ${roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;

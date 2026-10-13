@@ -9,7 +9,7 @@ import { docDate } from "./letterhead";
 import { hblFileName, renderHblPdf, type HblPrint } from "./hblPdf";
 import { hawbFileName, renderHawbPdf } from "./hawbPdf";
 import { CONSOLE_DOCUMENTS } from "./manualConsole";
-import { CHARGE_SETS, chargeHead, INVOICE_BASES, INVOICE_CHARGES } from "./charges";
+import { CHARGE_SETS, chargeHead, CURRENCY_NAME, INVOICE_BASES, INVOICE_CHARGES, INVOICE_CURRENCIES, usualCurrency } from "./charges";
 import {
   lines,
   parseNumber,
@@ -272,7 +272,7 @@ const CURRENCY: ManualField = {
     { value: "USD", label: "USD — US dollars" },
     { value: "INR", label: "INR — Indian rupees" },
   ],
-  hint: "Every rate and charge on the document is in this.",
+  hint: "The rates on the document are in this. A freight invoice's charge lines each name their own currency.",
 };
 
 /**
@@ -284,7 +284,7 @@ const CURRENCY: ManualField = {
  */
 const CHARGES_SECTION: ManualSection = {
   title: "Charges",
-  note: "A line per charge, in the document's currency. Pick a charge or type your own; SAC and basis fill in from the list when left blank. No quantity is one. Itemised, these replace the single freight rate.",
+  note: "A line per charge, each in its own currency; the invoice totals in INR at the rates of exchange below. Pick a charge or type your own; SAC and basis fill in from the list when left blank. No quantity is one. Itemised, these replace the single freight rate.",
   table: {
     key: "charges",
     label: "Charges",
@@ -294,6 +294,7 @@ const CHARGES_SECTION: ManualSection = {
       { key: "charge", label: "Charge", placeholder: "Ocean freight", suggestions: INVOICE_CHARGES.map((h) => h.label) },
       { key: "basis", label: "Basis", placeholder: "Container, W/M, B/L", suggestions: INVOICE_BASES },
       { key: "quantity", label: "Quantity", input: "number", placeholder: "1" },
+      { key: "currency", label: "Currency", input: "select", options: INVOICE_CURRENCIES.map((c) => ({ value: c, label: c })) },
       { key: "rate", label: "Rate", input: "number", required: true },
       { key: "gst", label: "GST %", input: "number", placeholder: "None" },
       { key: "sac", label: "SAC", placeholder: "From the list" },
@@ -302,11 +303,45 @@ const CHARGES_SECTION: ManualSection = {
       label: set.label,
       rows: set.charges.map((c) => {
         const h = chargeHead(c);
-        return { charge: c, basis: h?.basis ?? "", quantity: "", rate: "", gst: "", sac: "" };
+        return { charge: c, basis: h?.basis ?? "", quantity: "", currency: usualCurrency(h), rate: "", gst: "", sac: "" };
       }),
     })),
   },
 };
+
+/** The currencies the typed charge lines are in, other than rupees: the ones a rate of exchange is asked for. */
+const foreignTyped = (v: ManualValues) => new Set(lines(v, "charges").map((r) => (r.currency || "INR").toUpperCase()).filter((c) => c !== "INR"));
+
+/**
+ * One rate of exchange per foreign currency, for the whole invoice: every
+ * line in that currency is converted at it. Each is on the form only while a
+ * line is in that currency.
+ */
+const EXCHANGE_SECTION: ManualSection = {
+  title: "Rates of exchange",
+  note: "Rupees to one unit of each currency the charges are in. Every line in it is converted at this rate, and the totals are in INR.",
+  fields: INVOICE_CURRENCIES.filter((c) => c !== "INR").map(
+    (c): ManualField => ({
+      key: `roe_${c}`,
+      label: `1 ${c} = ? INR`,
+      input: "number",
+      required: true,
+      placeholder: c === "USD" ? "e.g. 83.50" : "",
+      hint: CURRENCY_NAME[c],
+      when: (v) => foreignTyped(v).has(c),
+    })
+  ),
+};
+
+/** The rates of exchange typed, by currency; one not typed, or not a positive number, is left out. */
+function exchangeRatesOf(v: ManualValues): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of INVOICE_CURRENCIES) {
+    const r = parseNumber(text(v, `roe_${c}`));
+    if (c !== "INR" && r !== undefined && r > 0) out[c] = r;
+  }
+  return out;
+}
 
 /** What was typed on the charge lines, as the invoice prints them; a line with nothing typed is left out. */
 function chargesOf(v: ManualValues): ChargeLine[] {
@@ -319,6 +354,7 @@ function chargesOf(v: ManualValues): ChargeLine[] {
       sac: (r.sac ?? "").trim() || h?.sac,
       basis: (r.basis ?? "").trim() || h?.basis,
       quantity: quantity ?? 1,
+      currency: (r.currency || "INR").toUpperCase(),
       rate: parseNumber(r.rate),
       gstPercent: parseNumber(r.gst),
     };
@@ -348,7 +384,7 @@ export function sectionsFor(spec: DocSpec): ManualSection[] {
           })
         ),
     })).filter((s) => s.fields.length > 0),
-    ...(spec.charges ? [CHARGES_SECTION] : []),
+    ...(spec.charges ? [CHARGES_SECTION, EXCHANGE_SECTION] : []),
   ];
 }
 
@@ -384,6 +420,7 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
     // Dollars unless rupees were chosen: what the page has always typed in.
     currency: text(v, "currency") === "INR" ? "INR" : "USD",
     charges: chargesOf(v),
+    exchangeRates: exchangeRatesOf(v),
     raw: {} as DocumentData["raw"],
   };
 }

@@ -11,7 +11,7 @@ import {
   sectionsFor,
 } from "../../src/lib/documents/manual";
 import { manifestInput, masterSiInput, outturnInput, stuffingInput, cfsNominationInput } from "../../src/lib/documents/manualConsole";
-import { parseNumber, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
+import { parseNumber, shownFields, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
 import { DOCUMENTS, documentSpec } from "../../src/lib/documents/registry";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
 import { renderDocument } from "../../src/lib/documents/render";
@@ -45,7 +45,8 @@ has("the VGM's weighing, typed by a person", keysOf(documentSpec("vgm-declaratio
 has("the POD's receipt, typed by a person", keysOf(documentSpec("proof-of-delivery")!), ["deliveredOn", "receivedBy"]);
 for (const spec of DOCUMENTS) {
   const fields = sectionsFor(spec).flatMap((s) => s.fields ?? []);
-  const required = fields.filter((f) => f.required).map((f) => f.key).sort();
+  // A field on the form only some of the time (a rate of exchange) is required then, by the document's own check.
+  const required = fields.filter((f) => f.required && !f.when).map((f) => f.key).sort();
   is(`${spec.shortName}: every field it requires is on its form, marked`, required, [...spec.requires].sort());
 }
 
@@ -252,25 +253,37 @@ is("has a charges table, with the usual sets", chargeTable?.presets?.map((p) => 
 is("the LCL set", chargeTable?.presets?.find((p) => p.label === "LCL export")?.rows.map((r) => [r.charge, r.basis]), [
   ["Ocean freight", "Container"], ["CFS charges", "W/M"], ["LCL THC", "W/M"], ["Consolidation / stuffing", "W/M"], ["B/L fee", "B/L"], ["Customs clearance", "Shipment"],
 ]);
+is("the usual currency: freight in dollars, the rest in rupees", chargeTable?.presets?.find((p) => p.label === "LCL export")?.rows.map((r) => r.currency), ["USD", "INR", "INR", "INR", "INR", "INR"]);
 const invoice: ManualValues = {
-  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", currency: "USD",
+  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", roe_USD: "83.50",
   charges: [
-    { charge: "Ocean freight", basis: "W/M", quantity: "4.5", rate: "60", gst: "", sac: "" },
-    { charge: "CFS charges", basis: "", quantity: "4.5", rate: "12", gst: "18", sac: "" },
-    { charge: "B/L fee", basis: "", quantity: "", rate: "", gst: "18", sac: "" },
-    { charge: "", basis: "", quantity: "", rate: "", gst: "", sac: "" },
+    { charge: "Ocean freight", basis: "W/M", quantity: "4.5", currency: "USD", rate: "60", gst: "", sac: "" },
+    { charge: "CFS charges", basis: "", quantity: "4.5", currency: "INR", rate: "650", gst: "18", sac: "" },
+    { charge: "Documentation fee", basis: "", quantity: "", currency: "EUR", rate: "50", gst: "18", sac: "" },
+    { charge: "B/L fee", basis: "", quantity: "", currency: "", rate: "", gst: "18", sac: "" },
+    { charge: "", basis: "", quantity: "", currency: "", rate: "", gst: "", sac: "" },
   ],
 };
 const lines = documentDataFromManual(invoice).charges!;
-is("blank lines left out; SAC and basis from the list; no quantity is one", lines.map((l) => [l.charge, l.sac, l.basis, l.quantity]), [
-  ["Ocean freight", "996521", "W/M", 4.5], ["CFS charges", "996719", "W/M", 4.5], ["B/L fee", "996799", "B/L", 1],
+is("blank lines left out; SAC and basis from the list; no quantity is one; no currency is rupees", lines.map((l) => [l.charge, l.sac, l.basis, l.quantity, l.currency]), [
+  ["Ocean freight", "996521", "W/M", 4.5, "USD"], ["CFS charges", "996719", "W/M", 4.5, "INR"], ["Documentation fee", "996799", "Shipment", 1, "EUR"], ["B/L fee", "996799", "B/L", 1, "INR"],
 ]);
-is("a line with no rate keeps it a draft", missingOf(fi, { ...emptyState(), shipment: invoice }), ["Rate for B/L fee"]);
-const priced = { ...invoice, charges: (invoice.charges as Array<Record<string, string>>).map((r) => (r.charge === "B/L fee" ? { ...r, rate: "50" } : r)) };
-is("every line priced: nothing outstanding", missingOf(fi, { ...emptyState(), shipment: priced }), []);
+const roeSection = fi.sections.find((s) => s.title === "Rates of exchange")!;
+is("a rate of exchange asked for each foreign currency on the lines, and no other", shownFields(roeSection, invoice).map((f) => f.key), ["roe_USD", "roe_EUR"]);
+is("none asked for an invoice all in rupees", shownFields(roeSection, { charges: [{ charge: "THC", currency: "INR", rate: "1" }] }).length, 0);
+is("a line with no rate, and a currency with no rate of exchange, keep it a draft", missingOf(fi, { ...emptyState(), shipment: invoice }), ["Rate for B/L fee", "Rate of exchange for EUR"]);
+const priced: ManualValues = { ...invoice, roe_EUR: "90", charges: (invoice.charges as Array<Record<string, string>>).map((r) => (r.charge === "B/L fee" ? { ...r, rate: "5000" } : r)) };
+is("every line priced and every rate given: nothing outstanding", missingOf(fi, { ...emptyState(), shipment: priced }), []);
 const fiText = (await bodies(fi.render(priced))).flat().join(" ");
-is("the lines and totals on the invoice", ["CHARGES", "AMOUNT (USD)", "GST (USD)", "996719", "270.00", "54.00", "9.72", "Taxable value", "374.00", "18.72", "392.72"].filter((w) => !fiText.includes(w)), []);
+is("each rate in its currency, converted, GST and totals in rupees, the rates printed", [
+  "CHARGES", "ROE", "AMOUNT (INR)", "GST (INR)", "TOTAL (INR)", "USD 60.00", "EUR 50.00", "INR 650.00", "INR 5,000.00", "83.50", "22,545.00", "2,925.00", "4,500.00",
+  "526.50", "810.00", "900.00", "Taxable value (INR)", "34,970.00", "2,236.50", "37,206.50", "Rates of exchange", "1 USD = INR 83.50", "1 EUR = INR 90.00",
+].filter((w) => !fiText.includes(w)), []);
 is("not the freight twice", fiText.includes("Ocean freight USD"), false);
+const missingRoe = (await bodies(fi.render({ ...priced, roe_EUR: "" }))).flat().join(" ");
+is("without a rate of exchange, its line and the totals are TBD", [missingRoe.includes("1 EUR = INR TBD"), missingRoe.includes("37,206.50"), missingRoe.includes("Rate of exchange for EUR")], [true, false, true]);
+const inrOnly = (await bodies(fi.render({ origin: "CHENNAI", destination: "JEBEL ALI", charges: [{ charge: "THC", currency: "INR", rate: "1000" }] }))).flat().join(" ");
+is("all in rupees: no rate-of-exchange column or line", [inrOnly.includes("ROE"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00")], [false, false, true]);
 is("without lines, the one freight figure, as before", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);

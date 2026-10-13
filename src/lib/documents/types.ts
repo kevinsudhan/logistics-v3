@@ -136,23 +136,27 @@ export interface DocumentData {
   currency?: "INR" | "USD";
   /** The charges, line by line, where they were itemised (a manual freight invoice); otherwise the one freight figure. */
   charges?: ChargeLine[];
+  /** Rupees to one unit of each foreign currency the charges are in ("USD" -> 83.5): what they are converted at. */
+  exchangeRates?: Record<string, number>;
   raw: RequestDetails;
 }
 
-/** One line of an itemised invoice, in the document's currency. */
+/** One line of an itemised invoice: its rate in its own currency, converted to rupees for the totals. */
 export interface ChargeLine {
   charge: string;
   sac?: string;
   /** What the quantity counts: Container, W/M, B/L, Kg. */
   basis?: string;
   quantity?: number;
+  /** What the rate is in: "INR" when not said. */
+  currency?: string;
   rate?: number;
   /** GST on the line, as a percentage; none when not given. */
   gstPercent?: number;
 }
 
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "raw">;
+export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "raw">;
 
 export interface DocRow {
   label: string;

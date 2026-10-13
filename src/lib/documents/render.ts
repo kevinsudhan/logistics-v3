@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import type { ChargeLine, DocRow, DocSection, DocSpec, DocumentData } from "./types";
-import { chargeTotals, currencyCode, docFigure, lineAmount, lineGst } from "./charges";
+import { chargeTotals, foreignCurrencies, lineCurrency, lineGst, lineInr, rateFigure, rateOfExchange, roeFigure, rupeeFigure } from "./charges";
 import { documentNo, readiness } from "./data";
 import {
   BRAND,
@@ -636,29 +636,56 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
 
   /**
    * The charges, a line each, ruled as a table, with the totals under the
-   * figures. The GST columns are left out when no line carries GST — an
-   * export invoice in dollars, say — rather than printed as a column of noughts.
-   * A line with no rate shows TBD where its figures go, and so do the totals:
-   * a total of some of the lines is not the total.
+   * figures. Each line's rate is printed in the currency it was given in, and
+   * converted to rupees at the invoice's rate of exchange for that currency;
+   * GST and the totals are in rupees, and the rates used are printed under
+   * them. The rate-of-exchange column is left out when every line is in
+   * rupees, and the GST columns when no line carries GST, rather than printed
+   * as columns of dashes. A line without its rate, or without a rate of
+   * exchange for its currency, shows TBD where its figures go, and so do the
+   * totals: a total of some of the lines is not the total.
    */
   function drawCharges(title: string, lines: ChargeLine[]) {
-    const cur = currencyCode(data);
     const taxed = lines.some((l) => l.gstPercent);
-    const figure = (n: number | undefined) => (n === undefined ? TBD : docFigure(data, n));
+    const foreign = foreignCurrencies(lines);
+    const figure = (n: number | undefined) => (n === undefined ? TBD : rupeeFigure(n));
     type Col = { head: string; w: number; right?: boolean; cell: (l: ChargeLine, i: number) => string };
     const cols: Col[] = [
       { head: "#", w: 0.5, cell: (_, i) => String(i + 1) },
-      { head: "Charge", w: 3.4, cell: (l) => l.charge },
-      { head: "SAC", w: 1.2, cell: (l) => l.sac ?? "" },
+      { head: "Charge", w: 2.35, cell: (l) => l.charge },
+      { head: "SAC", w: 0.95, cell: (l) => l.sac ?? "" },
       { head: "Basis", w: 1.3, cell: (l) => l.basis ?? "" },
-      { head: "Qty", w: 0.8, right: true, cell: (l) => (l.quantity ?? 1).toLocaleString("en-US", { maximumFractionDigits: 3 }) },
-      { head: `Rate (${cur})`, w: 1.5, right: true, cell: (l) => figure(l.rate) },
-      { head: `Amount (${cur})`, w: 1.7, right: true, cell: (l) => figure(lineAmount(l)) },
+      { head: "Qty", w: 0.5, right: true, cell: (l) => (l.quantity ?? 1).toLocaleString("en-US", { maximumFractionDigits: 3 }) },
+      { head: "Rate", w: 1.7, right: true, cell: (l) => (l.rate === undefined ? TBD : rateFigure(lineCurrency(l), l.rate)) },
+      ...(foreign.length
+        ? [
+            {
+              head: "ROE",
+              w: 0.8,
+              right: true,
+              cell: (l: ChargeLine) => {
+                const c = lineCurrency(l);
+                if (c === "INR") return "-";
+                const roe = rateOfExchange(data, c);
+                return roe === undefined ? TBD : roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+              },
+            },
+          ]
+        : []),
+      { head: "Amount (INR)", w: 1.75, right: true, cell: (l) => figure(lineInr(l, data)) },
       ...(taxed
         ? [
             { head: "GST %", w: 0.8, right: true, cell: (l: ChargeLine) => (l.gstPercent ? `${l.gstPercent}%` : "-") },
-            { head: `GST (${cur})`, w: 1.4, right: true, cell: (l: ChargeLine) => figure(lineGst(l)) },
-            { head: `Total (${cur})`, w: 1.7, right: true, cell: (l: ChargeLine) => figure(lineAmount(l) === undefined ? undefined : lineAmount(l)! + lineGst(l)!) },
+            { head: "GST (INR)", w: 1.3, right: true, cell: (l: ChargeLine) => figure(lineGst(l, data)) },
+            {
+              head: "Total (INR)",
+              w: 1.65,
+              right: true,
+              cell: (l: ChargeLine) => {
+                const inr = lineInr(l, data);
+                return figure(inr === undefined ? undefined : inr + lineGst(l, data)!);
+              },
+            },
           ]
         : []),
     ];
@@ -688,7 +715,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     y += 9.4;
     header();
 
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.4);
     lines.forEach((l, n) => {
       const cells = cols.map((c, i) => {
         doc.setFont("helvetica", i === 1 ? "bold" : "normal");
@@ -715,17 +742,37 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       doc.setLineWidth(0.2);
     });
 
-    // The totals, under the figures, the last in bold.
-    const totals = chargeTotals(lines);
+    // The totals, under the figures, the last in bold; the rates of exchange they were worked at beside them.
+    const totals = chargeTotals(lines, data);
     const rows: Array<[string, number | undefined]> = taxed
       ? [
-          ["Taxable value", totals?.taxable],
-          ["GST", totals?.gst],
-          [`Total (${cur})`, totals?.total],
+          ["Taxable value (INR)", totals?.taxable],
+          ["GST (INR)", totals?.gst],
+          ["Total (INR)", totals?.total],
         ]
-      : [[`Total (${cur})`, totals?.total]];
+      : [["Total (INR)", totals?.total]];
     ensure(rows.length * 5 + 4);
     y += 4.6;
+    /** Where the rates of exchange end, when they run below the totals. */
+    let roeEnd = y;
+    if (foreign.length) {
+      const said = foreign.map((c) => {
+        const roe = rateOfExchange(data, c);
+        return roe === undefined ? `1 ${c} = INR TBD` : roeFigure(c, roe);
+      });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.4);
+      set(MUTED);
+      doc.text("Rates of exchange", MARGIN + 1, y);
+      doc.setFont("helvetica", "bold");
+      set(INK);
+      let ry = y + 3.8;
+      for (const line of doc.splitTextToSize(said.join("   ·   "), CONTENT_W - 70) as string[]) {
+        doc.text(line, MARGIN + 1, ry);
+        ry += 3.6;
+      }
+      roeEnd = ry;
+    }
     const valueX = PAGE_W - MARGIN - 1.6;
     const labelX = valueX - 42;
     rows.forEach(([label, value], i) => {
@@ -739,6 +786,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       doc.text(figure(value), valueX, y, { align: "right" });
       y += last ? 5.4 : 4.6;
     });
+    y = Math.max(y, roeEnd);
     y += 4 * fit.gap;
   }
 
