@@ -1,4 +1,6 @@
 import type { ChargeLine, DocumentData } from "./types";
+import { COMPANY } from "../company";
+import { STATES } from "../../services/charges";
 
 /**
  * The charges a freight invoice is itemised in, and the sums on it.
@@ -220,3 +222,113 @@ export const rateFigure = (currency: string, n: number) =>
 /** A rate of exchange as it is printed: "1 USD = INR 83.50". */
 export const roeFigure = (currency: string, roe: number) =>
   `1 ${currency} = INR ${roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+
+// ---------------------------------------------------------------------------
+// Who is billed, and the GST a statement adds
+// ---------------------------------------------------------------------------
+
+/** A GSTIN as GST writes one: two digits of state, the PAN, the entity, Z, a check character. */
+const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/;
+
+/** The GSTIN, written one way, or null for anything that is not one (an IEC, a foreign tax number). */
+export const gstinOf = (g?: string) => {
+  const t = (g ?? "").replace(/\s+/g, "").toUpperCase();
+  return GSTIN.test(t) ? t : null;
+};
+
+/** "33 (Tamil Nadu)", from a GSTIN's first two digits; nothing for a number that is not a GSTIN. */
+export const stateOf = (tax?: string) => {
+  const g = gstinOf(tax);
+  if (!g) return undefined;
+  const name = STATES.find((s) => s.code === g.slice(0, 2))?.name;
+  return name ? `${g.slice(0, 2)} (${name})` : g.slice(0, 2);
+};
+
+/** The party an invoice is addressed to (`billTo`): the consignee unless another was chosen. */
+export function billed(d: DocumentData): { name?: string; address?: string; tax?: string } {
+  if (d.billTo === "shipper") return { name: d.shipperName, address: d.shipperAddress, tax: d.shipperGstinIec };
+  if (d.billTo === "notify") return { name: d.notifyName, address: d.notifyAddress, tax: d.notifyGstin };
+  return { name: d.consigneeName, address: [d.consigneeAddress, d.consigneeCountry].filter(Boolean).join(", ") || undefined, tax: d.consigneeGstin };
+}
+
+/**
+ * Whether the GST is integrated: the party billed is registered in another
+ * state than ours. Within the state — and where the party billed has no
+ * GSTIN to say otherwise — it is central and state tax, half each.
+ */
+export function interState(d: DocumentData): boolean {
+  const g = gstinOf(billed(d).tax);
+  return Boolean(g) && g!.slice(0, 2) !== COMPANY.gstin.slice(0, 2);
+}
+
+export interface TaxLine {
+  label: string;
+  /** In rupees; undefined while a line it is charged on has no rupee value yet. */
+  amount: number | undefined;
+}
+
+const percent = (r: number) => `${r.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
+
+/**
+ * The GST a statement of charges adds, as its own lines, rate by rate and the
+ * highest first: "Central Goods and Service Tax @9%" and "State Goods and
+ * Service Tax @9%" on everything charged at 18% within the state; "Integrated
+ * Goods and Service Tax @18%" across it. Each on the rupee value of the lines
+ * charged at that rate.
+ */
+export function taxLines(lines: ChargeLine[], d: DocumentData): TaxLine[] {
+  const rates = [...new Set(lines.map((l) => l.gstPercent).filter((r): r is number => r !== undefined && r > 0))].sort((a, b) => b - a);
+  const inter = interState(d);
+  return rates.flatMap((r) => {
+    const taxed = lines.filter((l) => l.gstPercent === r);
+    const base = taxed.some((l) => lineInr(l, d) === undefined) ? undefined : taxed.reduce((t, l) => t + lineInr(l, d)!, 0);
+    if (inter) return [{ label: `Integrated Goods and Service Tax @${percent(r)}`, amount: base === undefined ? undefined : round2((base * r) / 100) }];
+    const half = base === undefined ? undefined : round2((base * r) / 200);
+    return [
+      { label: `Central Goods and Service Tax @${percent(r / 2)}`, amount: half },
+      { label: `State Goods and Service Tax @${percent(r / 2)}`, amount: half },
+    ];
+  });
+}
+
+/** A statement's total: the charges in rupees and the tax lines, as printed; undefined while any is not known. */
+export function statementTotal(lines: ChargeLine[], d: DocumentData): number | undefined {
+  const charges = chargeTotals(lines, d);
+  const tax = taxLines(lines, d);
+  if (!charges || tax.some((t) => t.amount === undefined)) return undefined;
+  return round2(charges.taxable + tax.reduce((s, t) => s + t.amount!, 0));
+}
+
+// ---------------------------------------------------------------------------
+// The total in words
+// ---------------------------------------------------------------------------
+
+const ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+const belowHundred = (n: number) => (n < 20 ? ONES[n] : `${TENS[Math.floor(n / 10)]}${n % 10 ? `-${ONES[n % 10]}` : ""}`);
+
+/** A whole number in words, counted the Indian way: crore, lakh, thousand, hundred. */
+function indianWords(n: number): string {
+  if (n === 0) return "Zero";
+  const crore = Math.floor(n / 10_000_000);
+  const lakh = Math.floor((n % 10_000_000) / 100_000);
+  const thousand = Math.floor((n % 100_000) / 1000);
+  const hundred = Math.floor((n % 1000) / 100);
+  const rest = n % 100;
+  const parts: string[] = [];
+  if (crore) parts.push(`${indianWords(crore)} Crore`);
+  if (lakh) parts.push(`${belowHundred(lakh)} Lakh`);
+  if (thousand) parts.push(`${belowHundred(thousand)} Thousand`);
+  if (hundred) parts.push(`${ONES[hundred]} Hundred`);
+  if (rest) parts.push(`${parts.length ? "and " : ""}${belowHundred(rest)}`);
+  return parts.join(" ");
+}
+
+/** A rupee total as an invoice writes it out: "Indian Rupees Three Thousand Three Hundred and Ninety-Three and Seventy-Six Paise Only". */
+export function rupeesInWords(n: number): string {
+  const paisa = Math.round(Math.abs(n) * 100);
+  const rupees = Math.floor(paisa / 100);
+  const paise = paisa % 100;
+  return `Indian Rupees ${indianWords(rupees)}${paise ? ` and ${belowHundred(paise)} Paise` : ""} Only`;
+}

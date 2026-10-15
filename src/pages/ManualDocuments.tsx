@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, Eraser, Eye, FileDown, Info, Search } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, Eraser, Eye, FileDown, FolderOpen, Info, Loader2, Search, Trash2 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ManualForm from "../components/ManualForm";
 import HblBoxes, { inputBase, Labelled, Section } from "../components/HblBoxes";
@@ -9,6 +9,9 @@ import { normaliseHbl, paperless, RELEASE_HINT, RELEASE_LABEL, RELEASE_MODES, ty
 import { normaliseHawb } from "../lib/hawb";
 import type { HblPrint } from "../lib/documents/hblPdf";
 import {
+  blFieldOf,
+  blOf,
+  documentForKey,
   emptyState,
   emptyStore,
   manualDocument,
@@ -16,9 +19,17 @@ import {
   matches,
   missingOf,
   pdfOf,
+  savedKeyOf,
+  savedLabelOf,
+  savedValuesOf,
+  withSaved,
   type ManualDoc,
   type ManualState,
 } from "../lib/documents/manual";
+import { findManualDocuments, normaliseBl, removeManualDocument, saveManualDocument, type SavedDocument } from "../services/manualDocuments";
+import { listPeople, type Person } from "../services/enquiries";
+import { useAuth } from "../lib/auth";
+import { formatDate } from "../lib/dates";
 import { MANUAL_GROUP_LABEL, unreadableNumbers, type ManualGroup, type ManualRow } from "../lib/documents/manualForm";
 
 /**
@@ -41,6 +52,14 @@ import { MANUAL_GROUP_LABEL, unreadableNumbers, type ManualGroup, type ManualRow
  * booking on a job: type the consignee for the CAN and the delivery order has
  * it. The console's five share theirs the same way. The house bills each have
  * their own form, the one their tab on a job uses.
+ *
+ * KEPT BY B/L NUMBER (15 Oct)
+ *
+ * Every document viewed or downloaded here with a B/L number is saved under
+ * that number in the database (139, services/manualDocuments) — one row per
+ * B/L and document, replaced when it is printed again. Typing a B/L number
+ * in "Saved documents" lists what was made for it, to open back into its form
+ * or download as it was. What is typed between prints still lives in the tab.
  *
  * WHERE THE JOB EXISTS, USE THE JOB
  *
@@ -83,7 +102,9 @@ export default function ManualDocuments() {
   const [state, setState] = useState<ManualState>(restore);
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
-  const [note, setNote] = useState<{ tone: "danger" | "success"; text: string } | null>(null);
+  const [note, setNote] = useState<{ tone: "danger" | "success" | "info"; text: string } | null>(null);
+  /** Moved on each save, so the list of saved documents reads again. */
+  const [savedTick, setSavedTick] = useState(0);
 
   // The chosen document is in the address, so a reload and Back land on it.
   const doc = manualDocument(params.get("doc")) ?? MANUAL_DOCUMENTS[0];
@@ -109,6 +130,7 @@ export default function ManualDocuments() {
       const { pdf, name } = pdfOf(doc, state);
       if (how === "download") {
         pdf.save(name);
+        void keep();
         return;
       }
       // Read, not kept: a tab, its address revoked once it has had time to load (lib/documents viewDocument).
@@ -120,6 +142,61 @@ export default function ManualDocuments() {
       if (tab) tab.opener = null;
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       if (!tab) setNote({ tone: "danger", text: "Your browser blocked the new tab. Allow pop-ups for this site, or use Download." });
+      else void keep();
+    } catch (e) {
+      setNote({ tone: "danger", text: `The PDF could not be drawn: ${e instanceof Error ? e.message : "unknown error"}.` });
+    }
+  }
+
+  /** Printed with a B/L number: saved under it, replacing what was saved for this document before. */
+  async function keep() {
+    const bl = blOf(doc, state);
+    if (!bl) {
+      setNote({ tone: "info", text: `Not saved: type the ${blFieldOf(doc)} to keep it under, then view or download it again.` });
+      return;
+    }
+    try {
+      const label = savedLabelOf(doc, state);
+      const row = await saveManualDocument({
+        bl_number: bl,
+        doc_key: savedKeyOf(doc, state),
+        title: label.title,
+        document_no: label.documentNo,
+        store: doc.store,
+        values: savedValuesOf(doc, state),
+      });
+      setNote({ tone: "success", text: `Saved under ${row.bl_number}: find it again by that number under Saved documents.` });
+      setSavedTick((t) => t + 1);
+    } catch (e) {
+      setNote({ tone: "danger", text: `Printed, but not saved: ${e instanceof Error ? e.message : "unknown error"}` });
+    }
+  }
+
+  /** A saved document back in its form, to change and print again. */
+  function openSaved(row: SavedDocument) {
+    const target = documentForKey(row.doc_key);
+    if (!target) {
+      setNote({ tone: "danger", text: `"${row.title}" is not a document this page knows any more.` });
+      return;
+    }
+    const typed = JSON.stringify(state[row.store]) !== JSON.stringify(emptyStore(row.store));
+    const sharing = MANUAL_DOCUMENTS.filter((d) => d.store === row.store).length;
+    if (typed && !window.confirm(`Open ${row.title} for ${row.bl_number}? It replaces what is typed${sharing > 1 ? ` for the ${sharing} documents that share these details` : ""}.`)) return;
+    setState((s) => withSaved(s, row.store, row.values));
+    choose(target.id);
+    setNote({ tone: "success", text: `Opened ${row.title} for ${row.bl_number}, as it was saved ${formatDate(row.updated_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}.` });
+  }
+
+  /** A saved document downloaded as it was, without touching what is typed. */
+  function downloadSaved(row: SavedDocument) {
+    const target = documentForKey(row.doc_key);
+    if (!target) {
+      setNote({ tone: "danger", text: `"${row.title}" is not a document this page knows any more.` });
+      return;
+    }
+    try {
+      const { pdf, name } = pdfOf(target, withSaved(emptyState(), row.store, row.values));
+      pdf.save(name);
     } catch (e) {
       setNote({ tone: "danger", text: `The PDF could not be drawn: ${e instanceof Error ? e.message : "unknown error"}.` });
     }
@@ -155,11 +232,13 @@ export default function ManualDocuments() {
       <div className="mb-4 flex items-start gap-2 rounded-lg bg-bg-warning px-3 py-2.5 text-[12px] leading-relaxed text-text-warning">
         <Info size={13} className="mt-0.5 shrink-0" />
         <p>
-          <strong className="font-semibold">Temporary.</strong> Nothing here is saved to a job, numbered from a sequence or sent. What you type stays in
-          this browser tab until you clear it or close the tab. Where the job is in the CRM, issue the document from the job instead, so it is filed
-          there.
+          <strong className="font-semibold">Not a job.</strong> Nothing here is filed on a job, numbered from a sequence or sent. Each document you view or
+          download with a B/L number is saved under that number — find it again under Saved documents. Where the job is in the CRM, issue the
+          document from the job instead, so it is filed there.
         </p>
       </div>
+
+      <SavedDocuments refreshKey={savedTick} onOpen={openSaved} onDownload={downloadSaved} onError={(text) => setNote({ tone: "danger", text })} />
 
       <div className="grid gap-4 lg:grid-cols-[264px_minmax(0,1fr)]">
         {/* ------------------------------------------------ choosing one */}
@@ -217,10 +296,16 @@ export default function ManualDocuments() {
           {note && (
             <p
               className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2.5 text-[12px] ${
-                note.tone === "danger" ? "bg-bg-danger text-text-danger" : "bg-bg-success text-text-success"
+                note.tone === "danger" ? "bg-bg-danger text-text-danger" : note.tone === "info" ? "bg-surface-2 text-text-secondary" : "bg-bg-success text-text-success"
               }`}
             >
-              {note.tone === "danger" ? <AlertCircle size={13} className="mt-px shrink-0" /> : <Check size={13} className="mt-px shrink-0" />}
+              {note.tone === "danger" ? (
+                <AlertCircle size={13} className="mt-px shrink-0" />
+              ) : note.tone === "info" ? (
+                <Info size={13} className="mt-px shrink-0" />
+              ) : (
+                <Check size={13} className="mt-px shrink-0" />
+              )}
               {note.text}
             </p>
           )}
@@ -235,6 +320,168 @@ export default function ManualDocuments() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Saved documents, by B/L number
+// ---------------------------------------------------------------------------
+
+/**
+ * Type a B/L number, see what was made for it.
+ *
+ * Read as it is typed (after a pause), and every B/L that begins with it is
+ * listed, so "HBL/26-27/004" finds 0040 to 0049. Each document opens back into
+ * its form or downloads as it was saved; whoever saved one, or an
+ * administrator, can remove it.
+ */
+function SavedDocuments({
+  refreshKey,
+  onOpen,
+  onDownload,
+  onError,
+}: {
+  refreshKey: number;
+  onOpen: (row: SavedDocument) => void;
+  onDownload: (row: SavedDocument) => void;
+  onError: (text: string) => void;
+}) {
+  const { session } = useAuth();
+  const [bl, setBl] = useState("");
+  const [rows, setRows] = useState<SavedDocument[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [removedTick, setRemovedTick] = useState(0);
+
+  useEffect(() => {
+    void listPeople().then(setPeople).catch(() => setPeople([]));
+  }, []);
+  const nameOf = (id: string | null) => people.find((p) => p.id === id)?.full_name ?? null;
+
+  const q = normaliseBl(bl);
+  useEffect(() => {
+    if (q.length < 2) {
+      setRows(null);
+      setError(null);
+      return;
+    }
+    let live = true;
+    const t = window.setTimeout(() => {
+      setLoading(true);
+      findManualDocuments(q)
+        .then((r) => {
+          if (!live) return;
+          setRows(r);
+          setError(null);
+        })
+        .catch((e) => live && setError(e instanceof Error ? e.message : "Could not read the saved documents."))
+        .finally(() => live && setLoading(false));
+    }, 300);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [q, refreshKey, removedTick]);
+
+  async function remove(row: SavedDocument) {
+    if (!window.confirm(`Remove the saved ${row.title} for ${row.bl_number}? It cannot be undone.`)) return;
+    try {
+      await removeManualDocument(row.id);
+      setRemovedTick((t) => t + 1);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Could not remove it.");
+    }
+  }
+
+  // Grouped by B/L, in the order the newest of each was saved.
+  const groups = useMemo(() => {
+    const by = new Map<string, SavedDocument[]>();
+    for (const r of rows ?? []) by.set(r.bl_number, [...(by.get(r.bl_number) ?? []), r]);
+    return [...by.entries()];
+  }, [rows]);
+
+  return (
+    <div className="card mb-4 p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <h2 className="shrink-0 text-[13px] font-semibold text-text-primary">Saved documents</h2>
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            value={bl}
+            onChange={(e) => setBl(e.target.value)}
+            placeholder="B/L number — HBL/26-27/0042"
+            aria-label="Find saved documents by B/L number"
+            className="h-8 w-full pl-8 font-mono text-[12.5px]"
+          />
+        </div>
+        {loading && <Loader2 size={13} className="animate-spin text-text-muted" aria-label="Looking" />}
+      </div>
+
+      {error && (
+        <p className="mt-2 flex items-start gap-2 rounded-lg bg-bg-danger px-3 py-2 text-[12px] text-text-danger">
+          <AlertCircle size={13} className="mt-px shrink-0" /> {error}
+        </p>
+      )}
+      {!error && rows && rows.length === 0 && !loading && (
+        <p className="mt-2 text-[12px] text-text-muted">Nothing saved under a B/L number beginning {q}.</p>
+      )}
+      {!error && groups.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {groups.map(([number, docs]) => (
+            <div key={number}>
+              <p className="mb-1 font-mono text-[11.5px] font-medium text-text-secondary">{number}</p>
+              <ul className="divide-y divide-border rounded-lg border border-border">
+                {docs.map((r) => {
+                  const who = nameOf(r.updated_by ?? r.created_by);
+                  const mine = Boolean(session) && (r.created_by === session?.userId || session?.role === "admin");
+                  return (
+                    <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12.5px] font-medium text-text-primary">{r.title}</p>
+                        <p className="truncate text-[11px] text-text-muted">
+                          {r.document_no && <span className="font-mono">{r.document_no} · </span>}
+                          Saved {formatDate(r.updated_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+                          {who ? ` by ${who}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(r)}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                        >
+                          <FolderOpen size={12} /> Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDownload(r)}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2.5 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                        >
+                          <FileDown size={12} /> Download
+                        </button>
+                        {mine && (
+                          <button
+                            type="button"
+                            onClick={() => void remove(r)}
+                            aria-label={`Remove the saved ${r.title}`}
+                            title="Remove"
+                            className="grid size-7 place-items-center rounded-lg text-text-muted transition-colors hover:bg-bg-danger hover:text-text-danger"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {rows && rows.length >= 50 && <p className="text-[11px] text-text-muted">The fifty most recent: type more of the number to narrow it.</p>}
+        </div>
+      )}
     </div>
   );
 }

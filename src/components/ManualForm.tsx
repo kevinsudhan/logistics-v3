@@ -34,7 +34,7 @@ export default function ManualForm({
       {sections.map((s) =>
         // A section of fields none of which is called for yet is not drawn at all.
         !s.table && shownFields(s, values).length === 0 ? null : s.table ? (
-          <TableSection key={s.title} section={s} table={s.table} rows={asRows(values[s.table.key])} onChange={(rows) => onChange(s.table!.key, rows)} />
+          <TableSection key={s.title} section={s} table={s.table} rows={asRows(values[s.table.key])} values={values} onChange={(rows) => onChange(s.table!.key, rows)} />
         ) : (
           <Section key={s.title} title={s.title}>
             {s.note && <p className="-mt-1 mb-3 text-[11.5px] text-text-muted">{s.note}</p>}
@@ -56,13 +56,17 @@ function TableSection({
   section,
   table,
   rows,
+  values,
   onChange,
 }: {
   section: ManualSection;
   table: ManualTable;
   rows: ManualRow[];
+  /** The whole form's values, for a column shown only some of the time (`when`). */
+  values: ManualValues;
   onChange: (rows: ManualRow[]) => void;
 }) {
+  const columns = table.columns.filter((c) => !c.when || c.when(values));
   const setCell = (n: number, key: string, v: string) => onChange(rows.map((r, i) => (i === n ? { ...r, [key]: v } : r)));
   const add = (
     <button type="button" onClick={() => onChange([...rows, blankRow(table)])} className="inline-flex items-center gap-1 text-[12px] text-text-accent hover:underline">
@@ -121,7 +125,7 @@ function TableSection({
                 </button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                {table.columns.map((c) => (
+                {columns.map((c) => (
                   <FieldBox key={c.key} field={c} value={r[c.key] ?? ""} onChange={(v) => setCell(n, c.key, v)} compact />
                 ))}
               </div>
@@ -148,6 +152,34 @@ function FieldBox({ field: f, value, onChange, compact = false }: { field: Manua
           {f.hint && <span className="mt-0.5 block text-[11px] text-text-muted">{f.hint}</span>}
         </span>
       </label>
+    );
+  }
+
+  // A row of buttons, one pressed; nothing chosen yet is the first.
+  if (input === "segmented") {
+    const opts = f.options ?? [];
+    const current = opts.some((o) => o.value === value) ? value : opts[0]?.value;
+    return (
+      <div className={`min-w-0 ${f.wide ? "sm:col-span-full" : ""}`}>
+        <span className={`mb-1 block ${compact ? "text-[11px]" : "text-[11.5px]"} font-medium text-text-secondary`}>{f.label}</span>
+        <div role="radiogroup" aria-label={f.label} className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
+          {opts.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={current === o.value}
+              onClick={() => onChange(o.value)}
+              className={`h-8 rounded-md px-3 text-[12.5px] transition-colors ${
+                current === o.value ? "bg-surface-1 font-medium text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {f.hint && <p className="mt-1 text-[11px] text-text-muted">{f.hint}</p>}
+      </div>
     );
   }
 

@@ -1,6 +1,10 @@
 import {
+  blFieldOf,
+  blOf,
   documentDataFromManual,
+  documentForKey,
   emptyState,
+  normaliseBl,
   keysOf,
   manualDocument,
   MANUAL_DOCUMENTS,
@@ -8,11 +12,17 @@ import {
   matches,
   missingOf,
   pdfOf,
+  savedKeyOf,
+  savedLabelOf,
+  savedValuesOf,
   sectionsFor,
+  withSaved,
 } from "../../src/lib/documents/manual";
-import { manifestInput, masterSiInput, outturnInput, stuffingInput, cfsNominationInput } from "../../src/lib/documents/manualConsole";
+import { CONSOLE_DOCUMENTS, manifestInput, masterSiInput, outturnInput, stuffingInput, cfsNominationInput } from "../../src/lib/documents/manualConsole";
 import { parseNumber, shownFields, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
 import { DOCUMENTS, documentSpec } from "../../src/lib/documents/registry";
+import { rupeesInWords, statementTotal, taxLines } from "../../src/lib/documents/charges";
+import type { DocumentData } from "../../src/lib/documents/types";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
 import { renderDocument } from "../../src/lib/documents/render";
 import type { jsPDF } from "jspdf";
@@ -284,6 +294,95 @@ const missingRoe = (await bodies(fi.render({ ...priced, roe_EUR: "" }))).flat().
 is("without a rate of exchange, its line and the totals are TBD", [missingRoe.includes("1 EUR = INR TBD"), missingRoe.includes("37,206.50"), missingRoe.includes("Rate of exchange for EUR")], [true, false, true]);
 const inrOnly = (await bodies(fi.render({ origin: "CHENNAI", destination: "JEBEL ALI", charges: [{ charge: "THC", currency: "INR", rate: "1000" }] }))).flat().join(" ");
 is("all in rupees: no rate-of-exchange column or line", [inrOnly.includes("ROE"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00")], [false, false, true]);
+console.log("\nthe freight invoice, or its proforma, with three parties");
+is("the toggle first on the form, freight until a proforma is chosen", [fi.sections[0].fields?.[0]?.key, fi.sections[0].fields?.[0]?.input, emptyState().shipment.invoice_kind], ["invoice_kind", "segmented", "freight"]);
+has("the three parties' fields on the form", fi.sections.flatMap((s) => (s.fields ?? []).map((f) => f.key)), [
+  "shipperName", "shipperAddress", "shipperGstinIec", "consigneeName", "consigneeAddress", "consigneeGstin", "notifyName", "notifyAddress", "notifyGstin",
+]);
+const gstColumn = chargeTable!.columns.find((c) => c.key === "gst")!;
+is("GST % typed on the lines of both forms", gstColumn.when, undefined);
+const parties: ManualValues = {
+  ...priced, blNumber: "HBL/26-27/0042",
+  shipperName: "SAMPLE TEXTILES PVT LTD", shipperAddress: "TIRUPPUR 641604", shipperGstinIec: "33AABCS1234F1Z9",
+  consigneeName: "GULF TRADING LLC", consigneeAddress: "DEIRA, DUBAI", consigneeGstin: "TRN 100200300",
+  notifyName: "SAMPLE FORWARDERS FZE", notifyAddress: "JEBEL ALI FREE ZONE", notifyGstin: "TRN 100400500",
+};
+const freightText = (await bodies(fi.render(parties))).flat().join(" ");
+is("three boxes, each with its address and GSTIN", [
+  "SHIPPER / EXPORTER", "CONSIGNEE / IMPORTER", "NOTIFY PARTY / FORWARDER", "SAMPLE TEXTILES PVT LTD", "TIRUPPUR 641604", "GSTIN / IEC: 33AABCS1234F1Z9",
+  "GULF TRADING LLC", "GSTIN: TRN 100200300", "SAMPLE FORWARDERS FZE", "JEBEL ALI FREE ZONE", "GSTIN: TRN 100400500", "FREIGHT INVOICE", "FI-HBL/26-27/0042", "GST (INR)",
+].filter((w) => !freightText.includes(w)), []);
+const proformaValues = { ...parties, invoice_kind: "proforma" };
+const proformaText = (await bodies(fi.render(proformaValues))).flat().join(" ");
+is("the proforma: its own title and number, the parties, GST as lines of its own and in the total", [
+  proformaText.includes("PROFORMA INVOICE"), proformaText.includes("PI-HBL/26-27/0042"), proformaText.includes("NOTIFY PARTY / FORWARDER"),
+  ["GST %", "GST (INR)", "Taxable value"].some((w) => proformaText.includes(w)), proformaText.includes("Central Goods and Service Tax @9%"), proformaText.includes("37,206.50"), proformaText.includes("not a tax invoice"),
+], [true, true, true, false, true, true, true]);
+is("named as a proforma", [fi.fileName(proformaValues), fi.documentNo?.(proformaValues)], ["PI-HBL-26-27-0042-proforma-invoice.pdf", "PI-HBL/26-27/0042"]);
+
+console.log("\nas a statement of charges");
+const statement: ManualValues = {
+  ...proformaValues, freightTerms: "Collect", vessel: "WAN HAI 326", voyage: "W062", carrier: "WAN HAI LINES", masterBlNumber: "030G547522",
+  cargoDescription: "INJECTION MOULD", portOfLoading: "SHEKOU", finalDestination: "CHENNAI", containerType: "42P3", containerId: "WHSU8296786",
+  packageCount: "1", grossWeightKg: "751.5", volumeCbm: "0.215", salesRef: "DINESH CHN",
+};
+const statementText = (await bodies(fi.render(statement))).flat().join(" ");
+is("the proforma's columns, the shipment's particulars, headed with the freight terms, the total in words", [
+  "COLLECT CHARGES", "S.NO", "CHARGE NAME", "VOLUME", "PER UNIT", "CURRENCY", "ROE", "AMOUNT", "IN INR", "1.000", "WAN HAI 326", "W062", "WAN HAI LINES",
+  "030G547522", "HBL/26-27/0042", "INJECTION MOULD", "SHEKOU", "42P3 WHSU8296786", "751.5 kg", "0.215 CBM", "DINESH CHN",
+  "TAX", "Amount in words: Indian Rupees Thirty-Seven Thousand Two Hundred and Six and Fifty Paise Only",
+].filter((w) => !statementText.includes(w)), []);
+const toShipper = (await bodies(fi.render({ ...statement, bill_to: "shipper" }))).flat().join(" ");
+is("the party billed: its box says so, with the state code and PAN read from a GSTIN", [
+  statementText.includes("CONSIGNEE / IMPORTER · BILLED TO"), toShipper.includes("SHIPPER / EXPORTER · BILLED TO"), toShipper.includes("State code: 33 (Tamil Nadu)"),
+  toShipper.includes("PAN: AABCS1234F"), statementText.includes("State code"),
+], [true, true, true, true, false]);
+
+console.log("\nthe GST a statement adds, as lines");
+const sampleLines = [
+  { charge: "Freight charge", currency: "USD", quantity: 1, rate: 18, gstPercent: 5 },
+  { charge: "LCL charges", currency: "INR", quantity: 1, rate: 300, gstPercent: 18 },
+  { charge: "Delivery order charges", currency: "INR", quantity: 1, rate: 1000, gstPercent: 18 },
+  { charge: "Not taxed", currency: "INR", quantity: 1, rate: 50 },
+];
+const sampleData = { exchangeRates: { USD: 98.4 }, billTo: "consignee", consigneeGstin: "33AAACF1234K1Z5" } as unknown as DocumentData;
+is("within the state: central and state tax, half the rate each, the highest rate first", taxLines(sampleLines, sampleData), [
+  { label: "Central Goods and Service Tax @9%", amount: 117 },
+  { label: "State Goods and Service Tax @9%", amount: 117 },
+  { label: "Central Goods and Service Tax @2.5%", amount: 44.28 },
+  { label: "State Goods and Service Tax @2.5%", amount: 44.28 },
+]);
+is("the statement's total: the charges and the tax lines, as on the sample", statementTotal(sampleLines.slice(0, 3), sampleData), 3393.76);
+is("billed in another state: integrated tax at the whole rate", taxLines(sampleLines, { ...sampleData, consigneeGstin: "29AAACF1234K1Z5" }), [
+  { label: "Integrated Goods and Service Tax @18%", amount: 234 },
+  { label: "Integrated Goods and Service Tax @5%", amount: 88.56 },
+]);
+is("no rate of exchange yet: the tax on it is not known either", taxLines(sampleLines, { ...sampleData, exchangeRates: {} }).map((t) => t.amount), [117, 117, undefined, undefined]);
+is("rupees in words, counted the Indian way", [rupeesInWords(3393.76), rupeesInWords(110025), rupeesInWords(12345678.9), rupeesInWords(100), rupeesInWords(0)], [
+  "Indian Rupees Three Thousand Three Hundred and Ninety-Three and Seventy-Six Paise Only",
+  "Indian Rupees One Lakh Ten Thousand and Twenty-Five Only",
+  "Indian Rupees One Crore Twenty-Three Lakh Forty-Five Thousand Six Hundred and Seventy-Eight and Ninety Paise Only",
+  "Indian Rupees One Hundred Only",
+  "Indian Rupees Zero Only",
+]);
+
+console.log("\nkept by B/L number");
+const withInvoice = { ...emptyState(), shipment: parties };
+is("a shipment document is kept under its B/L, the invoice's two forms as two papers", [
+  blOf(fi, withInvoice), savedKeyOf(fi, withInvoice), savedKeyOf(fi, { ...withInvoice, shipment: proformaValues }), savedLabelOf(fi, { ...withInvoice, shipment: proformaValues }),
+], ["HBL/26-27/0042", "freight-invoice", "proforma-invoice", { title: "Proforma invoice", documentNo: "PI-HBL/26-27/0042" }]);
+is("a house bill under its number; a console document under its master B/L", [
+  blOf(manualDocument("house-bl")!, { ...emptyState(), hbl: { ...emptyState().hbl, hblNo: " HBL/1 " } }),
+  blOf(CONSOLE_DOCUMENTS[0], { ...emptyState(), console: { mbl_number: "MAEU123" } }),
+  blFieldOf(fi), blFieldOf(CONSOLE_DOCUMENTS[0]),
+], ["HBL/1", "MAEU123", "B/L number", "Master B/L number"]);
+is("no number, nothing to keep it under", blOf(fi, emptyState()), "");
+is("a proforma opens into the freight invoice", documentForKey("proforma-invoice")?.id, "freight-invoice");
+const reopened = withSaved(emptyState(), "shipment", savedValuesOf(fi, { ...withInvoice, shipment: proformaValues }));
+is("opened again: the same paper, the same figures", [savedKeyOf(fi, reopened), fi.documentNo?.(reopened.shipment), missingOf(fi, reopened)], ["proforma-invoice", "PI-HBL/26-27/0042", []]);
+is("an old save opens with what is new blank, not missing", withSaved(emptyState(), "shipment", { blNumber: "X" }).shipment, { currency: "USD", invoice_kind: "freight", bill_to: "consignee", blNumber: "X" });
+is("a B/L number written one way, as the database writes it", normaliseBl("  hbl/26-27/0042   x "), "HBL/26-27/0042 X");
+
 is("without lines, the one freight figure, as before", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);

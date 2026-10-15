@@ -138,6 +138,8 @@ export interface DocumentData {
   charges?: ChargeLine[];
   /** Rupees to one unit of each foreign currency the charges are in ("USD" -> 83.5): what they are converted at. */
   exchangeRates?: Record<string, number>;
+  /** Which of the parties an invoice is addressed to: its To block is theirs. */
+  billTo?: "shipper" | "consignee" | "notify";
   raw: RequestDetails;
 }
 
@@ -156,7 +158,7 @@ export interface ChargeLine {
 }
 
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "raw">;
+export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "billTo" | "raw">;
 
 export interface DocRow {
   label: string;
@@ -186,6 +188,8 @@ export interface DocSection {
    * page under both. Without it, as a band across the page, as everywhere else.
    */
   place?: "left" | "right" | "table";
+  /** In the band layout: the rows two to a line, label and value each — a block of short particulars, kept compact. */
+  columns?: 2;
 }
 
 /**
@@ -222,6 +226,12 @@ export interface DocSpec {
   requires: DataKey[];
   /** Whether to draw the shipper/consignee block. */
   parties: boolean;
+  /**
+   * With the parties: a third box, the notify party (the forwarder at the
+   * other end), and each box with its address and GSTIN — three columns
+   * across, as an invoice to the trade sets them out.
+   */
+  notifyParty?: boolean;
   sections: DocSection[];
   /** Fixed text printed above the signature line. */
   declaration?: string;
@@ -236,8 +246,12 @@ export interface DocSpec {
    * list headed by `title` — what the consignee needs to do.
    */
   notes?: { title: string; lead?: (d: DocumentData) => string | undefined; lines: (d: DocumentData) => string[] };
-  /** Drawn after the sections as a table with totals, under this heading, when the record itemises its charges. */
-  charges?: { title: string };
+  /**
+   * Drawn after the sections as a table with totals, under this heading, when
+   * the record itemises its charges. "statement" sets it out as a statement of
+   * charges: S.No, charge, volume, per unit, currency, ROE, amount, in INR.
+   */
+  charges?: { title: string | ((d: DocumentData) => string); style?: "statement" };
   /**
    * What it still needs that a list of fields cannot say — a rate on every
    * charge line, say — by label, added to what `requires` finds missing.

@@ -1,5 +1,5 @@
 import type { jsPDF } from "jspdf";
-import { LETTERHEAD_BAND_JPG } from "./mark";
+import { LETTERHEAD_MARK_JPG } from "./mark";
 import { COMPANY } from "../company";
 
 /**
@@ -37,67 +37,79 @@ export const FAINT: [number, number, number] = [148, 163, 184];
 export const RULE: [number, number, number] = [214, 221, 230];
 export const TINT: [number, number, number] = [241, 245, 249];
 export const WARN: [number, number, number] = [150, 70, 20];
-/** Text on the navy band: the address a step back from the white GSTIN. */
-const ON_BRAND: [number, number, number] = [200, 214, 232];
 
 /** The issuer, as it appears on the letterhead (src/lib/company.ts). */
 export { COMPANY };
 
 /**
- * The lockup and the address on a navy band, with the blue rule under it — the
- * head of the quotation mail, on paper.
+ * The head of every document, on the white of the page: the globe and the
+ * registered name on the left; the address, the phone and the website, the
+ * GSTIN and the PAN on the right; a hairline under them.
  *
- * A letterhead without an address is a header. These documents are presented to
- * carriers, banks and customs, all of whom expect to see who issued it and
- * where they are — so the registered address and the GSTIN are part of the
- * document, not decoration.
+ * It was the mail's lockup on a navy band with a blue rule (until 15 Oct).
+ * The desk asked for it plain: a letterhead, not a banner, that prints
+ * cleanly on an office printer.
  *
- * The band sits inside the margins rather than bleeding off the page: office
- * printers leave a few millimetres unprinted at the edge, and a bleed comes
- * out with a white sliver down each side.
+ * A letterhead without an address is a header. These documents are presented
+ * to carriers, banks and customs, all of whom expect to see who issued it and
+ * where they are — so the registered address, the GSTIN and the PAN are part
+ * of the document, not decoration.
  *
  * @returns the y to carry on drawing from
  */
 export function drawLetterhead(doc: jsPDF, y: number): number {
   const set = (c: [number, number, number]) => doc.setTextColor(c[0], c[1], c[2]);
-  const fill = (c: [number, number, number]) => doc.setFillColor(c[0], c[1], c[2]);
 
-  // The band and the logo are one image, cut to these 178 x 26mm (see mark.ts).
-  const BAND_H = 26;
+  const HEAD_H = 21;
+  const MARK = 19;
+  const right = PAGE_W - MARGIN;
+
+  // The globe; a letterhead without it is still a valid document, so a logo
+  // that will not decode leaves the name where it is rather than failing the PDF.
+  let nameX = MARGIN;
   try {
-    doc.addImage(LETTERHEAD_BAND_JPG, "JPEG", MARGIN, y, CONTENT_W, BAND_H);
+    doc.addImage(LETTERHEAD_MARK_JPG, "JPEG", MARGIN, y + (HEAD_H - MARK) / 2, MARK, MARK);
+    nameX = MARGIN + MARK + 4;
   } catch {
-    // A letterhead without its logo is still a valid document. Failing the
-    // whole render because an image would not decode is not — a plain band
-    // and the name stand in.
-    fill(BRAND);
-    doc.rect(MARGIN, y, CONTENT_W, BAND_H, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    set([255, 255, 255]);
-    doc.text(COMPANY.name, MARGIN + 6, y + BAND_H / 2 + 1.8);
+    /* the name alone */
   }
 
-  // Address right-aligned, so the two blocks frame the head of the page.
-  const right = PAGE_W - MARGIN - 5;
+  // Right-aligned, so the two blocks frame the head of the page. The PAN is a
+  // GSTIN's third to twelfth characters.
   const lines = [...COMPANY.address, COMPANY.contact.join("  ·  ")];
-  const step = 3.7;
-  let ay = y + (BAND_H - step * (lines.length + 1)) / 2 + 2.6;
+  const ids = [COMPANY.gst, `PAN: ${COMPANY.gstin.slice(2, 12)}`];
+  const step = 3.6;
+  doc.setFontSize(7.4);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.3);
-  set(ON_BRAND);
+  const blockW = Math.max(...lines.map((l) => doc.getTextWidth(l)), ...ids.map((l) => doc.getTextWidth(l) * 1.06));
+  let ay = y + (HEAD_H - step * (lines.length + ids.length - 1)) / 2 + 1.2;
+  set(MUTED);
   for (const line of lines) {
     doc.text(line, right, ay, { align: "right" });
     ay += step;
   }
   doc.setFont("helvetica", "bold");
-  set([255, 255, 255]);
-  doc.text(COMPANY.gst, right, ay, { align: "right" });
+  set(INK);
+  for (const line of ids) {
+    doc.text(line, right, ay, { align: "right" });
+    ay += step;
+  }
 
-  y += BAND_H;
-  fill(ACCENT);
-  doc.rect(MARGIN, y, CONTENT_W, 1.1, "F");
-  return y + 1.1 + 7;
+  // The registered name, as large as fits before the address block.
+  const room = right - blockW - 6 - nameX;
+  doc.setFont("helvetica", "bold");
+  let size = 15;
+  doc.setFontSize(size);
+  while (size > 10 && doc.getTextWidth(COMPANY.legalName) > room) doc.setFontSize((size -= 0.5));
+  set(BRAND);
+  doc.text(COMPANY.legalName, nameX, y + HEAD_H / 2 + size * 0.13);
+
+  y += HEAD_H + 1.5;
+  doc.setDrawColor(RULE[0], RULE[1], RULE[2]);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN, y, right, y);
+  doc.setLineWidth(0.2);
+  return y + 7;
 }
 
 /** "18 Sep 2026". The month is spelled from a list — see quotationMail.ts. */

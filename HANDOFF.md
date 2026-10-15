@@ -34,7 +34,7 @@ session should read this whole file before changing anything. §0 is the short v
 - **Before every push:** `npm test` (60 suites) and `npm run build` (typecheck, bundle and
   secret scan) must both pass.
 - **Run SQL against live data:** `node supabase-v2/run-sql.mjs "select …"`, or pass a
-  migration filename (§6). The last migration is **138**, so the next one is `139-….sql`.
+  migration filename (§6). The last migration is **139**, so the next one is `140-….sql`.
   Reads of production may need the user's permission in a session; ask rather than work
   around a refusal.
 - **Both GitHub repositories are public** (an anonymous clone of logistics-v3 worked on
@@ -194,9 +194,9 @@ flag on, it also has invoices and costs.
 
 ---
 
-## 4. Data model — 138 migrations
+## 4. Data model — 139 migrations
 
-`supabase-v2/001…138`, applied in order with `run-sql.mjs` (each file runs as one
+`supabase-v2/001…139`, applied in order with `run-sql.mjs` (each file runs as one
 transaction).
 
 | Range | What it establishes |
@@ -257,6 +257,7 @@ transaction).
 | `136` | **Performance housekeeping (the advisor).** An index under each of the 11 unindexed foreign keys; `customer_dsr_sends_add` asks `(select auth.uid())` once a query; `company_registrations`, `shipment_checkpoints` and `checkpoint_templates` write policies split into insert/update/delete so reads check one policy. Checked rolled back |
 | `137` | **Team oversight by person.** `team_actions(p_from, p_to)`: administrators only (security definer, refuses anybody else), one row per recorded action in the period — the timeline (less invoice_*/receipt_recorded, which their tables say better), steps ticked, files filed, consoles opened, CSN files and replies, warehouse receipts, queue items set aside, rate cards, sailings, live rate requests, original rates, invoices started/issued/cancelled, receipts and payments recorded/confirmed/cancelled, vendor bills, agent statements, tracking decisions. Checked rolled back (admin reads, employee refused) |
 | `138` | **Arrival notices heard live.** `arrival_notice_sends` added to the realtime publication: the console's destination panel listened for it and never heard (the audit's schema-drift check, 7 Oct) |
+| `139` | **Manual documents kept by B/L number.** `manual_documents`: one row per B/L (or AWB) number and document (`doc_key`; the freight invoice's two forms are `freight-invoice` and `proforma-invoice`), `values` the details typed as the Manual documents page holds them, replaced when printed again. Saved on View/Download; the page's Saved documents box finds them by B/L prefix (`services/manualDocuments.ts`). Staff read, insert and update; the saver or an admin deletes; anon nothing. The trigger writes the B/L upper case with single spaces and stamps who and when. Checked rolled back (normalised, replaced on conflict, RLS on), applied 15 Oct |
 | `127` | **The arrival-notices sweep on pg_cron**: `araxys-v2-arrival-notices`, at :05 and :35 every hour (UTC), calling the function with the scheduler's secret from the vault, as live rates does |
 | `126` | **Deconsolidation at destination.** `shipments.arrival_notice_sent_at / _to / _via` ('auto' or 'desk'); `consoles.arrival_auto` (default false; on only with `arrival_from`, checked), `arrival_from`, `arrival_days` (0–10, default 2), `outturn_sent_at / _to`; table `arrival_notice_sends` (every send or refusal by the function; staff read, only the service role writes). Checked rolled back as an employee: the guards hold, staff cannot write the send log |
 | `125` | **The console at the CFS.** `consoles` gains `box_type` (20GP/40GP/40HC, checked: the load plan's box when no sailing says), `stuffed_on`, `stuffing_report_sent_at / _to`. Checked rolled back as an employee |

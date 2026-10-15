@@ -19,7 +19,8 @@ import type { jsPDF } from "jspdf";
  * ---------------------------------------------------------------------------
  */
 
-export type ManualInput = "text" | "textarea" | "number" | "date" | "select" | "yesno" | "check";
+/** "segmented": the options as a row of buttons, one pressed — a choice of two or three, seen at once. */
+export type ManualInput = "text" | "textarea" | "number" | "date" | "select" | "segmented" | "yesno" | "check";
 
 export interface ManualOption {
   value: string;

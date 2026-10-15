@@ -1,7 +1,7 @@
 import type { jsPDF } from "jspdf";
 import { fieldDef } from "../../data/requestFields";
-import { emptyHbl, missingForIssue, RELEASE_LABEL, RELEASE_MODES, type HblData, type ReleaseMode } from "../hbl";
-import { emptyHawb, missingForOriginal, type HawbData } from "../hawb";
+import { emptyHbl, missingForIssue, normaliseHbl, RELEASE_LABEL, RELEASE_MODES, type HblData, type ReleaseMode } from "../hbl";
+import { emptyHawb, missingForOriginal, normaliseHawb, type HawbData } from "../hawb";
 import { DOCUMENTS } from "./registry";
 import { documentFilename, documentNo, labelFor, readiness } from "./data";
 import { renderDocument } from "./render";
@@ -23,7 +23,8 @@ import {
   type ManualStore,
   type ManualValues,
 } from "./manualForm";
-import type { ChargeLine, DataKey, DocSpec, DocumentData } from "./types";
+import type { ChargeLine, DataKey, DocSection, DocSpec, DocumentData } from "./types";
+import { docMoney } from "./charges";
 
 /**
  * Documents typed in by hand (Documentation → Manual documents).
@@ -210,6 +211,8 @@ function optionsFor(key: DataKey) {
 
 /** The parties block the renderer draws for a document with `parties`. */
 const PARTY_KEYS: DataKey[] = ["shipperName", "shipperGstinIec", "consigneeName", "consigneeAddress", "consigneeCountry"];
+/** With a third box (`notifyParty`): the shipper's address, the consignee's GSTIN, and the notify party's own. */
+const NOTIFY_PARTY_KEYS: DataKey[] = ["shipperAddress", "consigneeGstin", "notifyName", "notifyAddress", "notifyGstin"];
 
 /**
  * Which fields a registry document prints.
@@ -231,6 +234,7 @@ const PARTY_KEYS: DataKey[] = ["shipperName", "shipperGstinIec", "consigneeName"
 export function keysOf(spec: DocSpec): DataKey[] {
   const read = new Set<string>(spec.requires);
   if (spec.parties) PARTY_KEYS.forEach((k) => read.add(k));
+  if (spec.notifyParty) NOTIFY_PARTY_KEYS.forEach((k) => read.add(k));
   for (const fill of [undefined, 1]) {
     const probe = new Proxy({} as DocumentData, {
       get: (_, key) => {
@@ -417,6 +421,7 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
     // Numbered as a job's are: by the B/L once there is one, the reference until then.
     documentNumber: data.blNumber || reference || "TBD",
     sourceNote: MANUAL_SOURCE_NOTE,
+    billTo: text(v, "bill_to") === "shipper" ? "shipper" : text(v, "bill_to") === "notify" ? "notify" : "consignee",
     // Dollars unless rupees were chosen: what the page has always typed in.
     currency: text(v, "currency") === "INR" ? "INR" : "USD",
     charges: chargesOf(v),
@@ -439,7 +444,129 @@ const ALIAS: Record<string, string> = {
   "proof-of-delivery": "POD",
 };
 
-const fromRegistry = (spec: DocSpec): FormDoc => ({
+// ---------------------------------------------------------------------------
+// The freight invoice, and its proforma
+// ---------------------------------------------------------------------------
+
+/** The freight invoice printed as a proforma: the estimate, without GST. */
+export const isProforma = (v: ManualValues) => text(v, "invoice_kind") === "proforma";
+
+/** Who the invoice is addressed to: one of the three parties, whose name, address and GSTIN make its To block. */
+const BILL_TO: ManualField = {
+  key: "bill_to",
+  label: "Bill to",
+  input: "segmented",
+  options: [
+    { value: "consignee", label: "Consignee" },
+    { value: "shipper", label: "Shipper" },
+    { value: "notify", label: "Notify party" },
+  ],
+  hint: "Its name, address and GSTIN, typed under Parties, are what the invoice is addressed to.",
+  wide: true,
+};
+
+const INVOICE_KIND: ManualField = {
+  key: "invoice_kind",
+  label: "Print as",
+  input: "segmented",
+  options: [
+    { value: "freight", label: "Freight invoice" },
+    { value: "proforma", label: "Proforma invoice" },
+  ],
+  hint: "A proforma is the statement of charges sent for approval or advance payment: each taxed line ticked, the GST added as its own lines.",
+  wide: true,
+};
+
+const KG = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg` : undefined);
+const CBM = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN", { maximumFractionDigits: 3 })} CBM` : undefined);
+const joined = (...parts: Array<string | number | undefined>) => parts.filter((x) => x !== undefined && x !== "").join(" ") || undefined;
+
+/**
+ * What both forms of the invoice print above the charges, as a statement of
+ * charges from the trade sets it out: under the three parties — the one
+ * billed marked so in its own box, with the state code and PAN read from its
+ * GSTIN (render.ts) — the shipment's particulars, two to a line.
+ */
+const INVOICE_SECTIONS: DocSection[] = [
+  {
+    title: "Shipment",
+    columns: 2,
+    rows: [
+      { label: "Vessel", value: (d) => d.vessel },
+      { label: "Voyage / flight", value: (d) => d.voyage },
+      { label: "Carrier", value: (d) => d.carrier },
+      { label: "Commodity", value: (d) => d.cargoDescription },
+      { label: "OBL", value: (d) => d.masterBlNumber, optional: true },
+      { label: "HBL", value: (d) => d.blNumber },
+      { label: "POL", value: (d) => d.portOfLoading ?? d.origin },
+      { label: "POD", value: (d) => d.destination },
+      { label: "FDC", value: (d) => d.finalDestination, optional: true },
+      { label: "Container", value: (d) => joined(d.containerType, d.containerId) },
+      { label: "Pcs", value: (d) => (d.packageCount !== undefined ? joined(d.packageCount, d.packageType) : undefined) },
+      { label: "Weight", value: (d) => KG(d.grossWeightKg) },
+      { label: "Volume", value: (d) => CBM(d.volumeCbm) },
+      { label: "Salesman", value: (d) => d.salesRef, optional: true },
+      { label: "Shipper ref no", value: (d) => d.invoiceRef ?? d.poNumber, optional: true },
+      { label: "Payment terms", value: (d) => d.paymentTerms, optional: true },
+    ],
+  },
+  // The one freight figure, where the charges are not itemised; itemised, the table says it.
+  { title: "Charges", rows: [{ label: "Ocean freight", value: (d) => (d.charges?.length ? undefined : docMoney(d, d.freightAmountInr)), optional: true }] },
+];
+
+/** "COLLECT CHARGES", "PREPAID CHARGES": the charges headed with the freight terms, as the statement heads them. */
+const chargesTitle = (d: DocumentData) => (d.freightTerms ? `${d.freightTerms} charges` : "Charges");
+
+/**
+ * The freight invoice, as a freight (tax) invoice or as a proforma.
+ *
+ * One form, one set of details: a proforma goes out first for approval or an
+ * advance, and the freight invoice that follows is the same charges with GST.
+ * The proforma is its own paper — PROFORMA INVOICE, numbered PI-, saying it is
+ * not a tax invoice — and carries no GST at all: any typed on a line is
+ * neither printed nor added. Both set out the shipper, the consignee and the
+ * notify party (the forwarder at the other end) in three columns, each with
+ * its address and GSTIN, as an invoice to the trade does.
+ */
+function freightInvoiceDoc(registry: DocSpec): FormDoc {
+  const freight: DocSpec = {
+    ...registry,
+    parties: true,
+    notifyParty: true,
+    sections: INVOICE_SECTIONS,
+    charges: { title: chargesTitle },
+  };
+  const proforma: DocSpec = {
+    ...freight,
+    id: "proforma-invoice",
+    title: "PROFORMA INVOICE",
+    shortName: "Proforma invoice",
+    numberPrefix: "PI",
+    charges: { title: chargesTitle, style: "statement" },
+    declaration: "A proforma invoice: a statement of the charges, for approval or advance payment. It is not a tax invoice.",
+  };
+  const specOf = (v: ManualValues) => (isProforma(v) ? proforma : freight);
+  const dataOf = (v: ManualValues): DocumentData => documentDataFromManual(v);
+  const sections = sectionsFor(freight);
+  sections[0] = { ...sections[0], fields: [INVOICE_KIND, BILL_TO, ...(sections[0].fields ?? [])] };
+  return {
+    id: registry.id,
+    shortName: "Freight invoice",
+    alias: "FI / PI",
+    purpose: "What the customer owes us for the forwarding service: as a freight invoice with GST, or as a proforma without it.",
+    group: "shipment",
+    store: "shipment",
+    editor: "form",
+    stampsDraft: true,
+    sections,
+    render: (v) => renderDocument(specOf(v), dataOf(v)),
+    fileName: (v) => documentFilename(specOf(v), dataOf(v)),
+    missing: (v) => readiness(dataOf(v), freight.requires, freight.check).missingLabels,
+    documentNo: (v) => documentNo(specOf(v), dataOf(v)),
+  };
+}
+
+const fromRegistry = (spec: DocSpec): FormDoc => spec.id === "freight-invoice" ? freightInvoiceDoc(spec) : ({
   id: spec.id,
   // The arrival notice is the import desk's CAN: named as they name it.
   shortName: spec.id === "arrival-notice" ? "Cargo arrival notice" : spec.shortName,
@@ -534,7 +661,7 @@ const todayIst = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slic
 
 export function emptyStore<K extends ManualStore>(store: K): ManualState[K] {
   const fresh: { [S in ManualStore]: () => ManualState[S] } = {
-    shipment: () => ({ currency: "USD" }),
+    shipment: () => ({ currency: "USD", invoice_kind: "freight", bill_to: "consignee" }),
     console: () => ({ freight_terms: "prepaid" }),
     hbl: () => ({ data: emptyHbl(), hblNo: "", release: "original", originals: 3, print: "draft" }),
     hawb: () => ({ data: { ...emptyHawb(), currency: "USD" }, hawbNo: "", hawbDate: todayIst(), kind: "draft" }),
@@ -601,4 +728,59 @@ export function matches(doc: ManualDoc, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return [doc.shortName, doc.alias ?? "", doc.purpose].some((s) => s.toLowerCase().includes(q));
+}
+
+// ---------------------------------------------------------------------------
+// Kept by B/L number (139, services/manualDocuments)
+// ---------------------------------------------------------------------------
+
+/** A B/L number written one way, whoever typed it — as the database writes it (139's trigger). */
+export const normaliseBl = (bl: string) => bl.replace(/\s+/g, " ").trim().toUpperCase();
+
+/** The number a document is kept under: its house B/L (or HAWB) number, or a console's master B/L. */
+export function blOf(doc: ManualDoc, s: ManualState): string {
+  if (doc.editor === "hbl") return s.hbl.hblNo.trim();
+  if (doc.editor === "hawb") return s.hawb.hawbNo.trim();
+  return text(s[doc.store as "shipment" | "console"], doc.store === "console" ? "mbl_number" : "blNumber");
+}
+
+/** Where that number is typed on the form, for the page to point at. */
+export function blFieldOf(doc: ManualDoc): string {
+  if (doc.editor === "hbl") return "House B/L number";
+  if (doc.editor === "hawb") return "HAWB number";
+  return doc.store === "console" ? "Master B/L number" : "B/L number";
+}
+
+/** Which paper it is, kept: the freight invoice's two forms are two papers. */
+export const savedKeyOf = (doc: ManualDoc, s: ManualState) => (doc.id === "freight-invoice" && isProforma(s.shipment) ? "proforma-invoice" : doc.id);
+
+/** Its name and printed number, for the list of what is kept. */
+export function savedLabelOf(doc: ManualDoc, s: ManualState): { title: string; documentNo: string } {
+  if (doc.editor === "hbl") return { title: doc.shortName, documentNo: s.hbl.hblNo.trim() };
+  if (doc.editor === "hawb") return { title: doc.shortName, documentNo: s.hawb.hawbNo.trim() };
+  const v = s[doc.store as "shipment" | "console"];
+  return { title: savedKeyOf(doc, s) === "proforma-invoice" ? "Proforma invoice" : doc.shortName, documentNo: doc.documentNo?.(v) ?? "" };
+}
+
+/** What is kept for it: the details the document reads, as the page holds them. */
+export const savedValuesOf = (doc: ManualDoc, s: ManualState) => s[doc.store] as unknown as Record<string, unknown>;
+
+/** The page's own entry for a kept document. */
+export const documentForKey = (key: string) => manualDocument(key === "proforma-invoice" ? "freight-invoice" : key);
+
+/**
+ * The page with a kept document's details put back into its form, the other
+ * forms as they were. Merged over a fresh form, as the page restores a tab,
+ * so a field added since it was kept exists blank instead of undefined.
+ */
+export function withSaved(s: ManualState, store: ManualStore, values: Record<string, unknown>): ManualState {
+  if (store === "hbl") {
+    const v = values as Partial<ManualHbl>;
+    return { ...s, hbl: { ...emptyStore("hbl"), ...v, data: normaliseHbl(v.data) } };
+  }
+  if (store === "hawb") {
+    const v = values as Partial<ManualHawb>;
+    return { ...s, hawb: { ...emptyStore("hawb"), ...v, data: normaliseHawb(v.data) } };
+  }
+  return { ...s, [store]: { ...emptyStore(store), ...(values as ManualValues) } };
 }
