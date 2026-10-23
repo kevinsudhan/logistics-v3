@@ -6,6 +6,7 @@ import {
   copyNote,
   forwardSuspects,
   inView,
+  keepViewChoice,
   partiesOf,
   readViewChoice,
   shownBy,
@@ -134,19 +135,26 @@ is("CC, whose forward or copy, BCC; nothing for his own", all.map((m) => copyNot
   null, null, "CC", "CC", "Info Desk's", "Parasuraman's", "Parasuraman's", "Parasuraman's", "BCC", null,
 ]);
 
-console.log("\na view kept from before there were three");
-const store = new Map<string, string>();
-(globalThis as { localStorage?: unknown }).localStorage = {
-  getItem: (k: string) => store.get(k) ?? null,
-  setItem: (k: string, v: string) => void store.set(k, v),
-  removeItem: (k: string) => void store.delete(k),
+console.log("\nthe view, kept for the tab: the app opened afresh is at All");
+const storage = () => {
+  const store = new Map<string, string>();
+  return { store, getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
 };
-store.set(`mail:view:${ME}`, JSON.stringify({ view: "direct", person: null, direction: "any" }));
-is("To me is Primary", readViewChoice(ME).view, "primary");
-store.set(`mail:view:${ME}`, JSON.stringify({ view: "mine", person: PARASU, direction: "sent" }));
+const kept = storage(); // localStorage: for good, as the view was kept until 23 Oct
+const tab = storage(); // sessionStorage: this tab only
+Object.assign(globalThis, { localStorage: kept, sessionStorage: tab });
+kept.setItem(`mail:view:${ME}`, JSON.stringify({ view: "mine", person: null, direction: "any" }));
+is("left on My emails days ago: opens at All, and that is let go", [readViewChoice(ME), kept.store.has(`mail:view:${ME}`)], [{ view: "all", person: null, direction: "any" }, false]);
+keepViewChoice(ME, { view: "primary", person: null, direction: "any" });
+is("chosen in this tab: kept through a reload", [readViewChoice(ME).view, kept.store.size], ["primary", 0]);
+keepViewChoice(ME, { view: "mine", person: PARASU, direction: "sent" });
 is("My emails kept, with no person", readViewChoice(ME), { view: "mine", person: null, direction: "sent" });
-store.set(`mail:view:${ME}`, JSON.stringify({ view: "copied", person: PARASU, direction: "sent" }));
-is("CC & BCC of one person is their forwarded mail", readViewChoice(ME), { view: "forwarded", person: PARASU, direction: "sent" });
+keepViewChoice(ME, { view: "all", person: null, direction: "any" });
+is("All: nothing kept", tab.store.size, 0);
+Object.assign(globalThis, { sessionStorage: storage() });
+keepViewChoice(ME, { view: "cc", person: null, direction: "any" });
+Object.assign(globalThis, { sessionStorage: storage() });
+is("a new tab, or the app started again: All", readViewChoice(ME).view, "all");
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

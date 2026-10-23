@@ -240,7 +240,7 @@ export default function Mail() {
    * colleague, to you), CC'd, and the admin's Auto-forwarded — and in the last
    * two, whose (lib/ccFilter). aashish@ is sent all of parasuraman@'s and
    * info@'s mail by Exchange rules; this is how his own is found in it. Kept
-   * per mailbox in this browser, so it opens the way it was left.
+   * per mailbox for the tab: the app opened afresh starts at All.
    */
   const [view, setViewState] = useState<ViewChoice>(() => readViewChoice(mailbox));
   const setView = (c: ViewChoice) => {

@@ -241,13 +241,21 @@ export function copyNote(m: MailMessage, lens: Lens): { label: string; title: st
 // ---------------------------------------------------------------------------
 
 const viewKey = (mailbox: string) => `mail:view:${norm(mailbox)}`;
-/** What the views were called on 13 Oct, before there were three. ("mine" is new: "direct" was To me, now Primary.) */
-const RENAMED: Record<string, MailView> = { direct: "primary", copied: "forwarded" };
 
+/**
+ * The view, kept for the tab: through a reload and a visit to another page,
+ * but the app opened afresh starts at All (the user, 23 Oct), not at the view
+ * left on days ago. It was kept for good from 13 to 23 Oct; that copy is let go.
+ */
 export function readViewChoice(mailbox: string): ViewChoice {
   try {
-    const v = JSON.parse(localStorage.getItem(viewKey(mailbox)) ?? "null") as { view?: string; person?: unknown; direction?: unknown } | null;
-    const view = (RENAMED[v?.view ?? ""] ?? v?.view) as MailView | undefined;
+    localStorage.removeItem(viewKey(mailbox));
+  } catch {
+    // Nothing kept there to let go of.
+  }
+  try {
+    const v = JSON.parse(sessionStorage.getItem(viewKey(mailbox)) ?? "null") as { view?: string; person?: unknown; direction?: unknown } | null;
+    const view = v?.view as MailView | undefined;
     if (!view || !["all", "mine", "primary", "cc", "forwarded"].includes(view)) return EVERYTHING;
     return {
       view,
@@ -261,8 +269,8 @@ export function readViewChoice(mailbox: string): ViewChoice {
 
 export function keepViewChoice(mailbox: string, c: ViewChoice) {
   try {
-    if (c.view === "all") localStorage.removeItem(viewKey(mailbox));
-    else localStorage.setItem(viewKey(mailbox), JSON.stringify(c));
+    if (c.view === "all") sessionStorage.removeItem(viewKey(mailbox));
+    else sessionStorage.setItem(viewKey(mailbox), JSON.stringify(c));
   } catch {
     // Blocked or full: the view still works for as long as the page is open.
   }
