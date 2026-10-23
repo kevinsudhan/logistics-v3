@@ -14,8 +14,9 @@ import {
 import type { MailMessage } from "../../src/services/mockMail";
 
 /**
- * Mail: the admin's three views — Primary, CC'd, Auto-forwarded — and whose
- * mail is in the last two (13 Oct 2026).
+ * Mail: the four views — My emails (from outside, to me), Primary (from a
+ * colleague, to me), CC'd, the admin's Auto-forwarded — and whose mail is in
+ * the last two (13 Oct 2026; My emails 23 Oct).
  *
  * aashish@ is sent everything parasuraman@ and info@ send and receive, by
  * Exchange rules, whether or not they name him.
@@ -54,10 +55,17 @@ const all = [toMe, parasuToMe, parasuCcsMe, priyaCcsMe, infoForward, parasuForwa
 // What the header check found: two rule forwards; Parasuraman's own mail to him is not one.
 const lens: Lens = { mailbox: ME, forwards: new Map([["2", null], ["5", INFO], ["6", PARASU]]) };
 
-console.log("which of the three");
-is("Primary, CC'd, Auto-forwarded, and his own in none", all.map((m) => bucketOf(m, lens)), [
-  "primary", "primary", "cc", "cc", "forwarded", "forwarded", "forwarded", "forwarded", "forwarded", null,
+console.log("which of the four");
+is("My emails, Primary, CC'd, Auto-forwarded, and his own in none", all.map((m) => bucketOf(m, lens)), [
+  "mine", "primary", "cc", "cc", "forwarded", "forwarded", "forwarded", "forwarded", "forwarded", null,
 ]);
+is("a customer writes to him and copies a colleague: still his", bucketOf(mail("20", PRIYA, [ME], [PARASU]), lens), "mine");
+is("a customer writes to him and others: still his", bucketOf(mail("21", ARUN, [PARASU, ME]), lens), "mine");
+is("a customer copies him: CC'd, not his", bucketOf(mail("22", ARUN, [PRIYA], [ME]), lens), "cc");
+is("one of the staff on another domain: from within the company", [
+  bucketOf(mail("23", "kumar@gmail.com", [ME]), lens), bucketOf(mail("23", "kumar@gmail.com", [ME]), { ...lens, people: new Set(["kumar@gmail.com"]) }),
+], ["mine", "primary"]);
+is("a colleague writes to him in any case: Primary", bucketOf(mail("24", "Aarathy@AashishLogistics.com", [ME]), lens), "primary");
 is("how: To, Cc, a rule's forward, a copy", all.map((m) => addressedAs(m, lens)), ["to", "to", "cc", "cc", "forward", "forward", "copy", "copy", "copy", "sent"]);
 
 console.log("\nasking which are forwards");
@@ -70,7 +78,8 @@ is("never answered: his own mail, not hidden", bucketOf(infoForward, unknown), "
 console.log("\nthe views, and who");
 const ids = (c: Partial<ViewChoice>) => all.filter((m) => inView(m, lens, { view: "all", person: null, direction: "any", ...c })).map((m) => m.id);
 is("everything", ids({}), ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
-is("Primary", ids({ view: "primary" }), ["1", "2"]);
+is("My emails: from outside, to him", ids({ view: "mine" }), ["1"]);
+is("Primary: from a colleague, to him", ids({ view: "primary" }), ["2"]);
 is("CC'd", ids({ view: "cc" }), ["3", "4"]);
 is("CC'd by Parasuraman", ids({ view: "cc", person: PARASU }), ["3"]);
 is("CC'd by a customer", ids({ view: "cc", person: "PRIYA@customer.com" }), ["4"]);
@@ -122,6 +131,8 @@ const store = new Map<string, string>();
 };
 store.set(`mail:view:${ME}`, JSON.stringify({ view: "direct", person: null, direction: "any" }));
 is("To me is Primary", readViewChoice(ME).view, "primary");
+store.set(`mail:view:${ME}`, JSON.stringify({ view: "mine", person: PARASU, direction: "sent" }));
+is("My emails kept, with no person", readViewChoice(ME), { view: "mine", person: null, direction: "sent" });
 store.set(`mail:view:${ME}`, JSON.stringify({ view: "copied", person: PARASU, direction: "sent" }));
 is("CC & BCC of one person is their forwarded mail", readViewChoice(ME), { view: "forwarded", person: PARASU, direction: "sent" });
 

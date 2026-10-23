@@ -113,10 +113,11 @@ const mailKey = (mailbox: string, folder: string, filter: string) => `mail:${mai
 const VIEW_SCREENFUL = 25;
 const VIEW_AUTO_PAGES = 8;
 
-/** The admin's three (lib/ccFilter): what each is called, and what it holds. */
-const VIEW_LABEL: Record<Bucket, string> = { primary: "Primary", cc: "CC'd", forwarded: "Auto-forwarded" };
+/** The four views (lib/ccFilter): what each is called, and what it holds. */
+const VIEW_LABEL: Record<Bucket, string> = { mine: "My emails", primary: "Primary", cc: "CC'd", forwarded: "Auto-forwarded" };
 const VIEW_TITLE: Record<Bucket, string> = {
-  primary: "Mail written to you: your address on the To line, and not forwarded to you by a rule",
+  mine: "Mail written to you from outside the company: your address on the To line, not CC'd to you",
+  primary: "Mail written to you from within the company: a colleague's, your address on the To line, not forwarded to you by a rule",
   cc: "Mail you were CC'd on: your address on the Cc line",
   forwarded: "Mail you were sent without being named on it: forwarded or copied to you by a rule from a colleague's mailbox, or a Bcc",
 };
@@ -232,8 +233,9 @@ export default function Mail() {
   /** Outlook's Filter: everything, unread only, or flagged only. */
   const [filter, setFilter] = useState<"all" | "unread" | "flagged">("all");
   /**
-   * The admin's mail in three — Primary, CC'd, Auto-forwarded — and in the
-   * last two, whose (lib/ccFilter). aashish@ is sent all of parasuraman@'s and
+   * The mail in four — My emails (from outside, to you), Primary (from a
+   * colleague, to you), CC'd, and the admin's Auto-forwarded — and in the last
+   * two, whose (lib/ccFilter). aashish@ is sent all of parasuraman@'s and
    * info@'s mail by Exchange rules; this is how his own is found in it. Kept
    * per mailbox in this browser, so it opens the way it was left.
    */
@@ -609,7 +611,9 @@ export default function Mail() {
   /** The To-me and CC views mean something only for mail received; not for Sent and Drafts. */
   const ccApplies = folder !== "sent" && folder !== "drafts";
   const ccActive = !searching && ccApplies && view.view !== "all";
-  const lens = useMemo<Lens>(() => ({ mailbox, forwards: ruleForwards, checking }), [mailbox, ruleForwards, checking]);
+  // The staff's addresses: mail from one of them is from within the company, whatever their domain.
+  const staff = useMemo(() => new Set(people.map((p) => p.email.trim().toLowerCase()).filter(Boolean)), [people]);
+  const lens = useMemo<Lens>(() => ({ mailbox, forwards: ruleForwards, checking, people: staff }), [mailbox, ruleForwards, checking, staff]);
   /** The rows as drawn: a message each when searching, a conversation each otherwise. */
   const rows = useMemo(() => {
     if (searching) return messages.map((m) => ({ key: m.id, m, group: [m] }));
@@ -1488,7 +1492,7 @@ export default function Mail() {
               {ccApplies && (
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                  {((isAdmin ? ["primary", "cc", "forwarded"] : ["primary", "cc"]) as Bucket[]).map((v) => (
+                  {((isAdmin ? ["mine", "primary", "cc", "forwarded"] : ["mine", "primary", "cc"]) as Bucket[]).map((v) => (
                     <button
                       key={v}
                       type="button"
@@ -1500,6 +1504,7 @@ export default function Mail() {
                         view.view === v ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
                       }`}
                     >
+                      {v === "mine" && <UserIcon size={11} />}
                       {v === "cc" && <Users size={11} />}
                       {v === "forwarded" && <Repeat2 size={11} />}
                       {VIEW_LABEL[v]}
@@ -1614,8 +1619,10 @@ export default function Mail() {
                 <span>
                   {checking.size > 0 && view.view !== "cc"
                     ? `Checking ${checking.size} message${checking.size === 1 ? "" : "s"} for auto-forwards…`
-                    : view.view === "primary"
-                      ? "Nothing written to you"
+                    : view.view === "mine"
+                      ? "Nothing from outside the company written to you"
+                      : view.view === "primary"
+                      ? "Nothing from a colleague written to you"
                       : view.view === "cc"
                         ? view.person
                           ? `Nothing ${chosen?.name ?? view.person} CC'd you on`
@@ -1648,7 +1655,7 @@ export default function Mail() {
                     onCheck={(shift) => toggleCheck(t.conversationId, shift)}
                     snoozedUntil={snoozeOf.get(newest.id)?.until}
                     backFromSnooze={t.messages.some((x) => returnedOf.has(x.id))}
-                    copyNote={ccApplies && view.view !== "primary" ? copyNote(newest, lens) : null}
+                    copyNote={ccApplies && view.view !== "primary" && view.view !== "mine" ? copyNote(newest, lens) : null}
                     onOpen={() => void open(newest, t.messages)}
                     onWarm={() => prefetchMailMessage(mailbox, newest.id, newest.folder)}
                     onChanged={() => void load()}

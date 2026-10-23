@@ -1,7 +1,8 @@
 import type { MailMessage } from "../services/mockMail";
 
 /**
- * The admin's mail, in three: written to him, CC'd to him, and forwarded to him.
+ * A mailbox's mail, sorted: written to it from outside, written to it from
+ * within the company, CC'd to it, and forwarded to it.
  *
  * ---------------------------------------------------------------------------
  * WHAT THIS IS FOR
@@ -9,13 +10,20 @@ import type { MailMessage } from "../services/mockMail";
  * aashish@ (the admin) is sent everything parasuraman@ and info@ send and
  * receive, by rules set up in Exchange, whether or not they put him on it. So
  * his Inbox is mostly their correspondence, and his own mail is lost in it.
- * The Mail page sorts it three ways:
+ * The Mail page sorts it four ways:
  *
- *   Primary         mail written to him: his address on the To line;
+ *   My emails       mail written to him from outside the company — a
+ *                   customer, a carrier, an agent: his address on the To line;
+ *   Primary         mail written to him from within the company — a
+ *                   colleague's, his address on the To line;
  *   CC'd            mail he was copied on: his address on the Cc line —
  *                   with who copied him;
  *   Auto-forwarded  mail he is sent without being named on it — with whose
  *                   mailbox it came out of.
+ *
+ * Within the company is a sender at the mailbox's own domain, or one of the
+ * staff on another (`Lens.people`). Every user has the first three; the
+ * fourth is the admin's.
  *
  * HOW A FORWARD IS TOLD FROM MAIL WRITTEN TO HIM
  *
@@ -54,6 +62,8 @@ export interface Lens {
   forwards?: RuleForwards;
   /** Being asked about: perhaps a forward, not yet known. */
   checking?: ReadonlySet<string>;
+  /** The staff's addresses, lower case: within the company though not at the mailbox's domain. */
+  people?: ReadonlySet<string>;
 }
 
 const norm = (a: string | undefined | null) => (a ?? "").trim().toLowerCase();
@@ -75,13 +85,21 @@ export function addressedAs(m: MailMessage, lens: Lens): Addressed {
   return "copy";
 }
 
-export type Bucket = "primary" | "cc" | "forwarded";
+/** "mine" is My emails: written to the mailbox from outside the company. */
+export type Bucket = "mine" | "primary" | "cc" | "forwarded";
 
-/** Which of the three a message is in; none for the mailbox's own, or one still being checked. */
+/** Whether a message is from within the company: our domain, or one of the staff. */
+export function fromWithin(m: MailMessage, lens: Lens): boolean {
+  const from = norm(m.from?.emailAddress?.address);
+  return Boolean(from) && (oursIn(lens.mailbox)(from) || Boolean(lens.people?.has(from)));
+}
+
+/** Which of the four a message is in; none for the mailbox's own, or one still being checked. */
 export function bucketOf(m: MailMessage, lens: Lens): Bucket | null {
   if (lens.checking?.has(m.id)) return null;
   const a = addressedAs(m, lens);
-  return a === "to" ? "primary" : a === "cc" ? "cc" : a === "forward" || a === "copy" ? "forwarded" : null;
+  if (a === "to") return fromWithin(m, lens) ? "primary" : "mine";
+  return a === "cc" ? "cc" : a === "forward" || a === "copy" ? "forwarded" : null;
 }
 
 /**
@@ -137,7 +155,7 @@ export function partiesOf(m: MailMessage, lens: Lens): Party[] {
   return out;
 }
 
-/** Everything, or one of the three. */
+/** Everything, or one of the four. */
 export type MailView = "all" | Bucket;
 /** Of one of our mailboxes' forwarded mail: both ways, what it was sent, or what it sent. */
 export type Direction = "any" | "received" | "sent";
@@ -210,14 +228,14 @@ export function copyNote(m: MailMessage, lens: Lens): { label: string; title: st
 // ---------------------------------------------------------------------------
 
 const viewKey = (mailbox: string) => `mail:view:${norm(mailbox)}`;
-/** What the views were called on 13 Oct, before there were three. */
+/** What the views were called on 13 Oct, before there were three. ("mine" is new: "direct" was To me, now Primary.) */
 const RENAMED: Record<string, MailView> = { direct: "primary", copied: "forwarded" };
 
 export function readViewChoice(mailbox: string): ViewChoice {
   try {
     const v = JSON.parse(localStorage.getItem(viewKey(mailbox)) ?? "null") as { view?: string; person?: unknown; direction?: unknown } | null;
     const view = (RENAMED[v?.view ?? ""] ?? v?.view) as MailView | undefined;
-    if (!view || !["all", "primary", "cc", "forwarded"].includes(view)) return EVERYTHING;
+    if (!view || !["all", "mine", "primary", "cc", "forwarded"].includes(view)) return EVERYTHING;
     return {
       view,
       person: (view === "cc" || view === "forwarded") && typeof v?.person === "string" ? v.person : null,
