@@ -70,7 +70,9 @@ const norm = (a: string | undefined | null) => (a ?? "").trim().toLowerCase();
 const domainOf = (mailbox: string) => norm(mailbox).split("@")[1] ?? "";
 const oursIn = (mailbox: string) => {
   const domain = domainOf(mailbox);
-  return (a: string) => Boolean(domain) && a.endsWith(`@${domain}`);
+  // The tenant's own Microsoft address is ours too: imports@aashishlogistics.onmicrosoft.com.
+  const tenant = `${domain.split(".")[0]}.onmicrosoft.com`;
+  return (a: string) => Boolean(domain) && (a.endsWith(`@${domain}`) || a.endsWith(`@${tenant}`));
 };
 
 export type Addressed = "to" | "cc" | "forward" | "copy" | "sent";
@@ -175,6 +177,17 @@ export function inView(m: MailMessage, lens: Lens, c: ViewChoice): boolean {
   if (!c.person) return true;
   const person = norm(c.person);
   return partiesOf(m, lens).some((p) => p.address === person && (c.direction === "any" || p.role === c.direction));
+}
+
+/**
+ * The message a conversation is shown by in a view: the newest of its
+ * messages the view is for (a thread lists them oldest first), or none. A
+ * customer's mail to the mailbox is in My emails as the customer's, not under
+ * info@'s reply at the top of the thread.
+ */
+export function shownBy(thread: MailMessage[], lens: Lens, c: ViewChoice): MailMessage | undefined {
+  for (let i = thread.length - 1; i >= 0; i--) if (inView(thread[i], lens, c)) return thread[i];
+  return undefined;
 }
 
 export interface Copier {

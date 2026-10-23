@@ -8,6 +8,7 @@ import {
   inView,
   partiesOf,
   readViewChoice,
+  shownBy,
   type Lens,
   type ViewChoice,
 } from "../../src/lib/ccFilter";
@@ -66,6 +67,8 @@ is("one of the staff on another domain: from within the company", [
   bucketOf(mail("23", "kumar@gmail.com", [ME]), lens), bucketOf(mail("23", "kumar@gmail.com", [ME]), { ...lens, people: new Set(["kumar@gmail.com"]) }),
 ], ["mine", "primary"]);
 is("a colleague writes to him in any case: Primary", bucketOf(mail("24", "Aarathy@AashishLogistics.com", [ME]), lens), "primary");
+is("the tenant's Microsoft address is ours too", bucketOf(mail("25", "imports@aashishlogistics.onmicrosoft.com", [ME]), lens), "primary");
+is("info@ writing to him is never My emails", bucketOf(mail("26", INFO, [ME], [], "RE: PO 26268343"), { mailbox: ME }), "primary");
 is("how: To, Cc, a rule's forward, a copy", all.map((m) => addressedAs(m, lens)), ["to", "to", "cc", "cc", "forward", "forward", "copy", "copy", "copy", "sent"]);
 
 console.log("\nasking which are forwards");
@@ -88,6 +91,15 @@ is("Parasuraman's, forwarded and copied, in and out", ids({ view: "forwarded", p
 is("Parasuraman's, received by him", ids({ view: "forwarded", person: PARASU, direction: "received" }), ["6", "8"]);
 is("Parasuraman's, sent by him", ids({ view: "forwarded", person: PARASU, direction: "sent" }), ["7"]);
 is("info@'s", ids({ view: "forwarded", person: INFO }), ["5", "8"]);
+
+console.log("\na conversation, by the mail the view is for");
+// A customer writes to him; info@ replies to him at the top of the thread.
+const thread = [mail("30", PRIYA, [ME]), mail("31", PARASU, [PRIYA], [ME]), mail("32", INFO, [ME], [], "RE: PO 26268343")];
+const by = (view: ViewChoice["view"]) => shownBy(thread, lens, { view, person: null, direction: "any" })?.id ?? null;
+is("My emails: the customer's mail, not info@'s reply over it", by("mine"), "30");
+is("Primary: info@'s reply", by("primary"), "32");
+is("CC'd: Parasuraman copying him", by("cc"), "31");
+is("not in a view at all: not shown in it", shownBy([mail("33", INFO, [ME])], lens, { view: "mine", person: null, direction: "any" }), undefined);
 
 console.log("\nwhose mail");
 is("a forward is the forwarding mailbox's, received", partiesOf(infoForward, lens).map((p) => [p.name, p.role]), [["Info Desk", "received"]]);

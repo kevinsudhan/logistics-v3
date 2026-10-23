@@ -62,11 +62,11 @@ import {
   copyNote,
   EVERYTHING,
   forwardSuspects,
-  inView,
   keepRuleForwards,
   keepViewChoice,
   readRuleForwards,
   readViewChoice,
+  shownBy,
   type Bucket,
   type Lens,
   type ViewChoice,
@@ -109,9 +109,12 @@ const mailKey = (mailbox: string, folder: string, filter: string) => `mail:${mai
 /**
  * While a view is on, older pages are fetched by themselves until it has this
  * many conversations to show, or this many pages have been looked through.
+ * Eight pages, every time the page opened in a view, was four hundred messages
+ * and their forward checks before anything settled; "Look further back" asks
+ * for more.
  */
-const VIEW_SCREENFUL = 25;
-const VIEW_AUTO_PAGES = 8;
+const VIEW_SCREENFUL = 15;
+const VIEW_AUTO_PAGES = 2;
 
 /** The four views (lib/ccFilter): what each is called, and what it holds. */
 const VIEW_LABEL: Record<Bucket, string> = { mine: "My emails", primary: "Primary", cc: "CC'd", forwarded: "Auto-forwarded" };
@@ -617,10 +620,19 @@ export default function Mail() {
   /** The rows as drawn: a message each when searching, a conversation each otherwise. */
   const rows = useMemo(() => {
     if (searching) return messages.map((m) => ({ key: m.id, m, group: [m] }));
-    // A conversation is shown when any message in it is one the view is for.
+    /*
+      In a view, a conversation is shown by the newest of its messages the view
+      is for, and placed by it: a customer's mail to you is in My emails as the
+      customer's, not under info@'s reply at the top of the thread.
+    */
     const all = conversations
-      .map((t) => ({ key: t.conversationId, m: t.messages[t.messages.length - 1], group: t.messages }))
-      .filter((r) => !ccActive || r.group.some((m) => inView(m, lens, view)));
+      .map((t) => ({
+        key: t.conversationId,
+        m: ccActive ? shownBy(t.messages, lens, view) : t.messages[t.messages.length - 1],
+        group: t.messages,
+      }))
+      .filter((r): r is { key: string; m: MailMessage; group: MailMessage[] } => Boolean(r.m));
+    if (ccActive) all.sort((a, b) => b.m.receivedDateTime.localeCompare(a.m.receivedDateTime));
     if (folder !== "inbox" || !returnedOf.size) return all;
     // Back from snooze, on top: Outlook keeps a moved message's received date,
     // so it would otherwise sit wherever that date puts it.
@@ -678,7 +690,7 @@ export default function Mail() {
     A view is read off the mail loaded — Outlook cannot list by recipient — and
     a page of a cluttered Inbox may hold two conversations it wants. So while
     one is on, older pages are fetched by themselves until there is a
-    screenful, or a few hundred messages have been looked through; past that,
+    screenful, or two more pages have been looked through; past that,
     "Look further back" asks for more.
   */
   useEffect(() => {
@@ -1474,21 +1486,33 @@ export default function Mail() {
             </div>
           ) : !searching && (
             <>
+            {/*
+              One choice, never two: All is everything, Unread and Flagged
+              everything unread or flagged, and a view only its own mail.
+              They were two groups, Outlook's filter and the views, and All
+              stayed pressed beside My emails, as though both were on.
+            */}
             <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5 text-[11.5px]" role="group" aria-label="Show">
-              {(["all", "unread", "flagged"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFilter(f)}
-                  aria-pressed={filter === f}
-                  className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
-                    filter === f ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {f === "flagged" && <Flag size={11} />}
-                  {f === "all" ? "All" : f === "unread" ? "Unread" : "Flagged"}
-                </button>
-              ))}
+              {(["all", "unread", "flagged"] as const).map((f) => {
+                const on = filter === f && (!ccApplies || view.view === "all");
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => {
+                      setFilter(f);
+                      if (view.view !== "all") setView(EVERYTHING);
+                    }}
+                    aria-pressed={on}
+                    className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
+                      on ? "bg-surface-2 font-medium text-text-primary" : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    {f === "flagged" && <Flag size={11} />}
+                    {f === "all" ? "All" : f === "unread" ? "Unread" : "Flagged"}
+                  </button>
+                );
+              })}
               {ccApplies && (
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
@@ -1496,8 +1520,11 @@ export default function Mail() {
                     <button
                       key={v}
                       type="button"
-                      // Pressed again, it is off: back to everything.
-                      onClick={() => setView(view.view === v ? EVERYTHING : { view: v, person: null, direction: "any" })}
+                      // Pressed again, it is off: back to All.
+                      onClick={() => {
+                        setFilter("all");
+                        setView(view.view === v ? EVERYTHING : { view: v, person: null, direction: "any" });
+                      }}
                       aria-pressed={view.view === v}
                       title={VIEW_TITLE[v]}
                       className={`flex h-6 items-center gap-1 rounded-md px-2 transition-colors ${
