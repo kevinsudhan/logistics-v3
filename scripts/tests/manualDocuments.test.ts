@@ -4,6 +4,7 @@ import {
   documentDataFromManual,
   documentForKey,
   emptyState,
+  financialYear,
   normaliseBl,
   keysOf,
   manualDocument,
@@ -96,7 +97,7 @@ const everything: ManualValues = {
   consigneeName: "GULF TRADERS", consigneeAddress: "PO BOX 1, DUBAI", consigneeCountry: "UAE", origin: "CHENNAI", destination: "JEBEL ALI",
   sailingDate: "2026-10-14", etaDate: "2026-10-28", containerType: "40HC", containerId: "PCIU1234567", cargoDescription: "COTTON YARN",
   hsCode: "5205", packageCount: "120", packageType: "BALES", netWeightKg: "18000", grossWeightKg: "18500", invoiceValueInr: "2500000",
-  freightAmountInr: "95000", incoterm: "FOB", paymentTerms: "30 DAYS",
+  freightAmountInr: "95000", incoterm: "FOB", paymentTerms: "30 DAYS", invoice_no: "9", invoice_date: "2026-10-23",
 };
 s.shipment = everything;
 is("every shipment document ready once everything is typed", MANUAL_DOCUMENTS.filter((x) => x.store === "shipment" && missingOf(x, s).length).map((x) => x.id), []);
@@ -266,7 +267,7 @@ is("the LCL set", chargeTable?.presets?.find((p) => p.label === "LCL export")?.r
 ]);
 is("the usual currency: freight in dollars, the rest in rupees", chargeTable?.presets?.find((p) => p.label === "LCL export")?.rows.map((r) => r.currency), ["USD", "INR", "INR", "INR", "INR", "INR"]);
 const invoice: ManualValues = {
-  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", roe_USD: "83.50",
+  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", roe_USD: "83.50", invoice_no: "12", invoice_date: "2026-10-23",
   charges: [
     { charge: "Ocean freight", basis: "W/M", quantity: "4.5", currency: "USD", rate: "60", gst: "", sac: "" },
     { charge: "CFS charges", basis: "", quantity: "4.5", currency: "INR", rate: "650", gst: "18", sac: "" },
@@ -312,7 +313,7 @@ const freightItems = (await bodies(fi.render(parties))).flat();
 const freightText = freightItems.join(" ");
 is("label and value: the party billed, the other parties, each with its address and GSTIN", [
   "Billed to", "GULF TRADING LLC", "DEIRA, DUBAI", "TRN 100200300", "Shipper", "SAMPLE TEXTILES PVT LTD", "TIRUPPUR 641604", "GSTIN / IEC: 33AABCS1234F1Z9",
-  "Notify party", "SAMPLE FORWARDERS FZE", "JEBEL ALI FREE ZONE", "GSTIN: TRN 100400500", "TAX INVOICE", "ORIGINAL", "Invoice number", "FI-HBL/26-27/0042", "Reverse charge", "CGST",
+  "Notify party", "SAMPLE FORWARDERS FZE", "JEBEL ALI FREE ZONE", "GSTIN: TRN 100400500", "TAX INVOICE", "ORIGINAL", "Invoice number", "ALG/26-27/0012", "Reverse charge", "CGST",
 ].filter((w) => !freightText.includes(w)), []);
 is("the party billed in full once; as consignee, by name alone", [freightItems.filter((t) => t === "DEIRA, DUBAI").length, freightItems.filter((t) => t === "GULF TRADING LLC").length], [1, 2]);
 is("our PAN, GSTIN and bank account at the foot, with the terms", [
@@ -348,12 +349,32 @@ is("billed to the shipper: it in full as Billed to, with the state and PAN read 
   statementText.includes("GSTIN / IEC: 33AABCS1234F1Z9"), statementText.split(" ").includes("AABCS1234F"),
 ], [true, true, false, true, true, false]);
 
+console.log("\nthe tax invoice's number: ALG, the financial year, the last part typed");
+const numbered = (v: ManualValues) => fi.documentNo?.({ ...parties, invoice_kind: "freight", ...v });
+is("the financial year runs April to March", [financialYear("2026-03-31"), financialYear("2026-04-01"), financialYear("2027-01-15"), financialYear("2099-12-31")], ["25-26", "26-27", "26-27", "99-00"]);
+is("the last part made four digits; a longer one as typed", [
+  numbered({ invoice_no: "4", invoice_date: "2026-10-23" }), numbered({ invoice_no: " 12 ", invoice_date: "2026-10-23" }), numbered({ invoice_no: "12345", invoice_date: "2026-10-23" }),
+], ["ALG/26-27/0004", "ALG/26-27/0012", "ALG/26-27/12345"]);
+is("the year from the invoice date: a March invoice is the year before's", numbered({ invoice_no: "7", invoice_date: "2027-03-31" }), "ALG/26-27/0007");
+is("the year from today while no date is typed", numbered({ invoice_no: "4", invoice_date: "" }), `ALG/${financialYear(new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10))}/0004`);
+const unnumbered = { ...parties, invoice_kind: "freight", invoice_no: "" };
+const unnumberedText = (await bodies(fi.render(unnumbered))).flat().join(" ");
+is("not typed: a draft that says so, the number TBD, still kept and named by its job", [
+  missingOf(fi, { ...emptyState(), shipment: unnumbered }), unnumberedText.includes("DRAFT"), unnumberedText.includes("ALG/"), fi.documentNo?.(unnumbered),
+], [["Invoice number"], true, false, "FI-HBL/26-27/0042"]);
+const numberAsked = fi.sections.find((s) => s.title === "Invoice particulars")!;
+is("asked for on the tax invoice, not the proforma, which keeps its PI- number", [
+  shownFields(numberAsked, { invoice_kind: "freight" }).some((f) => f.key === "invoice_no"),
+  shownFields(numberAsked, { invoice_kind: "proforma" }).some((f) => f.key === "invoice_no"),
+  missingOf(fi, { ...emptyState(), shipment: { ...unnumbered, invoice_kind: "proforma" } }), fi.documentNo?.({ ...unnumbered, invoice_no: "4", invoice_kind: "proforma" }),
+], [true, false, [], "PI-HBL/26-27/0042"]);
+
 console.log("\na tax invoice, with every particular of the e-invoice");
-is("called a tax invoice; still found as the freight invoice, kept and numbered as it was", [
+is("called a tax invoice; still found as the freight invoice, kept as it was; numbered in our series", [
   fi.shortName, matches(fi, "freight invoice"), matches(fi, "tax invoice"), fi.fileName({ ...parties, invoice_kind: "freight" }), fi.documentNo?.({ ...parties, invoice_kind: "freight" }), fi.id,
-], ["Tax invoice", true, true, "FI-HBL-26-27-0042-tax-invoice.pdf", "FI-HBL/26-27/0042", "freight-invoice"]);
+], ["Tax invoice", true, true, "ALG-26-27-0012-tax-invoice.pdf", "ALG/26-27/0012", "freight-invoice"]);
 has("every particular typed on the form", fieldKeys("freight-invoice"), [
-  "copy", "invoice_date", "due_date", "job_date", "customer_code", "customer_pan", "irn", "advance_receipt", "shipper_ref", "vehicle_no", "note", "our_tan", "our_lut", "our_msme",
+  "invoice_no", "copy", "invoice_date", "due_date", "job_date", "customer_code", "customer_pan", "irn", "advance_receipt", "shipper_ref", "vehicle_no", "note", "our_tan", "our_lut", "our_msme",
   "vessel", "voyage", "sailingDate", "etaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "salesRef", "masterBlNumber", "blNumber", "containerId", "containerType",
 ]);
 const IRN = "dbe6a5131bd804ccbefed158dc302ddf383fb85a34db1284bc69ddd273656b6e";
@@ -465,10 +486,13 @@ is("no number, nothing to keep it under", blOf(fi, emptyState()), "");
 is("a proforma opens into the freight invoice", documentForKey("proforma-invoice")?.id, "freight-invoice");
 const reopened = withSaved(emptyState(), "shipment", savedValuesOf(fi, { ...withInvoice, shipment: proformaValues }));
 is("opened again: the same paper, the same figures", [savedKeyOf(fi, reopened), fi.documentNo?.(reopened.shipment), missingOf(fi, reopened)], ["proforma-invoice", "PI-HBL/26-27/0042", []]);
-is("an old save opens with what is new blank, not missing", withSaved(emptyState(), "shipment", { blNumber: "X" }).shipment, { currency: "USD", invoice_kind: "freight", bill_to: "consignee", blNumber: "X" });
+is("an old save opens with what is new blank, not missing", withSaved(emptyState(), "shipment", { blNumber: "X" }).shipment, { currency: "USD", invoice_kind: "freight", bill_to: "notify", blNumber: "X" });
+is("a new invoice is billed to the notify party; one saved to the consignee stays so", [
+  emptyState().shipment.bill_to, withSaved(emptyState(), "shipment", { blNumber: "X", bill_to: "consignee" }).shipment.bill_to,
+], ["notify", "consignee"]);
 is("a B/L number written one way, as the database writes it", normaliseBl("  hbl/26-27/0042   x "), "HBL/26-27/0042 X");
 
-is("without lines, the one freight figure, as before", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate"]);
+is("without lines, the one freight figure, as before; and a tax invoice its number", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate", "Invoice number"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

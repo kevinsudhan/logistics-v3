@@ -485,6 +485,13 @@ const INVOICE_PARTICULARS: ManualSection = {
   note: "Each prints where the e-invoice has it, and is left off while empty.",
   fields: [
     {
+      key: "invoice_no",
+      label: "Invoice number",
+      placeholder: "4",
+      hint: "The last part alone: printed as ALG/26-27/0004, the year being the financial year of the invoice date.",
+      when: (v) => !isProforma(v),
+    },
+    {
       key: "copy",
       label: "Copy",
       input: "select",
@@ -511,11 +518,31 @@ const INVOICE_PARTICULARS: ManualSection = {
   ],
 };
 
+/** "26-27": the Indian financial year, April to March, a day (YYYY-MM-DD) falls in. */
+export function financialYear(iso: string): string {
+  const year = Number(iso.slice(0, 4));
+  const start = Number(iso.slice(5, 7)) >= 4 ? year : year - 1;
+  const yy = (n: number) => String(n % 100).padStart(2, "0");
+  return `${yy(start)}-${yy(start + 1)}`;
+}
+
+/**
+ * The tax invoice's number, ALG/26-27/0004: our series, the financial year of
+ * the invoice date (today's, while none is typed), and the last part as typed —
+ * a figure made four digits. None until that part is typed.
+ */
+function invoiceNumberOf(v: ManualValues): string | undefined {
+  const last = text(v, "invoice_no").replace(/\s+/g, "");
+  if (!last) return undefined;
+  return `ALG/${financialYear(text(v, "invoice_date") || todayIst())}/${/^\d+$/.test(last) ? last.padStart(4, "0") : last.toUpperCase()}`;
+}
+
 /** What was typed under Invoice particulars, as the tax invoice prints it; an empty field is left out. */
 function invoiceExtrasOf(v: ManualValues): InvoiceExtras {
   const typed = (key: string) => text(v, key) || undefined;
   const dated = (key: string) => printedDate(text(v, key)) || undefined;
   return {
+    number: invoiceNumberOf(v),
     copy: (text(v, "copy") || "original").toUpperCase(),
     customerCode: typed("customer_code"),
     customerPan: typed("customer_pan")?.toUpperCase(),
@@ -639,7 +666,12 @@ function invoiceSections(prefix: string, tax: boolean): DocSection[] {
       title: tax ? "Invoice" : "Proforma",
       place: "right",
       rows: [
-        { label: tax ? "Invoice number" : "Proforma number", value: (d) => documentNo({ numberPrefix: prefix }, d), bold: true },
+        {
+          label: tax ? "Invoice number" : "Proforma number",
+          // A tax invoice by its own series, typed; a proforma by the job, as it always was.
+          value: (d) => (tax ? d.invoice?.number : documentNo({ numberPrefix: prefix }, d)),
+          bold: true,
+        },
         ...(tax ? [{ label: "IRN", value: (d: DocumentData) => d.invoice?.irn, optional: true }] : []),
         { label: "Date", value: (d) => d.invoice?.invoiceDate ?? issuedToday() },
         ...(tax ? [{ label: "Reverse charge", value: () => "No" }] : []),
@@ -682,8 +714,10 @@ function invoiceSections(prefix: string, tax: boolean): DocSection[] {
  * invoice, with no copy mark. Both are laid out as a GST invoice (`layout:
  * "invoice"`): the tax on each line, central and state or integrated,
  * summarised by SAC, our PAN and GSTIN, the terms, and the bank account to pay
- * into by the signature. Still numbered FI- and kept as the freight invoice,
- * as it was before it was called a tax invoice.
+ * into by the signature. The tax invoice is numbered in our own series,
+ * ALG/26-27/0004, its last part typed, and is a draft until it is; the proforma
+ * by the job, PI-. Kept as the freight invoice, as it was before it was called
+ * a tax invoice.
  */
 function freightInvoiceDoc(registry: DocSpec): FormDoc {
   const freight: DocSpec = {
@@ -696,6 +730,8 @@ function freightInvoiceDoc(registry: DocSpec): FormDoc {
     sections: invoiceSections(registry.numberPrefix, true),
     declaration: undefined,
     terms: INVOICE_TERMS,
+    // Not issued without its number: a tax invoice is one of a series.
+    check: (d) => [...(registry.check?.(d) ?? []), ...(d.invoice?.number ? [] : ["Invoice number"])],
   };
   const proforma: DocSpec = {
     ...freight,
@@ -705,6 +741,7 @@ function freightInvoiceDoc(registry: DocSpec): FormDoc {
     numberPrefix: "PI",
     sections: invoiceSections("PI", false),
     declaration: "A statement of the charges, for approval or advance payment. It is not a tax invoice.",
+    check: registry.check,
   };
   const specOf = (v: ManualValues) => (isProforma(v) ? proforma : freight);
   const dataOf = (v: ManualValues): DocumentData => {
@@ -727,9 +764,13 @@ function freightInvoiceDoc(registry: DocSpec): FormDoc {
     stampsDraft: true,
     sections,
     render: (v) => renderDocument(specOf(v), dataOf(v)),
-    fileName: (v) => documentFilename(specOf(v), dataOf(v)),
-    missing: (v) => readiness(dataOf(v), freight.requires, freight.check).missingLabels,
-    documentNo: (v) => documentNo(specOf(v), dataOf(v)),
+    // ALG/26-27/0004 saves as ALG-26-27-0004-tax-invoice.pdf; one not yet numbered, by its job.
+    fileName: (v) => {
+      const number = isProforma(v) ? undefined : dataOf(v).invoice?.number;
+      return number ? `${number}-${freight.id}.pdf`.replace(/[\\/:*?"<>|]+/g, "-") : documentFilename(specOf(v), dataOf(v));
+    },
+    missing: (v) => readiness(dataOf(v), freight.requires, specOf(v).check).missingLabels,
+    documentNo: (v) => (isProforma(v) ? undefined : dataOf(v).invoice?.number) ?? documentNo(specOf(v), dataOf(v)),
   };
 }
 
@@ -828,7 +869,8 @@ const todayIst = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slic
 
 export function emptyStore<K extends ManualStore>(store: K): ManualState[K] {
   const fresh: { [S in ManualStore]: () => ManualState[S] } = {
-    shipment: () => ({ currency: "USD", invoice_kind: "freight", bill_to: "consignee" }),
+    // Billed to the notify party, the forwarder at the other end, until another is chosen: who the desk usually invoices.
+    shipment: () => ({ currency: "USD", invoice_kind: "freight", bill_to: "notify" }),
     console: () => ({ freight_terms: "prepaid" }),
     hbl: () => ({ data: emptyHbl(), hblNo: "", release: "original", originals: 3, print: "draft" }),
     hawb: () => ({ data: { ...emptyHawb(), currency: "USD" }, hawbNo: "", hawbDate: todayIst(), kind: "draft" }),

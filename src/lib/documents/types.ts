@@ -151,6 +151,8 @@ export interface DocumentData {
  * documents page, each left off the paper while it is empty.
  */
 export interface InvoiceExtras {
+  /** The tax invoice's number as printed, ALG/26-27/0004: none until its last part is typed. */
+  number?: string;
   /** ORIGINAL, DUPLICATE, TRIPLICATE: which copy this is. */
   copy?: string;
   /** Ours for the party billed, as our accounts know it. */
