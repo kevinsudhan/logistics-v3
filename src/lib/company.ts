@@ -21,6 +21,13 @@ export const COMPANY = {
   website: "www.aashishlogisticsglobal.com",
   gstin: "33ABDCA2229C1ZD",
   gst: "GSTIN: 33ABDCA2229C1ZD",
+  /** Where a customer pays an invoice: printed at its foot, over the signature. */
+  bank: {
+    accountName: "AASHISH LOGISTICS GLOBAL PVT LTD",
+    bank: "HDFC BANK LTD, ANNA NAGAR",
+    accountNo: "50200110838580",
+    ifsc: "HDFC0000017",
+  },
   /**
    * The same address, in the parts Customs asks for (the CSN for ICEGATE,
    * lib/icegateCsn.ts): a street line of at most 70 characters, the city, the

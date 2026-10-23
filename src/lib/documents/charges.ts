@@ -176,19 +176,54 @@ export function lineInr(l: ChargeLine, d: DocumentData): number | undefined {
   return amount === undefined || roe === undefined ? undefined : round2(amount * roe);
 }
 
-/** GST on the line, in rupees: charged on the rupee value, as an Indian tax invoice states it. */
-export function lineGst(l: ChargeLine, d: DocumentData): number | undefined {
-  const inr = lineInr(l, d);
-  if (inr === undefined) return undefined;
-  return l.gstPercent ? round2((inr * l.gstPercent) / 100) : 0;
+/** A line's figures in rupees: its value before tax, the tax on it as charged, and the two together. */
+export interface TaxSums {
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  total: number;
+}
+
+/**
+ * GST on the line, in rupees, charged on its rupee value as an Indian tax
+ * invoice states it: central and state tax at half the rate each within the
+ * state, integrated tax at the whole rate across it (5% on 3,441.90 is 86.05
+ * and 86.05). Undefined until the line has a rupee value.
+ */
+export function lineTax(l: ChargeLine, d: DocumentData): TaxSums | undefined {
+  const taxable = lineInr(l, d);
+  if (taxable === undefined) return undefined;
+  const r = l.gstPercent ?? 0;
+  const half = round2((taxable * r) / 200);
+  const [cgst, sgst, igst] = !r ? [0, 0, 0] : interState(d) ? [0, 0, round2((taxable * r) / 100)] : [half, half, 0];
+  return { taxable, cgst, sgst, igst, total: round2(taxable + cgst + sgst + igst) };
+}
+
+/** Lines' figures added up, as the columns are; undefined while any of them has no rupee value. */
+function added(lines: ChargeLine[], d: DocumentData): TaxSums | undefined {
+  const each = lines.map((l) => lineTax(l, d));
+  if (!each.length || each.some((t) => t === undefined)) return undefined;
+  const sum = (k: keyof TaxSums) => round2(each.reduce((t, x) => t + x![k], 0));
+  return { taxable: sum("taxable"), cgst: sum("cgst"), sgst: sum("sgst"), igst: sum("igst"), total: sum("total") };
 }
 
 /** The invoice's totals in rupees, or undefined while any line has no rate or no rate of exchange: a total of some of it is not the total. */
-export function chargeTotals(lines: ChargeLine[], d: DocumentData): { taxable: number; gst: number; total: number } | undefined {
-  if (!lines.length || lines.some((l) => lineInr(l, d) === undefined)) return undefined;
-  const taxable = round2(lines.reduce((t, l) => t + lineInr(l, d)!, 0));
-  const gst = round2(lines.reduce((t, l) => t + lineGst(l, d)!, 0));
-  return { taxable, gst, total: round2(taxable + gst) };
+export const chargeTotals = (lines: ChargeLine[], d: DocumentData) => added(lines, d);
+
+/**
+ * The tax summarised under the charges, as a GST invoice sets it out: a line
+ * per SAC and rate, in the order the charges first name them, with its
+ * taxable value and the tax on it. Undefined while the totals are.
+ */
+export function taxSummary(lines: ChargeLine[], d: DocumentData): Array<TaxSums & { sac: string; rate: number }> | undefined {
+  if (!added(lines, d)) return undefined;
+  const groups = new Map<string, ChargeLine[]>();
+  for (const l of lines) {
+    const key = `${l.sac ?? ""}|${l.gstPercent ?? 0}`;
+    groups.set(key, [...(groups.get(key) ?? []), l]);
+  }
+  return [...groups.values()].map((g) => ({ sac: g[0].sac ?? "", rate: g[0].gstPercent ?? 0, ...added(g, d)! }));
 }
 
 /** What an itemised invoice still needs: a rate on every line, and a rate of exchange for every foreign currency on it. */
@@ -215,16 +250,12 @@ export function docMoney(d: DocumentData, n?: number): string | undefined {
 /** A rupee figure in a column of the charges table: always to the paisa, so the column lines up. */
 export const rupeeFigure = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** A line's rate as it was given: "USD 1,150.00", "INR 5,000.00". */
-export const rateFigure = (currency: string, n: number) =>
-  `${currency} ${n.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 /** A rate of exchange as it is printed: "1 USD = INR 83.50". */
 export const roeFigure = (currency: string, roe: number) =>
   `1 ${currency} = INR ${roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
 
 // ---------------------------------------------------------------------------
-// Who is billed, and the GST a statement adds
+// Who is billed, and whether the GST is integrated
 // ---------------------------------------------------------------------------
 
 /** A GSTIN as GST writes one: two digits of state, the PAN, the entity, Z, a check character. */
@@ -261,43 +292,8 @@ export function interState(d: DocumentData): boolean {
   return Boolean(g) && g!.slice(0, 2) !== COMPANY.gstin.slice(0, 2);
 }
 
-export interface TaxLine {
-  label: string;
-  /** In rupees; undefined while a line it is charged on has no rupee value yet. */
-  amount: number | undefined;
-}
-
-const percent = (r: number) => `${r.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
-
-/**
- * The GST a statement of charges adds, as its own lines, rate by rate and the
- * highest first: "Central Goods and Service Tax @9%" and "State Goods and
- * Service Tax @9%" on everything charged at 18% within the state; "Integrated
- * Goods and Service Tax @18%" across it. Each on the rupee value of the lines
- * charged at that rate.
- */
-export function taxLines(lines: ChargeLine[], d: DocumentData): TaxLine[] {
-  const rates = [...new Set(lines.map((l) => l.gstPercent).filter((r): r is number => r !== undefined && r > 0))].sort((a, b) => b - a);
-  const inter = interState(d);
-  return rates.flatMap((r) => {
-    const taxed = lines.filter((l) => l.gstPercent === r);
-    const base = taxed.some((l) => lineInr(l, d) === undefined) ? undefined : taxed.reduce((t, l) => t + lineInr(l, d)!, 0);
-    if (inter) return [{ label: `Integrated Goods and Service Tax @${percent(r)}`, amount: base === undefined ? undefined : round2((base * r) / 100) }];
-    const half = base === undefined ? undefined : round2((base * r) / 200);
-    return [
-      { label: `Central Goods and Service Tax @${percent(r / 2)}`, amount: half },
-      { label: `State Goods and Service Tax @${percent(r / 2)}`, amount: half },
-    ];
-  });
-}
-
-/** A statement's total: the charges in rupees and the tax lines, as printed; undefined while any is not known. */
-export function statementTotal(lines: ChargeLine[], d: DocumentData): number | undefined {
-  const charges = chargeTotals(lines, d);
-  const tax = taxLines(lines, d);
-  if (!charges || tax.some((t) => t.amount === undefined)) return undefined;
-  return round2(charges.taxable + tax.reduce((s, t) => s + t.amount!, 0));
-}
+/** A rate as the invoice prints it: "2.5%", "18%". */
+export const percent = (r: number) => `${r.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
 
 // ---------------------------------------------------------------------------
 // The total in words

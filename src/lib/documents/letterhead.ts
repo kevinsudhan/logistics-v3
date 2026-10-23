@@ -121,3 +121,6 @@ export function docDate(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return String(iso);
   return `${String(d.getDate()).padStart(2, "0")}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
 }
+
+/** The day a document is printed: the date it is issued on. */
+export const issuedToday = () => docDate(new Date().toISOString());

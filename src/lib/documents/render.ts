@@ -1,15 +1,32 @@
 import { jsPDF } from "jspdf";
 import type { ChargeLine, DocRow, DocSection, DocSpec, DocumentData } from "./types";
-import { billed, gstinOf, stateOf, chargeTotals, foreignCurrencies, lineAmount, lineCurrency, lineGst, lineInr, rateFigure, rateOfExchange, roeFigure, rupeeFigure, rupeesInWords, statementTotal, taxLines } from "./charges";
+import {
+  chargeTotals,
+  foreignCurrencies,
+  interState,
+  lineAmount,
+  lineCurrency,
+  lineInr,
+  lineTax,
+  percent,
+  rateOfExchange,
+  roeFigure,
+  rupeeFigure,
+  rupeesInWords,
+  stateOf,
+  taxSummary,
+  type TaxSums,
+} from "./charges";
 import { documentNo, readiness } from "./data";
 import {
   BRAND,
+  COMPANY,
   CONTENT_W,
-  docDate,
   drawLetterhead,
   FAINT,
   FOOTER_Y,
   INK,
+  issuedToday,
   MARGIN,
   MUTED,
   PAGE_W,
@@ -55,11 +72,14 @@ const TBD = "TBD";
  * beside the terms and the signature — because that is how the people who
  * receive one expect to find things on it, and because it puts a CAN with
  * every particular filled in on one page.
+ *
+ * A document declared `layout: "invoice"` (the freight invoice and its
+ * proforma) is drawn as a GST invoice to the trade, without boxes: label and
+ * value in two columns, the charges ruled with the tax on each line and their
+ * totals, then the tax by SAC, the terms, and our bank details beside the
+ * signature — always on the one page (onOnePage).
  * ---------------------------------------------------------------------------
  */
-
-// Spelled from docDate's month list: the "en-GB" locale now prints "Sept".
-const today = () => docDate(new Date().toISOString());
 
 /**
  * How tightly a document is set.
@@ -95,6 +115,11 @@ interface Fit {
   declLine: number;
   /** Take the block above the signature over with it. */
   carry: boolean;
+  /**
+   * Drawn without page breaks and, where under one, smaller by this much, so
+   * the whole of it is on the one page (an invoice: see onOnePage).
+   */
+  scale?: number;
 }
 
 const FITS: Fit[] = [
@@ -105,6 +130,7 @@ const FITS: Fit[] = [
 ];
 
 export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
+  if (spec.layout === "invoice") return onOnePage(spec, data);
   let doc: jsPDF | null = null;
   for (const fit of FITS) {
     const drawn = draw(spec, data, fit);
@@ -114,19 +140,65 @@ export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
   return doc!;
 }
 
+/**
+ * An invoice is one page, however many charges it has.
+ *
+ * ---------------------------------------------------------------------------
+ * A second page of an invoice is a page somebody loses: the charges on one,
+ * the total and the bank account on the other. So it is drawn as usual first,
+ * then closer set, as any document is; and if it is still more than a page, it
+ * is laid out once without page breaks to see how long it runs, and printed
+ * that much smaller — the whole of it, letterhead to signature, scaled about
+ * the head of the page and centred across it. Thirty charges print smaller
+ * than three; they still print on the one page, every figure where it was.
+ * ---------------------------------------------------------------------------
+ */
+function onOnePage(spec: DocSpec, data: DocumentData): jsPDF {
+  const tight = FITS[2];
+  for (const fit of FITS.slice(0, 3)) {
+    const { doc } = draw(spec, data, fit);
+    if (doc.getNumberOfPages() === 1) return doc;
+  }
+  const { end } = draw(spec, data, { ...tight, scale: 1 });
+  // Never larger: one that only went over by what it looked ahead for fits as it is.
+  return draw(spec, data, { ...tight, scale: Math.min(1, (FOOTER_Y - 6 - MARGIN) / (end - MARGIN)) }).doc;
+}
+
+/**
+ * Whatever is drawn after this, until `unzoom`, at `s` of its size: scaled
+ * about the top margin, so it starts where it would, and centred across the
+ * page. A PDF transformation (cm), so the text, the rules and the logo shrink
+ * together.
+ */
+function zoom(doc: jsPDF, s: number) {
+  const k = doc.internal.scaleFactor;
+  const e = k * (1 - s) * (PAGE_W / 2);
+  const f = (1 - s) * (doc.internal.pageSize.getHeight() * k - k * MARGIN);
+  rawWrite(doc, "q", `${s.toFixed(5)} 0 0 ${s.toFixed(5)} ${e.toFixed(3)} ${f.toFixed(3)} cm`);
+}
+
+const unzoom = (doc: jsPDF) => rawWrite(doc, "Q");
+
+/** A line of the page's own content stream, which jsPDF's typings leave out. */
+const rawWrite = (doc: jsPDF, ...ops: string[]) => (doc.internal as unknown as { write: (...s: string[]) => void }).write(...ops);
+
 type Colour = [number, number, number];
 
-function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPushed: boolean } {
+function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPushed: boolean; end: number } {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const zoomed = fit.scale !== undefined && fit.scale < 1;
+  if (zoomed) zoom(doc, fit.scale!);
   const { ready, missingLabels } = readiness(data, spec.requires, spec.check);
   const split = spec.layout === "split";
+  const invoice = spec.layout === "invoice";
   const signs = spec.issuer === "desk";
 
   const set = (c: Colour) => doc.setTextColor(c[0], c[1], c[2]);
   const fill = (c: Colour) => doc.setFillColor(c[0], c[1], c[2]);
   const stroke = (c: Colour) => doc.setDrawColor(c[0], c[1], c[2]);
 
-  const LIMIT = FOOTER_Y - 6;
+  // Laid out to be scaled onto one page: never broken over two.
+  const LIMIT = fit.scale !== undefined ? Infinity : FOOTER_Y - 6;
   let y = MARGIN;
   /** Whether the signature went over to a new page: worth drawing again, tighter. */
   let signPushed = false;
@@ -191,6 +263,9 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     return sy;
   };
 
+  /** The rules of a ruled table: an invoice's charges and its tax by SAC. */
+  const GRID: Colour = [160, 170, 184];
+
   y = drawLetterhead(doc, y);
 
   // ------------------------------------------------------------------ title
@@ -200,20 +275,33 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     It is the one thing a reader needs before anything else — whether this is a
     quotation or a bill of lading changes what every field below it means — and
     at 13pt bold on white it carried no more weight than a section heading.
+
+    An invoice's is centred and underlined over its particulars instead, as an
+    invoice to the trade sets it.
   */
   const TITLE_H = 11;
-  fill(TINT);
-  doc.rect(MARGIN, y, CONTENT_W, TITLE_H, "F");
-  fill(BRAND);
-  doc.rect(MARGIN, y, 1.6, TITLE_H, "F");
-
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  set(INK);
-  doc.text(spec.title, MARGIN + 5, y + TITLE_H / 2 + 1.4, {
-    maxWidth: CONTENT_W - 44,
-    baseline: "alphabetic",
-  });
+  if (invoice) {
+    doc.setFontSize(13);
+    set(INK);
+    doc.text(spec.title, PAGE_W / 2, y + 5.4, { align: "center" });
+    const half = doc.getTextWidth(spec.title) / 2;
+    stroke(INK);
+    doc.setLineWidth(0.35);
+    doc.line(PAGE_W / 2 - half, y + 6.8, PAGE_W / 2 + half, y + 6.8);
+    doc.setLineWidth(0.2);
+  } else {
+    fill(TINT);
+    doc.rect(MARGIN, y, CONTENT_W, TITLE_H, "F");
+    fill(BRAND);
+    doc.rect(MARGIN, y, 1.6, TITLE_H, "F");
+    doc.setFontSize(12);
+    set(INK);
+    doc.text(spec.title, MARGIN + 5, y + TITLE_H / 2 + 1.4, {
+      maxWidth: CONTENT_W - 44,
+      baseline: "alphabetic",
+    });
+  }
 
   if (!ready) {
     // A pill rather than loose red text, so it reads as a stamp on the
@@ -221,17 +309,18 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     const label = "DRAFT";
     doc.setFontSize(8.5);
     const w = doc.getTextWidth(label) + 7;
+    const top = invoice ? y + 1 : y + 2.6;
     fill([250, 235, 215]);
     stroke(WARN);
     doc.setLineWidth(0.3);
-    doc.roundedRect(PAGE_W - MARGIN - w, y + 2.6, w, 5.8, 1.2, 1.2, "FD");
+    doc.roundedRect(PAGE_W - MARGIN - w, top, w, 5.8, 1.2, 1.2, "FD");
     set(WARN);
     doc.setFont("helvetica", "bold");
-    doc.text(label, PAGE_W - MARGIN - w / 2, y + 6.6, { align: "center" });
+    doc.text(label, PAGE_W - MARGIN - w / 2, top + 4, { align: "center" });
     doc.setLineWidth(0.2);
   }
   // Never so tight that the line under the band touches it: below 4 mm "Document no" ran into the title.
-  y += TITLE_H + Math.max(4, 5 * fit.gap);
+  y += invoice ? 12 : TITLE_H + Math.max(4, 5 * fit.gap);
 
   // ------------------------------------------------------------- meta strip
   /*
@@ -239,9 +328,10 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     ------------------------------------------------------------------------
     They were four sentences ("Document no: X") which is how a label looks when
     nobody decided where the value goes. Split, they line up and can be scanned.
+    An invoice carries its number and date in its own particulars instead.
   */
   const metaRows: Array<[string, string, string, string]> = [
-    ["Document no", documentNo(spec, data), "Date issued", today()],
+    ["Document no", documentNo(spec, data), "Date issued", issuedToday()],
     [
       "Reference",
       data.reference,
@@ -252,7 +342,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
 
   doc.setFontSize(8.2);
   const midX = MARGIN + CONTENT_W / 2;
-  for (const [k1, v1, k2, v2] of metaRows) {
+  for (const [k1, v1, k2, v2] of invoice ? [] : metaRows) {
     doc.setFont("helvetica", "normal");
     set(FAINT);
     doc.text(k1, MARGIN, y);
@@ -263,7 +353,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     doc.text(v2, midX + 24, y, { maxWidth: CONTENT_W / 2 - 26 });
     y += 4.6;
   }
-  y += 4 * fit.gap;
+  if (!invoice) y += 4 * fit.gap;
 
   // ---------------------------------------------------------------- parties
   /*
@@ -275,45 +365,13 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   */
   if (spec.parties && !split) {
     const gap = 5;
-    /*
-      Two boxes as a B/L sets them out, or — `notifyParty` — three: the notify
-      party (the forwarder at the other end) beside them, and every box with
-      its address and GSTIN, as an invoice to the trade carries them.
-    */
-    const three = Boolean(spec.notifyParty);
-    /*
-      An invoice is to one of them (`billTo`): its box says so, and carries
-      what an invoice's To carries besides — the state code and PAN read from
-      its GSTIN, and the contact — rather than a To block repeating the box.
-    */
-    const toBilled = (who: "shipper" | "consignee" | "notify", heading: string, rows: string[]): [string, string[]] => {
-      if (!data.billTo || data.billTo !== who) return [heading, rows];
-      const tax = billed(data).tax;
-      const extra = [
-        ...(stateOf(tax) ? [`State code: ${stateOf(tax)}`] : []),
-        ...(gstinOf(tax) ? [`PAN: ${gstinOf(tax)!.slice(2, 12)}`] : []),
-        ...(data.phone ? [`Contact: ${data.phone}`] : []),
-      ];
-      return [`${heading} · Billed to`, [...rows, ...extra]];
-    };
-    const boxes: Array<[string, string[]]> = three
-      ? [
-          toBilled("shipper", "Shipper / Exporter", [data.shipperName ?? TBD, data.shipperAddress ?? TBD, `GSTIN / IEC: ${data.shipperGstinIec ?? TBD}`]),
-          toBilled("consignee", "Consignee / Importer", [
-            data.consigneeName ?? TBD,
-            data.consigneeAddress ?? TBD,
-            ...(data.consigneeCountry ? [data.consigneeCountry] : []),
-            `GSTIN: ${data.consigneeGstin ?? TBD}`,
-          ]),
-          toBilled("notify", "Notify party / Forwarder", [data.notifyName ?? TBD, data.notifyAddress ?? TBD, `GSTIN: ${data.notifyGstin ?? TBD}`]),
-        ]
-      : [
-          ["Shipper / Exporter", [data.shipperName ?? TBD, `GSTIN / IEC: ${data.shipperGstinIec ?? TBD}`]],
-          ["Consignee / Importer", [data.consigneeName ?? TBD, data.consigneeAddress ?? TBD, data.consigneeCountry ?? TBD]],
-        ];
+    const boxes: Array<[string, string[]]> = [
+      ["Shipper / Exporter", [data.shipperName ?? TBD, `GSTIN / IEC: ${data.shipperGstinIec ?? TBD}`]],
+      ["Consignee / Importer", [data.consigneeName ?? TBD, data.consigneeAddress ?? TBD, data.consigneeCountry ?? TBD]],
+    ];
     const colW = (CONTENT_W - gap * (boxes.length - 1)) / boxes.length;
-    const size = three ? 7.8 : 8.6;
-    const lineH = three ? 3.8 : 4.2;
+    const size = 8.6;
+    const lineH = 4.2;
 
     // Every box takes the height of the tallest, so they read as one band.
     doc.setFontSize(size);
@@ -343,6 +401,18 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   }
 
   if (split) drawSplit();
+
+  if (invoice) {
+    drawColumns();
+    if (data.charges?.length) drawCharges(data.charges);
+    drawOutstanding();
+    drawInvoiceClose();
+    // The footer at the foot of the page as on any other, whatever the scale above it.
+    if (zoomed) unzoom(doc);
+    const end = y;
+    drawFooters(doc, data);
+    return { doc, signPushed, end };
+  }
 
   // --------------------------------------------------------------- sections
   const LABEL_W = 46;
@@ -412,10 +482,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     y += 4 * fit.gap;
   }
 
-  if (spec.charges && data.charges?.length && !split) {
-    const { title, style } = spec.charges;
-    drawCharges(typeof title === "function" ? title(data) : title, data.charges, style === "statement");
-  }
+  if (spec.charges && data.charges?.length && !split) drawCharges(data.charges, spec.charges.title);
 
   // The declaration, as the band layout sets it full width.
   doc.setFont("helvetica", "italic");
@@ -424,45 +491,13 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   const declH = declLines.length ? declLines.length * fit.declLine + 8.5 : 0;
   const SIGN_H = 4 * fit.gap + fit.sign + 7;
 
-  // ------------------------------------------------------------ outstanding
-  if (missingLabels.length) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    const body = missingLabels.join(" · ");
-    const wrapped = doc.splitTextToSize(body, CONTENT_W - 10) as string[];
-    const h = wrapped.length * 4 + 12;
-
-    // With no declaration, the outstanding list is what the signature carries over with.
-    if (fit.carry && signs && !split && !declLines.length && y > MARGIN && y + h + 6 * fit.gap + SIGN_H >= LIMIT) newPage();
-    ensure(h + 4);
-
-    fill([252, 244, 232]);
-    stroke([232, 206, 170]);
-    doc.roundedRect(MARGIN, y, CONTENT_W, h, 1.5, 1.5, "FD");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    set(WARN);
-    doc.text(
-      `STILL REQUIRED BEFORE THIS CAN BE ISSUED — ${missingLabels.length}`,
-      MARGIN + 5,
-      y + 5.6
-    );
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    let ly = y + 10.4;
-    for (const line of wrapped) {
-      doc.text(line, MARGIN + 5, ly);
-      ly += 4;
-    }
-    y += h + 6 * fit.gap;
-  }
+  // With no declaration, the outstanding list is what the signature carries over with.
+  drawOutstanding((h) => fit.carry && signs && !split && !declLines.length && y > MARGIN && y + h + 6 * fit.gap + SIGN_H >= LIMIT);
 
   if (split) {
     drawClosing();
     drawFooters(doc, data);
-    return { doc, signPushed };
+    return { doc, signPushed, end: y };
   }
 
   // ------------------------------------------------------------ declaration
@@ -501,9 +536,47 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   }
 
   drawFooters(doc, data);
-  return { doc, signPushed };
+  return { doc, signPushed, end: y };
+
+  // ------------------------------------------------------------ outstanding
+
+  /** What it still needs before it can be issued, by name, boxed: taken over with the close when `carry` says so. */
+  function drawOutstanding(carry?: (h: number) => boolean) {
+    if (!missingLabels.length) return;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.2);
+    const body = missingLabels.join(" · ");
+    const wrapped = doc.splitTextToSize(body, CONTENT_W - 10) as string[];
+    const h = wrapped.length * 4 + 12;
+
+    if (carry?.(h)) newPage();
+    ensure(h + 4);
+
+    fill([252, 244, 232]);
+    stroke([232, 206, 170]);
+    doc.roundedRect(MARGIN, y, CONTENT_W, h, 1.5, 1.5, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    set(WARN);
+    doc.text(
+      `STILL REQUIRED BEFORE THIS CAN BE ISSUED — ${missingLabels.length}`,
+      MARGIN + 5,
+      y + 5.6
+    );
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.2);
+    let ly = y + 10.4;
+    for (const line of wrapped) {
+      doc.text(line, MARGIN + 5, ly);
+      ly += 4;
+    }
+    y += h + 6 * fit.gap;
+  }
 
   // ------------------------------------------------------------ split parts
+
 
   /**
    * The two columns: the parties boxed down the left, the details in a grid on
@@ -674,238 +747,441 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   }
 
   /**
-   * The charges, a line each, ruled as a table, with the totals under the
-   * figures. Each line's rate is printed in the currency it was given in, and
-   * converted to rupees at the invoice's rate of exchange for that currency;
-   * GST and the totals are in rupees, and the rates used are printed under
-   * them. The rate-of-exchange column is left out when every line is in
-   * rupees, and the GST columns when no line carries GST, rather than printed
-   * as columns of dashes. A line without its rate, or without a rate of
-   * exchange for its currency, shows TBD where its figures go, and so do the
-   * totals: a total of some of the lines is not the total.
+   * The charges, a line each, ruled as a GST invoice rules them: each line's
+   * SAC, its rate and quantity, in its own currency the amount and the rate of
+   * exchange it is converted at, its taxable value in rupees, the tax on it and
+   * its total, and the columns totalled under them. The currency, amount and
+   * ROE columns are left out when every line is in rupees, and the tax columns
+   * when no line carries GST, rather than printed as columns of dashes; across
+   * states, integrated tax takes the place of central and state tax. A line
+   * without its rate, or without a rate of exchange for its currency, shows
+   * TBD where its figures go, and so do the totals: a total of some of the
+   * lines is not the total. Under a bar of its own in the band layout; an
+   * invoice's needs none.
    */
-  function drawCharges(title: string, lines: ChargeLine[], statement = false) {
-    const taxed = !statement && lines.some((l) => l.gstPercent);
+  function drawCharges(lines: ChargeLine[], title?: string) {
     const foreign = foreignCurrencies(lines);
+    const taxed = lines.some((l) => l.gstPercent);
+    const plain = (n: number, places = 2) => n.toLocaleString("en-IN", { minimumFractionDigits: places, maximumFractionDigits: places });
     const figure = (n: number | undefined) => (n === undefined ? TBD : rupeeFigure(n));
-    type Col = { head: string; w: number; right?: boolean; cell: (l: ChargeLine, i: number) => string };
-    /*
-      A statement of charges, as the trade sends one: each line's volume, its
-      rate per unit and currency, the rate of exchange (one for rupees), the
-      amount in its own currency and in rupees, and a tick where it is taxed.
-      The GST follows as lines of its own — central and state tax at half the
-      rate each, or integrated tax across states — and the total includes it.
-    */
-    const plain = (n: number, places = 2) => n.toLocaleString("en-US", { minimumFractionDigits: places, maximumFractionDigits: places });
-    /** A cell drawn as a tick rather than written: the PDF's own font has no check mark. */
-    const TICK = "\u0001tick";
-    const statementCols: Col[] = [
-      { head: "S.No", w: 0.45, cell: (_, i) => String(i + 1) },
-      { head: "Charge name", w: 3.4, cell: (l) => l.charge },
-      { head: "Volume", w: 0.85, right: true, cell: (l) => plain(l.quantity ?? 1, 3) },
-      { head: "Per unit", w: 1.05, right: true, cell: (l) => (l.rate === undefined ? TBD : plain(l.rate)) },
-      { head: "Currency", w: 0.85, cell: (l) => lineCurrency(l) },
-      {
-        head: "ROE",
-        w: 0.85,
-        right: true,
-        cell: (l) => {
-          const roe = rateOfExchange(data, lineCurrency(l));
-          return roe === undefined ? TBD : roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-        },
-      },
-      { head: "Amount", w: 1.2, right: true, cell: (l) => { const a = lineAmount(l); return a === undefined ? TBD : plain(a); } },
-      { head: "In INR", w: 1.35, right: true, cell: (l) => figure(lineInr(l, data)) },
-      { head: "Tax", w: 0.45, cell: (l) => (l.gstPercent ? TICK : "") },
-    ];
-    const cols: Col[] = statement ? statementCols : [
-      { head: "#", w: 0.5, cell: (_, i) => String(i + 1) },
-      { head: "Charge", w: 2.35, cell: (l) => l.charge },
-      { head: "SAC", w: 0.95, cell: (l) => l.sac ?? "" },
-      { head: "Basis", w: 1.3, cell: (l) => l.basis ?? "" },
-      { head: "Qty", w: 0.5, right: true, cell: (l) => (l.quantity ?? 1).toLocaleString("en-US", { maximumFractionDigits: 3 }) },
-      { head: "Rate", w: 1.7, right: true, cell: (l) => (l.rate === undefined ? TBD : rateFigure(lineCurrency(l), l.rate)) },
-      ...(foreign.length
-        ? [
-            {
-              head: "ROE",
-              w: 0.8,
-              right: true,
-              cell: (l: ChargeLine) => {
-                const c = lineCurrency(l);
-                if (c === "INR") return "-";
-                const roe = rateOfExchange(data, c);
-                return roe === undefined ? TBD : roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-              },
+    /** A line's tax, or a dash on a line that carries none. */
+    const taxOf = (l: ChargeLine, k: keyof TaxSums) => (l.gstPercent ? figure(lineTax(l, data)?.[k]) : "-");
+    type Col = { head: string; w: number; right?: boolean; cell: (l: ChargeLine, i: number) => string; total?: keyof TaxSums };
+    const currencyCols: Col[] = foreign.length ? [{ head: "Curr", w: 0.65, cell: (l) => lineCurrency(l) }] : [];
+    const convertCols: Col[] = foreign.length
+      ? [
+          {
+            head: "Amount",
+            w: 1.05,
+            right: true,
+            cell: (l) => {
+              const a = lineAmount(l);
+              return a === undefined ? TBD : plain(a);
             },
-          ]
-        : []),
-      { head: "Amount (INR)", w: 1.75, right: true, cell: (l) => figure(lineInr(l, data)) },
-      ...(taxed
-        ? [
-            { head: "GST %", w: 0.8, right: true, cell: (l: ChargeLine) => (l.gstPercent ? `${l.gstPercent}%` : "-") },
-            { head: "GST (INR)", w: 1.3, right: true, cell: (l: ChargeLine) => figure(lineGst(l, data)) },
-            {
-              head: "Total (INR)",
-              w: 1.65,
-              right: true,
-              cell: (l: ChargeLine) => {
-                const inr = lineInr(l, data);
-                return figure(inr === undefined ? undefined : inr + lineGst(l, data)!);
-              },
+          },
+          {
+            head: "ROE",
+            w: 0.85,
+            right: true,
+            cell: (l) => {
+              const c = lineCurrency(l);
+              if (c === "INR") return "-";
+              const roe = rateOfExchange(data, c);
+              return roe === undefined ? TBD : roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
             },
-          ]
-        : []),
+          },
+        ]
+      : [];
+    const gst: Col = { head: "GST", w: 0.55, right: true, cell: (l) => (l.gstPercent ? percent(l.gstPercent) : "-") };
+    const taxCols: Col[] = !taxed
+      ? []
+      : interState(data)
+      ? [gst, { head: "IGST", w: 1.05, right: true, cell: (l) => taxOf(l, "igst"), total: "igst" }]
+      : [
+          gst,
+          { head: "CGST", w: 1, right: true, cell: (l) => taxOf(l, "cgst"), total: "cgst" },
+          { head: "SGST", w: 1, right: true, cell: (l) => taxOf(l, "sgst"), total: "sgst" },
+        ];
+    const cols: Col[] = [
+      { head: "No", w: 0.5, cell: (_, i) => String(i + 1) },
+      { head: "Charge", w: 2.5, cell: (l) => l.charge },
+      { head: "SAC", w: 0.85, cell: (l) => l.sac ?? "" },
+      ...currencyCols,
+      { head: "Rate", w: 1, right: true, cell: (l) => (l.rate === undefined ? TBD : plain(l.rate)) },
+      { head: "Qty", w: 0.6, right: true, cell: (l) => (l.quantity ?? 1).toLocaleString("en-IN", { maximumFractionDigits: 3 }) },
+      ...convertCols,
+      { head: "Taxable", w: 1.3, right: true, cell: (l) => figure(lineInr(l, data)), total: "taxable" },
+      ...taxCols,
+      { head: "Total (INR)", w: 1.3, right: true, cell: (l) => figure(lineTax(l, data)?.total), total: "total" },
     ];
     const weight = cols.reduce((t, c) => t + c.w, 0);
     const widths = cols.map((c) => (c.w / weight) * CONTENT_W);
-    const HEAD_H = 6.4;
-    const LINE = 3.6;
+    const at = (c: Col, x: number, w: number) => (c.right ? x + w - 1.4 : x + 1.4);
+    const SIZE = 7;
+    const LINE = 3.4;
 
-    const header = () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.2);
+    const heads = cols.map((c, i) => doc.splitTextToSize(c.head.toUpperCase(), widths[i] - 2.4) as string[]);
+    const HEAD_H = Math.max(...heads.map((h) => h.length)) * 2.6 + 3.6;
+
+    const first = cols.findIndex((c) => c.total);
+    /**
+     * Where the table began on this page: its border and the rules between its
+     * columns run from here. Through the total line, only between the totals,
+     * so its label reads across the columns before them.
+     */
+    let top = y;
+    const frame = (totalTop?: number) => {
+      stroke(GRID);
+      doc.setLineWidth(0.25);
+      doc.rect(MARGIN, top, CONTENT_W, y - top);
       let x = MARGIN;
-      fill(TINT);
-      stroke(RULE);
+      widths.slice(0, -1).forEach((w, i) => {
+        x += w;
+        doc.line(x, top, x, totalTop !== undefined && i < first ? totalTop : y);
+      });
       doc.setLineWidth(0.2);
-      doc.rect(MARGIN, y, CONTENT_W, HEAD_H, "FD");
+    };
+    const header = () => {
+      top = y;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(6.6);
-      set(MUTED);
+      doc.setFontSize(6.2);
+      set(INK);
+      let x = MARGIN;
       cols.forEach((c, i) => {
-        doc.text(c.head.toUpperCase(), c.right ? x + widths[i] - 1.6 : x + 1.6, y + 4.2, { align: c.right ? "right" : "left" });
+        heads[i].forEach((t, k) => doc.text(t, at(c, x, widths[i]), y + 3.9 + k * 2.6, { align: c.right ? "right" : "left" }));
         x += widths[i];
       });
       y += HEAD_H;
+      rule(MARGIN, PAGE_W - MARGIN, y);
+      y += 1;
+    };
+    /** Over the page when `h` will not fit: the frame closed on this one, the header again on the next. */
+    const room = (h: number) => {
+      if (y + h < LIMIT) return;
+      frame();
+      newPage();
+      header();
     };
 
-    ensure(9.4 + HEAD_H + 8);
-    sectionBar(title);
-    y += 9.4;
+    if (title) {
+      ensure(9.4 + HEAD_H + 8);
+      sectionBar(title);
+      y += 9.4;
+    } else ensure(HEAD_H + 12);
     header();
 
-    // Every row's cells as text: the charges, then on a statement its tax lines, numbered on from them.
-    const taxes = statement ? taxLines(lines, data) : [];
-    const table: string[][] = [
-      ...lines.map((l, n) => cols.map((c) => c.cell(l, n))),
-      ...taxes.map((t, k) => {
-        const amount = t.amount === undefined ? TBD : plain(t.amount);
-        const by: Record<string, string> = {
-          "S.No": String(lines.length + k + 1),
-          "Charge name": t.label,
-          Currency: "INR",
-          ROE: "1.00",
-          Amount: amount,
-          "In INR": figure(t.amount),
-        };
-        return cols.map((c) => by[c.head] ?? "");
-      }),
-    ];
-
-    doc.setFontSize(7.4);
-    table.forEach((row, n) => {
-      const taxRow = n >= lines.length;
-      const cells = cols.map((c, i) => {
-        doc.setFont("helvetica", i === 1 && !taxRow ? "bold" : "normal");
-        return row[i] === TICK ? [TICK] : (doc.splitTextToSize(row[i], widths[i] - 3.2) as string[]);
-      });
+    lines.forEach((l, n) => {
+      // The charge's name wraps; a figure is never broken over two lines.
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(SIZE);
+      const name = doc.splitTextToSize(l.charge, widths[1] - 2.8) as string[];
       // Closer set when the page is being fitted to keep the signature on it.
-      const h = Math.max(...cells.map((c) => c.length)) * LINE + (fit.gap < 1 ? 1.9 : 2.6);
-      if (ensure(h + 1)) header();
+      const h = name.length * LINE + (fit.gap < 1 ? 1.6 : 2.2);
+      room(h + 1);
       let x = MARGIN;
       cols.forEach((c, i) => {
-        if (cells[i][0] === TICK) {
-          // A check mark, drawn: short stroke down, long stroke up.
-          const cx = x + widths[i] / 2 - 0.4;
-          const cy = y + 3.1;
-          stroke(INK);
-          doc.setLineWidth(0.35);
-          doc.line(cx - 1.1, cy - 0.2, cx - 0.2, cy + 0.8);
-          doc.line(cx - 0.2, cy + 0.8, cx + 1.5, cy - 1.4);
-          doc.setLineWidth(0.2);
-          x += widths[i];
-          return;
-        }
-        const tbd = cells[i][0] === TBD;
-        doc.setFont("helvetica", tbd ? "italic" : i === 1 && !taxRow ? "bold" : "normal");
+        const text = c.cell(l, n);
+        const tbd = text === TBD;
+        doc.setFont("helvetica", tbd ? "italic" : "normal");
+        doc.setFontSize(SIZE);
         set(tbd ? FAINT : INK);
-        let ly = y + 4;
-        for (const t of cells[i]) {
-          doc.text(t, c.right ? x + widths[i] - 1.6 : x + 1.6, ly, { align: c.right ? "right" : "left" });
-          ly += LINE;
-        }
+        (i === 1 ? name : [text]).forEach((t, k) => doc.text(t, at(c, x, widths[i]), y + 3.3 + k * LINE, { align: c.right ? "right" : "left" }));
         x += widths[i];
       });
       y += h;
-      stroke([238, 239, 233]);
-      doc.setLineWidth(0.15);
-      doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-      doc.setLineWidth(0.2);
     });
 
-    // The totals, under the figures, the last in bold; the rates of exchange they were worked at beside them.
+    // The columns totalled under a rule, the label just before the first of them.
     const totals = chargeTotals(lines, data);
-    // A statement's total is what it prints: the charges and its tax lines.
-    const total = statement ? statementTotal(lines, data) : totals?.total;
-    const rows: Array<[string, number | undefined]> = statement
-      ? [["Total (INR)", total]]
-      : taxed
-      ? [
-          ["Taxable value (INR)", totals?.taxable],
-          ["GST (INR)", totals?.gst],
-          ["Total (INR)", totals?.total],
-        ]
-      : [["Total (INR)", totals?.total]];
-    ensure(rows.length * 5 + 4);
-    y += 4.6;
-    /** Where the rates of exchange end, when they run below the totals. */
-    let roeEnd = y;
-    if (foreign.length) {
-      const said = foreign.map((c) => {
-        const roe = rateOfExchange(data, c);
-        return roe === undefined ? `1 ${c} = INR TBD` : roeFigure(c, roe);
-      });
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.4);
-      set(MUTED);
-      doc.text("Rates of exchange", MARGIN + 1, y);
-      doc.setFont("helvetica", "bold");
-      set(INK);
-      let ry = y + 3.8;
-      for (const line of doc.splitTextToSize(said.join("   ·   "), CONTENT_W - 70) as string[]) {
-        doc.text(line, MARGIN + 1, ry);
-        ry += 3.6;
+    const TOTAL_H = 6;
+    room(TOTAL_H + 1);
+    y += 1;
+    rule(MARGIN, PAGE_W - MARGIN, y);
+    const totalTop = y;
+    let x = MARGIN;
+    cols.forEach((c, i) => {
+      if (i === first) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.4);
+        set(INK);
+        doc.text("Total (INR)", x - 2, y + 4.2, { align: "right" });
       }
-      roeEnd = ry;
-    }
-    const valueX = PAGE_W - MARGIN - 1.6;
-    const labelX = valueX - 42;
-    rows.forEach(([label, value], i) => {
-      const last = i === rows.length - 1;
-      doc.setFont("helvetica", last ? "bold" : "normal");
-      doc.setFontSize(last ? 9 : 8.2);
-      set(last ? INK : MUTED);
-      doc.text(label, labelX, y, { align: "right" });
-      doc.setFont("helvetica", value === undefined ? "italic" : "bold");
-      set(value === undefined ? FAINT : INK);
-      doc.text(figure(value), valueX, y, { align: "right" });
-      y += last ? 5.4 : 4.6;
+      if (c.total) {
+        const v = totals?.[c.total];
+        doc.setFont("helvetica", v === undefined ? "italic" : "bold");
+        doc.setFontSize(c.total === "total" ? 7.8 : 7.2);
+        set(v === undefined ? FAINT : INK);
+        doc.text(figure(v), at(c, x, widths[i]), y + 4.2, { align: "right" });
+      }
+      x += widths[i];
     });
-    y = Math.max(y, roeEnd);
+    y += TOTAL_H;
+    frame(totalTop);
+    y += 4.4;
 
     // The total in words, as an invoice states it: what is owed cannot then be misread off the figures.
-    if (total !== undefined) {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.8);
-      set(MUTED);
-      y += 1.5;
-      for (const line of doc.splitTextToSize(`Amount in words: ${rupeesInWords(total)}`, CONTENT_W - 2) as string[]) {
+    const roes = foreign.map((c) => {
+      const roe = rateOfExchange(data, c);
+      return roe === undefined ? `1 ${c} = INR TBD` : roeFigure(c, roe);
+    });
+    const said = [
+      ...(totals ? [{ text: `Amount in words: ${rupeesInWords(totals.total)}`, bold: true }] : []),
+      ...(roes.length ? [{ text: `Rates of exchange: ${roes.join("   ·   ")}`, bold: false }] : []),
+    ];
+    for (const { text, bold } of said) {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(bold ? 7.6 : 7.2);
+      set(bold ? INK : MUTED);
+      for (const line of doc.splitTextToSize(text, CONTENT_W - 2) as string[]) {
         // Over the page here, the close follows it there: worth drawing again, tighter, as the signature is.
         if (ensure(5) && signs) signPushed = true;
         doc.text(line, MARGIN + 1, y);
         y += 3.8;
       }
     }
-    y += 4 * fit.gap;
+    y += 2.5 * fit.gap;
+  }
+
+  /** A rule across a ruled table, in its grey. */
+  function rule(x1: number, x2: number, at: number) {
+    stroke(GRID);
+    doc.setLineWidth(0.25);
+    doc.line(x1, at, x2, at);
+    doc.setLineWidth(0.2);
+  }
+
+  /**
+   * An invoice's particulars, as the trade's invoices set them out: label,
+   * colon, value, in two columns down the page — the parties and the route on
+   * the left, the invoice's and the shipment's particulars on the right — with
+   * no boxes round them. The sections in a column follow one another with a
+   * little space between; a value of several lines (a party's name over its
+   * address) hangs under its first.
+   */
+  function drawColumns() {
+    const SIZE = 7.8;
+    const STEP = 3.7;
+    const PART = 2.4;
+    const LEFT_W = 100;
+    const GAP = 8;
+    type Line = { t: string; bold: boolean; known: boolean };
+    const columns = [
+      { place: "left", x: MARGIN, w: LEFT_W, label: 25 },
+      { place: "right", x: MARGIN + LEFT_W + GAP, w: CONTENT_W - LEFT_W - GAP, label: 27 },
+    ].map((c) => {
+      const parts = spec.sections
+        .filter((s) => s.place === c.place)
+        .map((s) =>
+          shown(s).map(({ row, value }) => {
+            const known = value !== undefined;
+            const lines = (value ?? TBD).split("\n").flatMap((part, i): Line[] => {
+              const bold = Boolean(row.bold) && known && i === 0;
+              doc.setFont("helvetica", bold ? "bold" : known ? "normal" : "italic");
+              doc.setFontSize(SIZE);
+              return (doc.splitTextToSize(part, c.w - c.label - 2) as string[]).map((t) => ({ t, bold, known }));
+            });
+            return { label: row.label, lines };
+          })
+        )
+        .filter((rows) => rows.length > 0);
+      const h = parts.reduce((t, rows) => t + rows.reduce((s, r) => s + r.lines.length * STEP, 0), 0) + Math.max(0, parts.length - 1) * PART;
+      return { ...c, parts, h };
+    });
+    const H = Math.max(...columns.map((c) => c.h));
+    ensure(H + 2);
+    const top = y;
+    for (const c of columns) {
+      let cy = top + 2.8;
+      c.parts.forEach((rows, n) => {
+        if (n) cy += PART;
+        for (const r of rows) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.2);
+          set(MUTED);
+          doc.text(r.label, c.x, cy);
+          doc.text(":", c.x + c.label - 2, cy);
+          for (const l of r.lines) {
+            doc.setFont("helvetica", l.bold ? "bold" : l.known ? "normal" : "italic");
+            doc.setFontSize(SIZE);
+            set(l.known ? INK : FAINT);
+            doc.text(l.t, c.x + c.label, cy);
+            cy += STEP;
+          }
+        }
+      });
+    }
+    y = top + H + 3 * fit.gap;
+  }
+
+  /**
+   * The foot of an invoice, as the trade's invoices close: the tax by SAC,
+   * our PAN and GSTIN, the declaration and the terms, then the account it is
+   * paid into, with the signature beside it. Drawn as one block, so the
+   * signature is never parted from it.
+   */
+  function drawInvoiceClose() {
+    const STEP = 3.1;
+    const lines = data.charges ?? [];
+    const summary = lines.some((l) => l.gstPercent) ? taxSummary(lines, data) : undefined;
+    const SUM_W = 112;
+    const SUM_HEAD = 5.4;
+    const SUM_ROW = 4.2;
+    const sumH = summary ? SUM_HEAD + 1 + (summary.length + 1) * SUM_ROW + 1 + 3.5 : 0;
+
+    const ours = `PAN: ${COMPANY.gstin.slice(2, 12)}   ·   GSTIN: ${COMPANY.gstin}   ·   State code: ${stateOf(COMPANY.gstin)}`;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7);
+    const decl = spec.declaration ? (doc.splitTextToSize(spec.declaration, CONTENT_W) as string[]) : [];
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.8);
+    const terms = (spec.terms ?? []).map((t) => doc.splitTextToSize(t, CONTENT_W - 5) as string[]);
+    const textH = 4.6 + (decl.length ? decl.length * STEP + 1.4 : 0) + (terms.length ? 3.6 + terms.flat().length * STEP : 0) + 2.5;
+
+    const bank: Array<[string, string]> = [
+      ["A/c name", COMPANY.bank.accountName],
+      ["Bank", COMPANY.bank.bank],
+      ["A/c no.", COMPANY.bank.accountNo],
+      ["IFSC", COMPANY.bank.ifsc],
+    ];
+    const BANK_W = 100;
+    const BANK_LINE = 3.8;
+    const bankH = 6.4 + bank.length * BANK_LINE + 0.6;
+    const SIGN = 3 + fit.sign + 3.6;
+    const footH = Math.max(bankH, signs ? SIGN : 0) + 5;
+    const H = sumH + textH + footH;
+
+    // As one block: on this page whole, or over to the next whole.
+    signPushed = (ensure(H + 2) && signs) || signPushed;
+    const top = y;
+    let ly = top;
+
+    if (summary) {
+      drawTaxSummary(summary, ly, SUM_W, SUM_HEAD, SUM_ROW);
+      ly += sumH;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.2);
+    set(INK);
+    doc.text(ours, MARGIN, ly + 2.4);
+    ly += 4.6;
+    if (decl.length) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7);
+      set(MUTED);
+      for (const line of decl) {
+        doc.text(line, MARGIN, ly + 2.4);
+        ly += STEP;
+      }
+      ly += 1.4;
+    }
+    if (terms.length) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.8);
+      set(INK);
+      doc.text("Terms:", MARGIN, ly + 2.4);
+      ly += 3.6;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.8);
+      set(MUTED);
+      terms.forEach((t, i) => {
+        doc.text(`${i + 1}.`, MARGIN + 1, ly + 2.4);
+        for (const line of t) {
+          doc.text(line, MARGIN + 5, ly + 2.4);
+          ly += STEP;
+        }
+      });
+    }
+    ly += 2.5;
+
+    // Our bank account, ruled round as the sample has it; the signature beside it.
+    stroke(GRID);
+    doc.setLineWidth(0.25);
+    doc.rect(MARGIN, ly, BANK_W, bankH);
+    doc.setLineWidth(0.2);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.2);
+    set(INK);
+    doc.text("Bank details", MARGIN + 3, ly + 4.4);
+    bank.forEach(([label, value], i) => {
+      const by = ly + 8.6 + i * BANK_LINE;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      set(MUTED);
+      doc.text(label, MARGIN + 3, by);
+      doc.text(":", MARGIN + 19, by);
+      set(INK);
+      doc.setFontSize(7.4);
+      doc.text(value, MARGIN + 21, by);
+    });
+    if (signs) signature(ly + 3);
+    ly += Math.max(bankH, signs ? SIGN : 0) + 3.6;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
+    set(MUTED);
+    doc.text("E. & O.E.", MARGIN, ly);
+
+    y = top + H + 2;
+  }
+
+  /** The tax by SAC and rate, ruled as the charges are, `w` wide at the left, its total under it. */
+  function drawTaxSummary(rows: NonNullable<ReturnType<typeof taxSummary>>, top: number, w: number, HEAD: number, ROW: number) {
+    const rate = (r: number) => (r ? percent(r) : "-");
+    type Row = (typeof rows)[number];
+    type Col = { head: string; w: number; cell: (r: Row) => string; total?: string };
+    const t = chargeTotals(data.charges ?? [], data)!;
+    const split: Col[] = interState(data)
+      ? [
+          { head: "IGST %", w: 0.8, cell: (r) => rate(r.rate) },
+          { head: "IGST", w: 1.15, cell: (r) => rupeeFigure(r.igst), total: rupeeFigure(t.igst) },
+        ]
+      : [
+          { head: "CGST %", w: 0.8, cell: (r) => rate(r.rate / 2) },
+          { head: "CGST", w: 1.15, cell: (r) => rupeeFigure(r.cgst), total: rupeeFigure(t.cgst) },
+          { head: "SGST %", w: 0.8, cell: (r) => rate(r.rate / 2) },
+          { head: "SGST", w: 1.15, cell: (r) => rupeeFigure(r.sgst), total: rupeeFigure(t.sgst) },
+        ];
+    const cols: Col[] = [
+      { head: "SAC", w: 1, cell: (r) => r.sac || "-", total: "Total" },
+      { head: "Taxable", w: 1.35, cell: (r) => rupeeFigure(r.taxable), total: rupeeFigure(t.taxable) },
+      ...split,
+      { head: "Total tax", w: 1.25, cell: (r) => rupeeFigure(r.cgst + r.sgst + r.igst), total: rupeeFigure(t.cgst + t.sgst + t.igst) },
+    ];
+    const weight = cols.reduce((s, c) => s + c.w, 0);
+    const widths = cols.map((c) => (c.w / weight) * w);
+    // The SAC to the left, every figure to the right.
+    const cellAt = (i: number, x: number) => (i === 0 ? x + 1.4 : x + widths[i] - 1.4);
+    const align = (i: number) => (i === 0 ? "left" : "right");
+
+    let ty = top;
+    const line = (cells: string[], bold: boolean, size: number, h: number) => {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      set(INK);
+      let x = MARGIN;
+      cells.forEach((s, i) => {
+        doc.text(s, cellAt(i, x), ty + h - 1.3, { align: align(i) });
+        x += widths[i];
+      });
+      ty += h;
+    };
+    line(cols.map((c) => c.head.toUpperCase()), true, 5.8, HEAD);
+    rule(MARGIN, MARGIN + w, ty);
+    ty += 1;
+    for (const r of rows) line(cols.map((c) => c.cell(r)), false, 6.8, ROW);
+    ty += 1;
+    rule(MARGIN, MARGIN + w, ty);
+    line(cols.map((c) => c.total ?? ""), true, 6.8, ROW);
+    stroke(GRID);
+    doc.setLineWidth(0.25);
+    doc.rect(MARGIN, top, w, ty - top);
+    let x = MARGIN;
+    for (const cw of widths.slice(0, -1)) {
+      x += cw;
+      doc.line(x, top, x, ty);
+    }
+    doc.setLineWidth(0.2);
   }
 
   /**

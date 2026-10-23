@@ -177,6 +177,8 @@ export interface DocRow {
   /** As a column of a table (placed "table"): its share of the width, and figures to the right. */
   width?: number;
   align?: "right";
+  /** In an invoice's columns: its first line in bold — a party's name over its address, the invoice's number. */
+  bold?: boolean;
 }
 
 export interface DocSection {
@@ -185,7 +187,9 @@ export interface DocSection {
   /**
    * Where a section of a split document (`layout: "split"`) is drawn: a party
    * box down the left, the details grid on the right, or a table across the
-   * page under both. Without it, as a band across the page, as everywhere else.
+   * page under both. An invoice's (`layout: "invoice"`) left and right are
+   * its two columns of particulars, label and value, without boxes. Without
+   * it, as a band across the page, as everywhere else.
    */
   place?: "left" | "right" | "table";
   /** In the band layout: the rows two to a line, label and value each — a block of short particulars, kept compact. */
@@ -226,12 +230,6 @@ export interface DocSpec {
   requires: DataKey[];
   /** Whether to draw the shipper/consignee block. */
   parties: boolean;
-  /**
-   * With the parties: a third box, the notify party (the forwarder at the
-   * other end), and each box with its address and GSTIN — three columns
-   * across, as an invoice to the trade sets them out.
-   */
-  notifyParty?: boolean;
   sections: DocSection[];
   /** Fixed text printed above the signature line. */
   declaration?: string;
@@ -239,8 +237,16 @@ export interface DocSpec {
    * Drawn in two columns — the parties down the left, the details on the
    * right, the cargo as a table across — the way a cargo arrival notice is
    * laid out, rather than as bands. Its sections say where each goes.
+   *
+   * "invoice" is laid out as a GST invoice to the trade, without boxes: the
+   * parties and the route down the left and the invoice's and the shipment's
+   * particulars down the right, label and value; the charges ruled, with the
+   * tax on each line; the tax by SAC; the terms; our bank details beside the
+   * signature.
    */
-  layout?: "split";
+  layout?: "split" | "invoice";
+  /** An invoice's terms, numbered under the tax summary. */
+  terms?: string[];
   /**
    * Printed under the sections, worked out from the record: a sentence, then a
    * list headed by `title` — what the consignee needs to do.
@@ -248,10 +254,9 @@ export interface DocSpec {
   notes?: { title: string; lead?: (d: DocumentData) => string | undefined; lines: (d: DocumentData) => string[] };
   /**
    * Drawn after the sections as a table with totals, under this heading, when
-   * the record itemises its charges. "statement" sets it out as a statement of
-   * charges: S.No, charge, volume, per unit, currency, ROE, amount, in INR.
+   * the record itemises its charges. An invoice's table goes without one.
    */
-  charges?: { title: string | ((d: DocumentData) => string); style?: "statement" };
+  charges?: { title: string };
   /**
    * What it still needs that a list of fields cannot say — a rate on every
    * charge line, say — by label, added to what `requires` finds missing.
