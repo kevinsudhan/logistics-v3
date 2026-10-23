@@ -25,6 +25,7 @@ import { chargeTotals, lineTax, rupeesInWords, taxSummary } from "../../src/lib/
 import type { DocumentData } from "../../src/lib/documents/types";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
 import { renderDocument } from "../../src/lib/documents/render";
+import { issuedToday } from "../../src/lib/documents/letterhead";
 import type { jsPDF } from "jspdf";
 
 /** The Manual documents page: typing a document in by hand (12 Oct 2026). */
@@ -286,14 +287,14 @@ const priced: ManualValues = { ...invoice, roe_EUR: "90", charges: (invoice.char
 is("every line priced and every rate given: nothing outstanding", missingOf(fi, { ...emptyState(), shipment: priced }), []);
 const fiText = (await bodies(fi.render(priced))).flat().join(" ");
 is("each rate in its currency, converted, the tax on each line and the totals in rupees, the rates printed", [
-  "CURR", "ROE", "CGST", "SGST", "TOTAL (INR)", "USD", "EUR", "60.00", "650.00", "50.00", "5,000.00", "83.50", "22,545.00", "2,925.00", "4,500.00",
+  "CURR.", "ROE", "CGST", "SGST", "AMT IN INR", "USD", "EUR", "60.00", "650.00", "50.00", "5,000.00", "83.50", "22,545.00", "2,925.00", "4,500.00",
   "263.25", "405.00", "450.00", "Total (INR)", "34,970.00", "1,118.25", "37,206.50", "Rates of exchange", "1 USD = INR 83.50", "1 EUR = INR 90.00",
 ].filter((w) => !fiText.includes(w)), []);
 is("not the freight twice", fiText.includes("Ocean freight USD"), false);
 const missingRoe = (await bodies(fi.render({ ...priced, roe_EUR: "" }))).flat().join(" ");
 is("without a rate of exchange, its line and the totals are TBD", [missingRoe.includes("1 EUR = INR TBD"), missingRoe.includes("37,206.50"), missingRoe.includes("Rate of exchange for EUR")], [true, false, true]);
 const inrOnly = (await bodies(fi.render({ origin: "CHENNAI", destination: "JEBEL ALI", charges: [{ charge: "THC", currency: "INR", rate: "1000" }] }))).flat().join(" ");
-is("all in rupees: no rate-of-exchange column or line", [inrOnly.includes("ROE"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00")], [false, false, true]);
+is("all in rupees: the ROE column as the e-invoice has it, a dash; no rates of exchange", [inrOnly.includes("ROE"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00")], [true, false, true]);
 console.log("\nthe freight invoice, or its proforma, with three parties");
 is("the toggle first on the form, freight until a proforma is chosen", [fi.sections[0].fields?.[0]?.key, fi.sections[0].fields?.[0]?.input, emptyState().shipment.invoice_kind], ["invoice_kind", "segmented", "freight"]);
 has("the three parties' fields on the form", fi.sections.flatMap((s) => (s.fields ?? []).map((f) => f.key)), [
@@ -311,7 +312,7 @@ const freightItems = (await bodies(fi.render(parties))).flat();
 const freightText = freightItems.join(" ");
 is("label and value: the party billed, the other parties, each with its address and GSTIN", [
   "Billed to", "GULF TRADING LLC", "DEIRA, DUBAI", "TRN 100200300", "Shipper", "SAMPLE TEXTILES PVT LTD", "TIRUPPUR 641604", "GSTIN / IEC: 33AABCS1234F1Z9",
-  "Notify party", "SAMPLE FORWARDERS FZE", "JEBEL ALI FREE ZONE", "GSTIN: TRN 100400500", "FREIGHT INVOICE", "Invoice no", "FI-HBL/26-27/0042", "Reverse charge", "CGST",
+  "Notify party", "SAMPLE FORWARDERS FZE", "JEBEL ALI FREE ZONE", "GSTIN: TRN 100400500", "TAX INVOICE", "ORIGINAL", "Invoice number", "FI-HBL/26-27/0042", "Reverse charge", "CGST",
 ].filter((w) => !freightText.includes(w)), []);
 is("the party billed in full once; as consignee, by name alone", [freightItems.filter((t) => t === "DEIRA, DUBAI").length, freightItems.filter((t) => t === "GULF TRADING LLC").length], [1, 2]);
 is("our PAN, GSTIN and bank account at the foot, with the terms", [
@@ -321,10 +322,10 @@ is("our PAN, GSTIN and bank account at the foot, with the terms", [
 const proformaValues = { ...parties, invoice_kind: "proforma" };
 const proformaText = (await bodies(fi.render(proformaValues))).flat().join(" ");
 is("the proforma: its own title and number, the parties, the tax and the bank as the invoice's, not a tax invoice", [
-  proformaText.includes("PROFORMA INVOICE"), proformaText.includes("PI-HBL/26-27/0042"), proformaText.includes("Proforma no"), proformaText.includes("Notify party"),
+  proformaText.includes("PROFORMA INVOICE"), proformaText.includes("PI-HBL/26-27/0042"), proformaText.includes("Proforma number"), proformaText.includes("Notify party"),
   proformaText.includes("CGST"), proformaText.includes("37,206.50"), proformaText.includes("50200110838580"), proformaText.includes("not a tax invoice"),
-  proformaText.includes("Reverse charge"), proformaText.includes("Invoice no"),
-], [true, true, true, true, true, true, true, true, false, false]);
+  proformaText.includes("Reverse charge"), proformaText.includes("Invoice number"), proformaText.includes("ORIGINAL"),
+], [true, true, true, true, true, true, true, true, false, false, false]);
 is("named as a proforma", [fi.fileName(proformaValues), fi.documentNo?.(proformaValues)], ["PI-HBL-26-27-0042-proforma-invoice.pdf", "PI-HBL/26-27/0042"]);
 
 console.log("\nlaid out as the line's e-invoice");
@@ -335,9 +336,10 @@ const statement: ManualValues = {
 };
 const statementText = (await bodies(fi.render(statement))).flat().join(" ");
 is("the charges' columns, the shipment four to a line, the tax by SAC, the total in words", [
-  "NO", "CHARGE", "SAC", "CURR", "RATE", "QTY", "AMOUNT", "ROE", "GST", "CGST", "SGST", "TOTAL (INR)", "Collect", "WAN HAI 326 / W062", "WAN HAI LINES",
-  "030G547522", "HBL/26-27/0042", "INJECTION MOULD", "SHEKOU", "WHSU8296786 - 42P3", "751.5 kg", "0.215 CBM", "DINESH CHN", "1214865 / 01-Oct-2026", "644 / 10",
-  "TAXABLE", "CGST %", "SGST %", "TOTAL TAX", "Amount in words: Indian Rupees Thirty-Seven Thousand Two Hundred and Six and Fifty Paise Only",
+  "NO", "CHARGE DETAILS", "HSN/SAC", "CURR.", "RATE / UNIT", "UNIT", "CURR. AMT", "ROE", "TAXABLE AMT", "RATE", "CGST", "SGST", "AMT IN INR", "Collect",
+  "Vessel", "WAN HAI 326", "Voyage number", "W062", "WAN HAI LINES", "Master number", "030G547522", "House number", "HBL/26-27/0042", "INJECTION MOULD",
+  "Port of origin", "SHEKOU", "WHSU8296786 - 42P3", "Weight (kgs)", "751.500", "Volume (CBM)", "0.215", "DINESH CHN", "IGM number", "1214865 / 01-Oct-2026",
+  "Item number", "644", "Sub item number", "IGST", "TOTAL AMT", "Amount in words: Indian Rupees Thirty-Seven Thousand Two Hundred and Six and Fifty Paise Only",
 ].filter((w) => !statementText.includes(w)), []);
 const toShipperItems = (await bodies(fi.render({ ...statement, bill_to: "shipper" }))).flat();
 const toShipper = toShipperItems.join(" ");
@@ -346,14 +348,54 @@ is("billed to the shipper: it in full as Billed to, with the state and PAN read 
   statementText.includes("GSTIN / IEC: 33AABCS1234F1Z9"), statementText.split(" ").includes("AABCS1234F"),
 ], [true, true, false, true, true, false]);
 
+console.log("\na tax invoice, with every particular of the e-invoice");
+is("called a tax invoice; still found as the freight invoice, kept and numbered as it was", [
+  fi.shortName, matches(fi, "freight invoice"), matches(fi, "tax invoice"), fi.fileName({ ...parties, invoice_kind: "freight" }), fi.documentNo?.({ ...parties, invoice_kind: "freight" }), fi.id,
+], ["Tax invoice", true, true, "FI-HBL-26-27-0042-tax-invoice.pdf", "FI-HBL/26-27/0042", "freight-invoice"]);
+has("every particular typed on the form", fieldKeys("freight-invoice"), [
+  "copy", "invoice_date", "due_date", "job_date", "customer_code", "customer_pan", "irn", "advance_receipt", "shipper_ref", "vehicle_no", "note", "our_tan", "our_lut", "our_msme",
+  "vessel", "voyage", "sailingDate", "etaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "salesRef", "masterBlNumber", "blNumber", "containerId", "containerType",
+]);
+const IRN = "dbe6a5131bd804ccbefed158dc302ddf383fb85a34db1284bc69ddd273656b6e";
+const particulars: ManualValues = {
+  ...statement, invoice_kind: "freight", copy: "duplicate", invoice_date: "2025-03-14", due_date: "2026-10-29", job_date: "2026-10-16", customer_code: "1103010005",
+  customer_pan: "aaacf9999k", irn: IRN, advance_receipt: "AR/26-27/0018", shipper_ref: "QDHD-2609-11", vehicle_no: "TN 04 AB 1234", note: "Deliver to the CFS",
+  our_tan: "CHEA12345B", our_lut: "AD3303260436290", our_msme: "UDYAM-TN-02-0012345",
+};
+const particularItems = (await bodies(fi.render(particulars))).flat();
+const particularText = particularItems.join(" ");
+is("each prints under the e-invoice's label", [
+  "DUPLICATE", "Customer code", "1103010005", "Customer PAN no", "AAACF9999K", "IRN", "Date", "14-Mar-2025", "Payment due date", "29-Oct-2026", "Job date", "16-Oct-2026",
+  "Advance receipt no", "AR/26-27/0018", "Shipper ref no", "QDHD-2609-11", "Vehicle no", "TN 04 AB 1234", "Note", "Deliver to the CFS",
+  "TAN: CHEA12345B", "LUT: AD3303260436290", "MSME: UDYAM-TN-02-0012345",
+].filter((w) => !particularText.includes(w)), []);
+is("the IRN whole, over as many lines as it takes", particularText.replace(/\s+/g, "").includes(IRN), true);
+is("dated as typed, not the day it is printed", [particularItems.includes("14-Mar-2025"), particularText.includes(issuedToday())], [true, false]);
+const untyped = (await bodies(fi.render({ ...statement, invoice_kind: "freight" }))).flat();
+is("left off while empty; an untyped copy is the original", [
+  ["Customer code", "IRN", "Payment due date", "Job date", "Advance receipt no", "Shipper ref no", "Vehicle no", "Note"].filter((w) => untyped.includes(w)), untyped.includes("ORIGINAL"),
+], [[], true]);
+const proformaTyped = (await bodies(fi.render({ ...particulars, invoice_kind: "proforma" }))).flat();
+is("the proforma: not one of a tax invoice's copies, no IRN, no reverse charge", [
+  ["DUPLICATE", "ORIGINAL", "IRN", "Reverse charge"].filter((w) => proformaTyped.includes(w)), proformaTyped.includes("Customer code"),
+], [[], true]);
+
 console.log("\nan invoice is one page, however many charges");
-/** The title's size as printed: under 13 pt when the invoice was drawn smaller to fit. */
+/** What is printed on the first page, and the size in points it is printed at. */
 async function printed(pdf: jsPDF) {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf.output("arraybuffer")), verbosity: 0 }).promise;
   const items = (await (await doc.getPage(1)).getTextContent()).items as Array<{ str: string; transform: number[] }>;
-  const title = items.find((i) => i.str.endsWith("INVOICE"));
   const strs = items.map((i) => i.str.trim());
-  return { pages: doc.numPages, title: Math.round(Math.hypot(title!.transform[0], title!.transform[1]) * 10) / 10, text: strs.join(" "), items: strs };
+  const size = (str: string) => {
+    const item = items.find((i) => i.str.trim() === str);
+    return item ? Math.round(Math.hypot(item.transform[0], item.transform[1]) * 10) / 10 : undefined;
+  };
+  /** How far up from the foot of the page, in mm, a string is printed. */
+  const fromFoot = (str: string) => {
+    const item = items.find((i) => i.str.trim() === str);
+    return item ? Math.round((item.transform[5] / 72) * 25.4) : undefined;
+  };
+  return { pages: doc.numPages, text: strs.join(" "), items: strs, size, fromFoot };
 }
 const charged = (n: number): ManualValues => ({
   ...statement,
@@ -369,7 +411,15 @@ for (const n of [3, 9, 20, 40, 80]) {
     ], [1, true, true, true, true]);
   }
 }
-is("drawn smaller only when it has to be", [(await printed(fi.render(charged(3)))).title, (await printed(fi.render(charged(40)))).title < 13], [13, true]);
+const few = await printed(fi.render({ ...charged(3), invoice_kind: "freight" }));
+const many = await printed(fi.render({ ...charged(40), invoice_kind: "freight" }));
+is("no footer under an invoice; the signature at the foot of the page, few charges or many", [
+  few.text.includes("System-generated"), few.text.includes("Page 1 of 1"), (few.fromFoot("Authorised signatory") ?? 99) < 32, (many.fromFoot("Authorised signatory") ?? 99) < 32,
+], [false, false, true, true]);
+is("three charges: everything its size", [few.size("TAX INVOICE"), few.size("Charge 2"), few.size("Billed to"), few.size("Bank details")], [13, 7, 7.2, 7.2]);
+is("forty: only the charges' lines smaller; the title, the particulars, the total and the bank their size", [
+  many.size("TAX INVOICE"), many.size("Billed to"), many.size("Total (INR)"), many.size("Bank details"), many.size("Terms:"), (many.size("Charge 2") ?? 7) < 7,
+], [13, 7.2, 7.4, 7.2, 6.8, true]);
 
 console.log("\nthe tax on each line, and by SAC");
 // The line's e-invoice, QDWJ26093202: its figures, to the paisa.

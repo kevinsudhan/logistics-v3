@@ -23,7 +23,7 @@ import {
   type ManualStore,
   type ManualValues,
 } from "./manualForm";
-import type { ChargeLine, DataKey, DocSection, DocSpec, DocumentData } from "./types";
+import type { ChargeLine, DataKey, DocSection, DocSpec, DocumentData, InvoiceExtras } from "./types";
 import { billed, docMoney, gstinOf, stateOf } from "./charges";
 
 /**
@@ -423,6 +423,7 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
     currency: text(v, "currency") === "INR" ? "INR" : "USD",
     charges: chargesOf(v),
     exchangeRates: exchangeRatesOf(v),
+    invoice: invoiceExtrasOf(v),
     raw: {} as DocumentData["raw"],
   };
 }
@@ -467,17 +468,75 @@ const INVOICE_KIND: ManualField = {
   label: "Print as",
   input: "segmented",
   options: [
-    { value: "freight", label: "Freight invoice" },
+    { value: "freight", label: "Tax invoice" },
     { value: "proforma", label: "Proforma invoice" },
   ],
   hint: "A proforma goes out first, for approval or an advance: the same charges and tax, numbered PI- and marked as not a tax invoice.",
   wide: true,
 };
 
-const KG = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg` : undefined);
-const CBM = (n?: number) => (n !== undefined ? `${n.toLocaleString("en-IN", { maximumFractionDigits: 3 })} CBM` : undefined);
+/**
+ * What a tax invoice prints besides the shipment's details, as the line's
+ * e-invoice (QDWJ26093202) has them: which copy, its dates, the customer's
+ * code and PAN, the IRN, the references, a note, our own registrations.
+ */
+const INVOICE_PARTICULARS: ManualSection = {
+  title: "Invoice particulars",
+  note: "Each prints where the e-invoice has it, and is left off while empty.",
+  fields: [
+    {
+      key: "copy",
+      label: "Copy",
+      input: "select",
+      options: [
+        { value: "", label: "Original" },
+        { value: "duplicate", label: "Duplicate" },
+        { value: "triplicate", label: "Triplicate" },
+      ],
+      hint: "Printed at the head of the tax invoice.",
+    },
+    { key: "invoice_date", label: "Invoice date", input: "date", hint: "Left empty, the day it is printed." },
+    { key: "due_date", label: "Payment due date", input: "date" },
+    { key: "job_date", label: "Job date", input: "date" },
+    { key: "customer_code", label: "Customer code", placeholder: "1103010005" },
+    { key: "customer_pan", label: "Customer PAN", placeholder: "ABDCA2229C", hint: "Read from the GSTIN of the party billed when left empty." },
+    { key: "irn", label: "IRN", hint: "The Invoice Reference Number the e-invoice portal gives it, as given.", wide: true },
+    { key: "advance_receipt", label: "Advance receipt no" },
+    { key: "shipper_ref", label: "Shipper ref no" },
+    { key: "vehicle_no", label: "Vehicle no" },
+    { key: "note", label: "Note", input: "textarea", wide: true },
+    { key: "our_tan", label: "Our TAN", hint: "Printed beside our PAN and GSTIN." },
+    { key: "our_lut", label: "Our LUT no", hint: "For services exported without IGST; beside our PAN and GSTIN." },
+    { key: "our_msme", label: "Our MSME (Udyam) no", hint: "Printed beside our PAN and GSTIN." },
+  ],
+};
+
+/** What was typed under Invoice particulars, as the tax invoice prints it; an empty field is left out. */
+function invoiceExtrasOf(v: ManualValues): InvoiceExtras {
+  const typed = (key: string) => text(v, key) || undefined;
+  const dated = (key: string) => printedDate(text(v, key)) || undefined;
+  return {
+    copy: (text(v, "copy") || "original").toUpperCase(),
+    customerCode: typed("customer_code"),
+    customerPan: typed("customer_pan")?.toUpperCase(),
+    irn: typed("irn"),
+    invoiceDate: dated("invoice_date"),
+    dueDate: dated("due_date"),
+    jobDate: dated("job_date"),
+    advanceReceipt: typed("advance_receipt"),
+    shipperRef: typed("shipper_ref"),
+    vehicleNo: typed("vehicle_no"),
+    note: typed("note"),
+    tan: typed("our_tan"),
+    lut: typed("our_lut"),
+    msme: typed("our_msme"),
+  };
+}
+
+/** A weight or a measure as the e-invoice prints it: 330.000, 0.400. */
+const three = (n?: number) => (n !== undefined ? n.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : undefined);
 const joined = (...parts: Array<string | number | undefined>) => parts.filter((x) => x !== undefined && x !== "").join(" ") || undefined;
-/** A number and what goes with it, as the sample writes them: "1214865 / 01-Oct-2026", "644 / 10"; nothing without the number. */
+/** A number and what goes with it, as the sample writes them: "1214865 / 01-Oct-2026"; nothing without the number. */
 const slashed = (first?: string, second?: string) => (first ? [first, second].filter(Boolean).join(" / ") : undefined);
 
 /** Where the service is supplied, for a party registered for GST: its state, from the first two digits of its GSTIN. */
@@ -498,13 +557,14 @@ const INVOICE_TERMS = [
 ];
 
 /**
- * What both forms of the invoice print above the charges, as a GST invoice to
- * the trade sets it out (the line's e-invoice, QDWJ26093202, was the sample):
- * label and value, without boxes. Down the left, the party billed with its
- * GSTIN, state code and PAN; the shipper, the consignee and the notify party,
- * the one billed by name alone, its address being above; the route. Down the
- * right, the invoice's own particulars and the shipment's. The proforma is
- * the same paper numbered PI-, without the tax invoice's reverse-charge line.
+ * What both forms of the invoice print above the charges, as the line's
+ * e-invoice (QDWJ26093202) sets them out, under its labels: label and value,
+ * without boxes. Down the left, the party billed with its GSTIN and state
+ * code; the shipper, the consignee and the notify party, the one billed by
+ * name alone, its address being above; the route and the note. Down the
+ * right, the customer's code and PAN, the invoice's own particulars and the
+ * shipment's. The proforma is the same paper numbered PI-, without the tax
+ * invoice's IRN and reverse-charge lines.
  */
 function invoiceSections(prefix: string, tax: boolean): DocSection[] {
   return [
@@ -520,7 +580,6 @@ function invoiceSections(prefix: string, tax: boolean): DocSection[] {
             return g ? [g, placeOfSupply(d) && `State code: ${placeOfSupply(d)}`].filter(Boolean).join("     ") : undefined;
           },
         },
-        { label: "PAN", value: (d) => gstinOf(billed(d).tax)?.slice(2, 12), optional: true },
         { label: "Contact", value: (d) => d.phone, optional: true },
       ],
     },
@@ -553,24 +612,40 @@ function invoiceSections(prefix: string, tax: boolean): DocSection[] {
       title: "Route",
       place: "left",
       rows: [
-        { label: "Port of loading", value: (d) => d.portOfLoading ?? d.origin },
+        { label: "Port of origin", value: (d) => d.portOfLoading ?? d.origin },
         { label: "Port of discharge", value: (d) => d.destination },
         { label: "Final destination", value: (d) => d.finalDestination, optional: true },
-        { label: "Vessel / voyage", value: (d) => [d.vessel, d.voyage].filter(Boolean).join(" / ") || undefined },
+        { label: "Vessel", value: (d) => d.vessel },
+        { label: "Voyage number", value: (d) => d.voyage, optional: true },
+        { label: "Commodity", value: (d) => d.cargoDescription },
         { label: "Carrier", value: (d) => d.carrier, optional: true },
         { label: "ETD", value: (d) => d.sailingDate, optional: true },
         { label: "ETA", value: (d) => d.etaDate, optional: true },
+        { label: "Place of supply", value: placeOfSupply, optional: true },
+        { label: "Shipper ref no", value: (d) => d.invoice?.shipperRef, optional: true },
+        { label: "Note", value: (d) => d.invoice?.note, optional: true },
+        { label: "Salesman", value: (d) => d.salesRef, optional: true },
+      ],
+    },
+    {
+      title: "Customer",
+      place: "right",
+      rows: [
+        { label: "Customer code", value: (d) => d.invoice?.customerCode, optional: true },
+        { label: "Customer PAN no", value: (d) => d.invoice?.customerPan ?? gstinOf(billed(d).tax)?.slice(2, 12), optional: true },
       ],
     },
     {
       title: tax ? "Invoice" : "Proforma",
       place: "right",
       rows: [
-        { label: tax ? "Invoice no" : "Proforma no", value: (d) => documentNo({ numberPrefix: prefix }, d), bold: true },
-        { label: "Date", value: () => issuedToday() },
-        { label: "Job reference", value: (d) => (d.reference === "TBD" ? undefined : d.reference) },
+        { label: tax ? "Invoice number" : "Proforma number", value: (d) => documentNo({ numberPrefix: prefix }, d), bold: true },
+        ...(tax ? [{ label: "IRN", value: (d: DocumentData) => d.invoice?.irn, optional: true }] : []),
+        { label: "Date", value: (d) => d.invoice?.invoiceDate ?? issuedToday() },
         ...(tax ? [{ label: "Reverse charge", value: () => "No" }] : []),
-        { label: "Place of supply", value: placeOfSupply, optional: true },
+        { label: "Payment due date", value: (d) => d.invoice?.dueDate, optional: true },
+        { label: "Job number", value: (d) => (d.reference === "TBD" ? undefined : d.reference) },
+        { label: "Job date", value: (d) => d.invoice?.jobDate, optional: true },
         { label: "Freight terms", value: (d) => d.freightTerms, optional: true },
         { label: "Payment terms", value: (d) => d.paymentTerms, optional: true },
         // The one freight figure, where the charges are not itemised; itemised, the table says it.
@@ -581,37 +656,41 @@ function invoiceSections(prefix: string, tax: boolean): DocSection[] {
       title: "Shipment",
       place: "right",
       rows: [
-        { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
-        { label: "House B/L", value: (d) => d.blNumber },
+        { label: "Master number", value: (d) => d.masterBlNumber, optional: true },
+        { label: "House number", value: (d) => d.blNumber },
+        { label: "Advance receipt no", value: (d) => d.invoice?.advanceReceipt, optional: true },
         // The box's number, then its size and type, as the arrival notice writes it: "TWCU8075142 - 40HC".
         { label: "Container", value: (d) => [d.containerId, d.containerType].filter(Boolean).join(" - ") || undefined },
-        { label: "Packages", value: (d) => (d.packageCount !== undefined ? joined(d.packageCount, d.packageType) : undefined) },
-        { label: "Gross weight", value: (d) => KG(d.grossWeightKg) },
-        { label: "Volume", value: (d) => CBM(d.volumeCbm) },
-        { label: "Commodity", value: (d) => d.cargoDescription },
-        { label: "IGM no / date", value: (d) => slashed(d.igmNumber, d.igmDate), optional: true },
-        { label: "Item / sub-item", value: (d) => slashed(d.igmItemNo, d.igmSubItemNo), optional: true },
-        { label: "Salesman", value: (d) => d.salesRef, optional: true },
-        { label: "Shipper ref no", value: (d) => d.invoiceRef ?? d.poNumber, optional: true },
+        { label: "Vehicle no", value: (d) => d.invoice?.vehicleNo, optional: true },
+        { label: "Number of packs", value: (d) => (d.packageCount !== undefined ? joined(d.packageCount, d.packageType) : undefined) },
+        { label: "Weight (kgs)", value: (d) => three(d.grossWeightKg) },
+        { label: "Volume (CBM)", value: (d) => three(d.volumeCbm) },
+        { label: "IGM number", value: (d) => slashed(d.igmNumber, d.igmDate), optional: true },
+        { label: "Item number", value: (d) => d.igmItemNo, optional: true },
+        { label: "Sub item number", value: (d) => d.igmSubItemNo, optional: true },
       ],
     },
   ];
 }
 
 /**
- * The freight invoice, as a freight (tax) invoice or as a proforma.
+ * The freight invoice, as a tax invoice or as a proforma.
  *
  * One form, one set of details: a proforma goes out first for approval or an
- * advance, and the freight invoice that follows is the same charges. The
- * proforma is its own paper — PROFORMA INVOICE, numbered PI-, saying it is
- * not a tax invoice. Both are laid out as a GST invoice (`layout: "invoice"`):
- * the tax on each line, central and state or integrated, summarised by SAC,
- * our PAN and GSTIN, the terms, and the bank account to pay into by the
- * signature.
+ * advance, and the tax invoice that follows is the same charges. The proforma
+ * is its own paper — PROFORMA INVOICE, numbered PI-, saying it is not a tax
+ * invoice, with no copy mark. Both are laid out as a GST invoice (`layout:
+ * "invoice"`): the tax on each line, central and state or integrated,
+ * summarised by SAC, our PAN and GSTIN, the terms, and the bank account to pay
+ * into by the signature. Still numbered FI- and kept as the freight invoice,
+ * as it was before it was called a tax invoice.
  */
 function freightInvoiceDoc(registry: DocSpec): FormDoc {
   const freight: DocSpec = {
     ...registry,
+    id: "tax-invoice",
+    title: "TAX INVOICE",
+    shortName: "Tax invoice",
     parties: false,
     layout: "invoice",
     sections: invoiceSections(registry.numberPrefix, true),
@@ -628,14 +707,20 @@ function freightInvoiceDoc(registry: DocSpec): FormDoc {
     declaration: "A statement of the charges, for approval or advance payment. It is not a tax invoice.",
   };
   const specOf = (v: ManualValues) => (isProforma(v) ? proforma : freight);
-  const dataOf = (v: ManualValues): DocumentData => documentDataFromManual(v);
+  const dataOf = (v: ManualValues): DocumentData => {
+    const d = documentDataFromManual(v);
+    // A proforma is not one of a tax invoice's copies.
+    return isProforma(v) ? { ...d, invoice: { ...d.invoice, copy: undefined } } : d;
+  };
   const sections = sectionsFor(freight);
   sections[0] = { ...sections[0], fields: [INVOICE_KIND, BILL_TO, ...(sections[0].fields ?? [])] };
+  sections.splice(1, 0, INVOICE_PARTICULARS);
   return {
     id: registry.id,
-    shortName: "Freight invoice",
-    alias: "FI / PI",
-    purpose: "What the customer owes us for the forwarding service: as a freight (tax) invoice, or first as a proforma.",
+    shortName: "Tax invoice",
+    // The desk has called it the freight invoice: a search for that still finds it.
+    alias: "TI / PI · freight invoice",
+    purpose: "What the customer owes us for the forwarding service: as a tax invoice, or first as a proforma.",
     group: "shipment",
     store: "shipment",
     editor: "form",

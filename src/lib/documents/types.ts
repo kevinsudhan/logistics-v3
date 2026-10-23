@@ -140,7 +140,37 @@ export interface DocumentData {
   exchangeRates?: Record<string, number>;
   /** Which of the parties an invoice is addressed to: its To block is theirs. */
   billTo?: "shipper" | "consignee" | "notify";
+  /** What a tax invoice carries besides (the manual freight invoice): typed on its form. */
+  invoice?: InvoiceExtras;
   raw: RequestDetails;
+}
+
+/**
+ * The particulars a tax invoice to the trade prints that no other document
+ * does, as the line's e-invoice (QDWJ26093202) has them: typed on the Manual
+ * documents page, each left off the paper while it is empty.
+ */
+export interface InvoiceExtras {
+  /** ORIGINAL, DUPLICATE, TRIPLICATE: which copy this is. */
+  copy?: string;
+  /** Ours for the party billed, as our accounts know it. */
+  customerCode?: string;
+  /** The party billed's PAN, where its GSTIN does not give it. */
+  customerPan?: string;
+  /** The Invoice Reference Number the e-invoice portal gives it, printed as given. */
+  irn?: string;
+  /** The day it is dated, as printed: the day it is printed when not given. */
+  invoiceDate?: string;
+  dueDate?: string;
+  jobDate?: string;
+  advanceReceipt?: string;
+  shipperRef?: string;
+  vehicleNo?: string;
+  note?: string;
+  /** Our own registrations, beside our PAN and GSTIN: TAN, LUT, MSME (Udyam). */
+  tan?: string;
+  lut?: string;
+  msme?: string;
 }
 
 /** One line of an itemised invoice: its rate in its own currency, converted to rupees for the totals. */
@@ -158,7 +188,7 @@ export interface ChargeLine {
 }
 
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "billTo" | "raw">;
+export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "billTo" | "invoice" | "raw">;
 
 export interface DocRow {
   label: string;
