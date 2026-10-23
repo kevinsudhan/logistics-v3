@@ -329,7 +329,7 @@ const statement: ManualValues = {
 const statementText = (await bodies(fi.render(statement))).flat().join(" ");
 is("the proforma's columns, the shipment's particulars, headed with the freight terms, the total in words", [
   "COLLECT CHARGES", "S.NO", "CHARGE NAME", "VOLUME", "PER UNIT", "CURRENCY", "ROE", "AMOUNT", "IN INR", "1.000", "WAN HAI 326", "W062", "WAN HAI LINES",
-  "030G547522", "HBL/26-27/0042", "INJECTION MOULD", "SHEKOU", "42P3 WHSU8296786", "751.5 kg", "0.215 CBM", "DINESH CHN",
+  "030G547522", "HBL/26-27/0042", "INJECTION MOULD", "SHEKOU", "WHSU8296786 - 42P3", "751.5 kg", "0.215 CBM", "DINESH CHN",
   "TAX", "Amount in words: Indian Rupees Thirty-Seven Thousand Two Hundred and Six and Fifty Paise Only",
 ].filter((w) => !statementText.includes(w)), []);
 const toShipper = (await bodies(fi.render({ ...statement, bill_to: "shipper" }))).flat().join(" ");
