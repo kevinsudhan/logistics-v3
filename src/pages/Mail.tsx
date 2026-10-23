@@ -108,13 +108,13 @@ const mailKey = (mailbox: string, folder: string, filter: string) => `mail:${mai
 
 /**
  * While a view is on, older pages are fetched by themselves until it has this
- * many conversations to show, or this many pages have been looked through.
- * Eight pages, every time the page opened in a view, was four hundred messages
- * and their forward checks before anything settled; "Look further back" asks
- * for more.
+ * many conversations to show, and "Look further back" fetches until it has
+ * this many more — each time looking through no more than this many pages of
+ * fifty, so a view with little in it does not read the whole mailbox. The
+ * rows appear as each page comes in.
  */
-const VIEW_SCREENFUL = 15;
-const VIEW_AUTO_PAGES = 2;
+const VIEW_TARGET = 20;
+const VIEW_PAGES = 12;
 
 /** The four views (lib/ccFilter): what each is called, and what it holds. */
 const VIEW_LABEL: Record<Bucket, string> = { mine: "My emails", primary: "Primary", cc: "CC'd", forwarded: "Auto-forwarded" };
@@ -285,8 +285,10 @@ export default function Mail() {
   const lastChecked = useRef<string | null>(null);
   /** Whether older pages have been loaded, which a background refresh would throw away. */
   const morePages = useRef(false);
-  /** Older pages fetched by themselves for the view on screen, since the list was last read from the top. */
+  /** Older pages fetched by themselves for the view on screen, since it last asked for more. */
   const autoPages = useRef(0);
+  /** How many conversations the view on screen is to show: twenty, and twenty more each "Look further back". */
+  const [viewTarget, setViewTarget] = useState(VIEW_TARGET);
   /** When the list was last fetched, so a refresh on returning to the tab is not one per click. */
   const lastLoad = useRef(0);
   const searching = Boolean(query);
@@ -560,9 +562,11 @@ export default function Mail() {
       });
       setNextLink(more.nextLink);
       // The new rows need their queue status too, or they would all offer to
-      // queue a message that is already filed.
-      const fresh = await intakeByMessage(more.messages.map((x) => x.id));
-      setQueued((prev) => new Map([...prev, ...fresh]));
+      // queue a message that is already filed. Not waited for: a view looking
+      // back page after page would wait on it each time.
+      void intakeByMessage(more.messages.map((x) => x.id))
+        .then((fresh) => req === loadReq.current && setQueued((prev) => new Map([...prev, ...fresh])))
+        .catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load more mail.");
     } finally {
@@ -689,20 +693,31 @@ export default function Mail() {
   /*
     A view is read off the mail loaded — Outlook cannot list by recipient — and
     a page of a cluttered Inbox may hold two conversations it wants. So while
-    one is on, older pages are fetched by themselves until there is a
-    screenful, or two more pages have been looked through; past that,
-    "Look further back" asks for more.
+    one is on, older pages are fetched by themselves until it has twenty to
+    show, and "Look further back" fetches until it has twenty more: each time
+    through twelve pages at most, so a view with little in it stops, says how
+    far back it looked, and can be asked again.
   */
   useEffect(() => {
     autoPages.current = 0;
+    setViewTarget(VIEW_TARGET);
   }, [folder, filter, view, mailbox]);
   useEffect(() => {
     if (!ccActive || loading || loadingMore || !nextLink) return;
-    if (rows.length >= VIEW_SCREENFUL || autoPages.current >= VIEW_AUTO_PAGES) return;
+    if (rows.length >= viewTarget || autoPages.current >= VIEW_PAGES) return;
     autoPages.current++;
     void loadMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ccActive, loading, loadingMore, nextLink, rows.length]);
+  }, [ccActive, loading, loadingMore, nextLink, rows.length, viewTarget]);
+  /** In a view, twenty more of its own, however many pages that takes; otherwise the next page. */
+  const lookFurther = () => {
+    if (!ccActive) return void loadMore();
+    autoPages.current = 0;
+    // Always more than it was, so the fetching starts again even where it had stopped short.
+    setViewTarget((t) => Math.max(rows.length + VIEW_TARGET, t + 1));
+  };
+  /** Still looking for the view's mail by itself: older pages coming in until it has what it wants. */
+  const finding = ccActive && Boolean(nextLink) && rows.length < viewTarget && autoPages.current < VIEW_PAGES;
   // A selection only ever names rows that are on screen.
   useEffect(() => {
     setChecked((prev) => {
@@ -1638,9 +1653,9 @@ export default function Mail() {
             </ul>
           ) : ccActive && rows.length === 0 ? (
             <div className="flex items-center gap-2 p-4 text-[13px] text-text-muted">
-              {loadingMore ? (
+              {loadingMore || finding ? (
                 <>
-                  <Loader2 size={13} className="animate-spin" /> Looking further back…
+                  <Loader2 size={13} className="animate-spin" /> Finding your mail…
                 </>
               ) : (
                 <span>
@@ -1706,18 +1721,26 @@ export default function Mail() {
               )}
               {ccActive && nextLink && (
                 <p className="pb-1 text-center text-[11px] text-text-muted">
-                  {rows.length} of {conversations.length} conversations
+                  {rows.length} conversation{rows.length === 1 ? "" : "s"}
                   {oldestLoaded ? `, back to ${formatDate(oldestLoaded, { day: "numeric", month: "short" })}` : ""}
                 </p>
               )}
               {nextLink ? (
                 <button
-                  onClick={() => void loadMore()}
-                  disabled={loadingMore}
+                  onClick={lookFurther}
+                  disabled={loadingMore || finding}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary disabled:opacity-60"
                 >
-                  {loadingMore ? <Loader2 size={13} className="animate-spin" /> : null}
-                  {loadingMore ? (ccActive ? "Looking further back…" : "Loading…") : searching ? "More results" : ccActive ? "Look further back" : "Load older mail"}
+                  {loadingMore || finding ? <Loader2 size={13} className="animate-spin" /> : null}
+                  {loadingMore || finding
+                    ? ccActive
+                      ? "Finding more of your mail…"
+                      : "Loading…"
+                    : searching
+                      ? "More results"
+                      : ccActive
+                        ? "Look further back"
+                        : "Load older mail"}
                 </button>
               ) : (
                 <p className="py-0.5 text-center text-[11px] text-text-muted">
