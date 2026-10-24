@@ -43,6 +43,8 @@ export interface ManualField {
   suggestions?: string[];
   /** Shown only while this holds: a rate of exchange only once a line is in that currency. */
   when?: (v: ManualValues) => boolean;
+  /** A table's column: what a new line starts with, when not blank — the usual GST rate. */
+  default?: string;
 }
 
 /** Lines of something — the boxes, the house bills — typed as a table. */
@@ -182,7 +184,7 @@ export function emptyRequired(sections: ManualSection[], v: ManualValues): strin
 }
 
 /** A blank line for a table: every column empty. */
-export const blankRow = (t: ManualTable): ManualRow => Object.fromEntries(t.columns.map((c) => [c.key, ""]));
+export const blankRow = (t: ManualTable): ManualRow => Object.fromEntries(t.columns.map((c) => [c.key, c.default ?? ""]));
 
 /** A safe file name: what no file system or mail attachment accepts becomes a hyphen. */
 export const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "-");

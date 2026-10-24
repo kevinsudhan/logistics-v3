@@ -869,10 +869,9 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
         head: "ROE",
         w: 0.75,
         right: true,
+        // A line in rupees is at one: 1.00, not a dash (the user, 24 Oct).
         cell: (l) => {
-          const c = lineCurrency(l);
-          if (c === "INR") return "-";
-          const roe = rateOfExchange(data, c);
+          const roe = rateOfExchange(data, lineCurrency(l));
           return roe === undefined ? TBD : roe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
         },
       },

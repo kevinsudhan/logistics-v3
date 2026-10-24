@@ -145,6 +145,14 @@ export const CURRENCY_NAME: Record<string, string> = {
 /** What a charge is usually billed in: the carrier's freight and surcharges in dollars, the rest in rupees. */
 export const usualCurrency = (h: InvoiceChargeHead | undefined) => (h?.group === "freight" && h.label !== "Air freight") || h?.group === "surcharge" ? "USD" : "INR";
 
+/**
+ * The GST a charge is usually charged at (the user, 24 Oct 2026): 5% on the
+ * freight and the carrier's surcharges on it, 18% on everything else — LCL
+ * and CFS, THC, documentation, delivery orders, clearance, a charge typed that
+ * is not on the list. Where a line starts; another rate is chosen on it.
+ */
+export const usualGst = (h: InvoiceChargeHead | undefined) => (h?.group === "freight" || h?.group === "surcharge" ? 5 : 18);
+
 export const lineCurrency = (l: ChargeLine) => (l.currency || "INR").toUpperCase();
 
 /** Rupees to one unit of a currency on this invoice: one for rupees, the rate given for the rest, or undefined until it is. */

@@ -20,9 +20,9 @@ import {
   withSaved,
 } from "../../src/lib/documents/manual";
 import { CONSOLE_DOCUMENTS, manifestInput, masterSiInput, outturnInput, stuffingInput, cfsNominationInput } from "../../src/lib/documents/manualConsole";
-import { parseNumber, shownFields, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
+import { blankRow, parseNumber, shownFields, unreadableNumbers, type FormDoc, type ManualValues } from "../../src/lib/documents/manualForm";
 import { DOCUMENTS, documentSpec } from "../../src/lib/documents/registry";
-import { chargeTotals, lineTax, rupeesInWords, taxSummary } from "../../src/lib/documents/charges";
+import { chargeHead, chargeTotals, lineTax, rupeesInWords, taxSummary, usualGst } from "../../src/lib/documents/charges";
 import type { DocumentData } from "../../src/lib/documents/types";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
 import { renderDocument } from "../../src/lib/documents/render";
@@ -294,14 +294,36 @@ is("each rate in its currency, converted, the tax on each line and the totals in
 is("not the freight twice", fiText.includes("Ocean freight USD"), false);
 const missingRoe = (await bodies(fi.render({ ...priced, roe_EUR: "" }))).flat().join(" ");
 is("without a rate of exchange, its line and the totals are TBD", [missingRoe.includes("1 EUR = INR TBD"), missingRoe.includes("37,206.50"), missingRoe.includes("Rate of exchange for EUR")], [true, false, true]);
-const inrOnly = (await bodies(fi.render({ origin: "CHENNAI", destination: "JEBEL ALI", charges: [{ charge: "THC", currency: "INR", rate: "1000" }] }))).flat().join(" ");
-is("all in rupees: the ROE column as the e-invoice has it, a dash; no rates of exchange", [inrOnly.includes("ROE"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00")], [true, false, true]);
+const inrOnlyItems = (await bodies(fi.render({ origin: "CHENNAI", destination: "JEBEL ALI", charges: [{ charge: "THC", currency: "INR", rate: "1000" }] }))).flat();
+const inrOnly = inrOnlyItems.join(" ");
+is("all in rupees: the ROE column as the e-invoice has it, at 1.00, not a dash; no rates of exchange", [
+  inrOnly.includes("ROE"), inrOnlyItems.includes("1.00"), inrOnly.includes("Rates of exchange"), inrOnly.includes("1,000.00"),
+], [true, true, false, true]);
+is("a rupee line beside a dollar one: its ROE 1.00", (await bodies(fi.render(priced))).flat().filter((t) => t === "1.00").length, 2);
+
+console.log("\nthe usual GST: 5% on freight, 18% on the rest, chosen on the line");
+is("5% on the freight and the carrier's surcharges on it; 18% on LCL, CFS, local charges and a charge not on the list", [
+  "Ocean freight", "Air freight", "Bunker adjustment factor (BAF)", "CFS charges", "LCL THC", "Destination THC", "Delivery order fee", "Customs clearance",
+].map((c) => usualGst(chargeHead(c))).concat(usualGst(undefined)), [5, 5, 5, 18, 18, 18, 18, 18, 18]);
+const gstColumn = chargeTable!.columns.find((c) => c.key === "gst")!;
+is("chosen from the usual rate, none, or a rate", [gstColumn.input, gstColumn.options?.map((o) => o.label)], ["select", ["Usual rate", "None", "5%", "12%", "18%", "28%", "40%"]]);
+is("a new line and every preset line start at the usual rate", [
+  blankRow(chargeTable!).gst, chargeTable!.presets!.every((p) => p.rows.every((r) => r.gst === "usual")),
+], ["usual", true]);
+const usual = documentDataFromManual({
+  charges: [
+    { charge: "Ocean freight", currency: "USD", rate: "60", gst: "usual" },
+    { charge: "LCL charges", currency: "INR", rate: "300", gst: "usual" },
+    { charge: "Delivery order fee", currency: "INR", rate: "1000", gst: "12" },
+    { charge: "Courier", currency: "INR", rate: "200", gst: "" },
+  ],
+}).charges!;
+is("the usual rate by the charge; another when chosen; blank, as a line saved before, none", usual.map((l) => l.gstPercent), [5, 18, 12, undefined]);
 console.log("\nthe freight invoice, or its proforma, with three parties");
 is("the toggle first on the form, freight until a proforma is chosen", [fi.sections[0].fields?.[0]?.key, fi.sections[0].fields?.[0]?.input, emptyState().shipment.invoice_kind], ["invoice_kind", "segmented", "freight"]);
 has("the three parties' fields on the form", fi.sections.flatMap((s) => (s.fields ?? []).map((f) => f.key)), [
   "shipperName", "shipperAddress", "shipperGstinIec", "consigneeName", "consigneeAddress", "consigneeGstin", "notifyName", "notifyAddress", "notifyGstin",
 ]);
-const gstColumn = chargeTable!.columns.find((c) => c.key === "gst")!;
 is("GST % typed on the lines of both forms", gstColumn.when, undefined);
 const parties: ManualValues = {
   ...priced, blNumber: "HBL/26-27/0042",
@@ -460,6 +482,12 @@ is("a line without GST: no tax on it", lineTax({ charge: "Not taxed", currency: 
 is("billed in another state: integrated tax at the whole rate", taxSummary(sampleLines, { ...sampleData, consigneeGstin: "29AAACF1234K1Z5" })?.map((s) => [s.sac, s.cgst, s.sgst, s.igst]), [
   ["996521", 0, 0, 172.1],
   ["996759", 0, 0, 234],
+]);
+// A Bangalore customer (29, Karnataka): integrated tax at the whole 18%, not 9% (IGST Act s.7 and s.12).
+const ka = { ...sampleData, consigneeGstin: "29AAACF1234K1Z5" };
+is("in Tamil Nadu (33): 9% and 9%; Bangalore (29): IGST at the whole 18%", [lineTax(sampleLines[1], sampleData), lineTax(sampleLines[1], ka)], [
+  { taxable: 300, cgst: 27, sgst: 27, igst: 0, total: 354 },
+  { taxable: 300, cgst: 0, sgst: 0, igst: 54, total: 354 },
 ]);
 is("no rate of exchange yet: the tax on it, the totals and the summary are not known either", [
   lineTax(sampleLines[0], { ...sampleData, exchangeRates: {} }), chargeTotals(sampleLines, { ...sampleData, exchangeRates: {} }), taxSummary(sampleLines, { ...sampleData, exchangeRates: {} }),

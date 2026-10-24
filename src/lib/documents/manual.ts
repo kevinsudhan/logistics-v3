@@ -9,7 +9,7 @@ import { docDate, issuedToday } from "./letterhead";
 import { hblFileName, renderHblPdf, type HblPrint } from "./hblPdf";
 import { hawbFileName, renderHawbPdf } from "./hawbPdf";
 import { CONSOLE_DOCUMENTS } from "./manualConsole";
-import { CHARGE_SETS, chargeHead, CURRENCY_NAME, INVOICE_BASES, INVOICE_CHARGES, INVOICE_CURRENCIES, usualCurrency } from "./charges";
+import { CHARGE_SETS, chargeHead, CURRENCY_NAME, INVOICE_BASES, INVOICE_CHARGES, INVOICE_CURRENCIES, usualCurrency, usualGst } from "./charges";
 import {
   lines,
   parseNumber,
@@ -281,11 +281,22 @@ const CURRENCY: ManualField = {
  *
  * Picked from the list (lib/documents/charges) or typed as they are; the SAC
  * and the basis come from the list when left empty, so picking a charge is
- * enough to price it.
+ * enough to price it. Its GST starts at the usual rate for the charge (5% on
+ * freight, 18% on the rest) and another can be chosen. A line saved before
+ * there was a usual rate, its GST left blank, keeps none: it prints as it
+ * was issued.
  */
+const USUAL_GST = "usual";
+
+const GST_CHOICES = [
+  { value: USUAL_GST, label: "Usual rate" },
+  { value: "", label: "None" },
+  ...[5, 12, 18, 28, 40].map((r) => ({ value: String(r), label: `${r}%` })),
+];
+
 const CHARGES_SECTION: ManualSection = {
   title: "Charges",
-  note: "A line per charge, each in its own currency; the invoice totals in INR at the rates of exchange below. Pick a charge or type your own; SAC and basis fill in from the list when left blank. No quantity is one. Itemised, these replace the single freight rate.",
+  note: "A line per charge, each in its own currency; the invoice totals in INR at the rates of exchange below. Pick a charge or type your own; SAC and basis fill in from the list when left blank. No quantity is one. GST is the usual rate unless chosen: 5% on freight and its surcharges, 18% on LCL and the rest. Itemised, these replace the single freight rate.",
   table: {
     key: "charges",
     label: "Charges",
@@ -297,14 +308,14 @@ const CHARGES_SECTION: ManualSection = {
       { key: "quantity", label: "Quantity", input: "number", placeholder: "1" },
       { key: "currency", label: "Currency", input: "select", options: INVOICE_CURRENCIES.map((c) => ({ value: c, label: c })) },
       { key: "rate", label: "Rate", input: "number", required: true },
-      { key: "gst", label: "GST %", input: "number", placeholder: "None" },
+      { key: "gst", label: "GST %", input: "select", options: GST_CHOICES, default: USUAL_GST },
       { key: "sac", label: "SAC", placeholder: "From the list" },
     ],
     presets: CHARGE_SETS.map((set) => ({
       label: set.label,
       rows: set.charges.map((c) => {
         const h = chargeHead(c);
-        return { charge: c, basis: h?.basis ?? "", quantity: "", currency: usualCurrency(h), rate: "", gst: "", sac: "" };
+        return { charge: c, basis: h?.basis ?? "", quantity: "", currency: usualCurrency(h), rate: "", gst: USUAL_GST, sac: "" };
       }),
     })),
   },
@@ -357,7 +368,8 @@ function chargesOf(v: ManualValues): ChargeLine[] {
       quantity: quantity ?? 1,
       currency: (r.currency || "INR").toUpperCase(),
       rate: parseNumber(r.rate),
-      gstPercent: parseNumber(r.gst),
+      // The usual rate for the charge, or the one chosen; blank is none (a line saved before there was a usual rate).
+      gstPercent: (r.gst ?? "").trim() === USUAL_GST ? usualGst(h) : parseNumber(r.gst),
     };
   });
 }
