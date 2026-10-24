@@ -248,7 +248,7 @@ export default function HblRelease({ shipment: s, row, onChanged }: { shipment: 
                   <button
                     type="button"
                     disabled={busy !== null || (row.release_mode === "telex" && row.originals_returned < row.originals)}
-                    title={row.release_mode === "telex" && row.originals_returned < row.originals ? "Every original has to be back with us first" : agent?.email ? `To ${agent.email}` : "No email on file for the destination agent: add one on the Party tab, or type it in the mail"}
+                    title={row.release_mode === "telex" && row.originals_returned < row.originals ? "Every original has to be back with us first" : agent?.email ? `To ${agent.email}` : "No email on file for the customer: add one under Customer on the Parties tab, or type it in the mail"}
                     onClick={openMail}
                     className={`${button} border-brand text-text-accent`}
                   >

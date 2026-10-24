@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ArrowDownToLine, Check, Users } from "lucide-react";
+import { AlertCircle, ArrowDownToLine, Check, Receipt, Users } from "lucide-react";
 import Select from "../../components/Select";
+import { Segmented } from "../../components/formControls";
 import Collapsible from "../../components/Collapsible";
 import NotifyParty from "../../components/NotifyParty";
 import { useShipment } from "../ShipmentDetail";
@@ -50,13 +51,21 @@ import { useCachedState } from "../../lib/useCachedState";
  * line before the carrier truncates it, so the count here is shown against that
  * limit and the lines that run over are named.
  *
- * THE OTHER SIX
+ * THE OTHERS
  *
- * Shipper, consignee and the first notify party are printed on the B/L and
- * stay columns on the shipment. The agents at each end, who is billed, a
- * second notify party, another forwarder and the customs house agent are the
- * rest of the people a job involves; they are picked from the partner book or
- * the customer directory and their details copied onto this job (065).
+ * Shipper, consignee and the notify customer are printed on the B/L and stay
+ * columns on the shipment. The customer, the origin agent, another forwarder
+ * and the customs house agent are the rest of the people a job involves; they
+ * are picked from the partner book or the customer directory and their details
+ * copied onto this job (065).
+ *
+ * WHO IS BILLED
+ *
+ * The consignee or the customer, both above: a choice between the two, kept
+ * on the shipment (140), not a party typed in a second time. It was a party of
+ * its own, as was a second notify customer; the user asked for one notify
+ * customer and the choice (24 Oct). Rows kept for either are left in
+ * shipment_parties, not shown.
  *
  * NOTIFY
  *
@@ -282,43 +291,34 @@ function PartyCard({
 }
 
 
-/** The six non-B/L parties, in the reference order, with where to pick each from. */
-const EXTRA: Record<
-  ExtraPartyRole,
-  { label: string; hint: string; from: "partners" | "customers" | null; roles?: PartnerRole[] }
-> = {
+/** The non-B/L parties shown: billing is a choice (140), and one notify customer is enough. */
+type ShownRole = Exclude<ExtraPartyRole, "billing_customer" | "notify_2">;
+
+/** The non-B/L parties, in the reference order, with where to pick each from. */
+const EXTRA: Record<ShownRole, { label: string; hint: string; from: Array<"partners" | "customers">; roles?: PartnerRole[] }> = {
+  // Kept as destination_agent: the pre-alert and the house bill's release go to whoever is here.
   destination_agent: {
-    label: "Destination agent",
-    hint: "Our agent at destination: receives the pre-alert, clears and delivers.",
-    from: "partners",
+    label: "Customer",
+    hint: "The customer on this job: the pre-alert and the house bill's release go to them, and it can be billed to them.",
+    from: ["customers", "partners"],
     roles: ["overseas_agent", "consol_partner"],
   },
   origin_agent: {
     label: "Origin agent",
     hint: "An agent handling the cargo at origin, when it is not us.",
-    from: "partners",
+    from: ["partners"],
     roles: ["overseas_agent", "consol_partner", "cfs_transport"],
-  },
-  billing_customer: {
-    label: "Billing customer",
-    hint: "Who the invoice is raised on, when it is not the customer on the job.",
-    from: "customers",
-  },
-  notify_2: {
-    label: "Notify customer 2",
-    hint: "A second party told on arrival — often the buyer's customs broker.",
-    from: null,
   },
   forwarder: {
     label: "Forwarder",
     hint: "Another forwarder on this job — whose bill it moves under, or who handed it to us.",
-    from: "partners",
+    from: ["partners"],
     roles: ["consol_partner", "overseas_agent", "other"],
   },
   customs_house_agent: {
     label: "Customs house agent",
     hint: "The CHA filing the shipping bill or the bill of entry.",
-    from: "partners",
+    from: ["partners"],
     roles: ["cha_customs"],
   },
 };
@@ -338,7 +338,7 @@ function ExtraPartyCard({
   onSave,
   onClear,
 }: {
-  role: ExtraPartyRole;
+  role: ShownRole;
   party: ExtraParty | undefined;
   partners: Partner[];
   customers: CustomerSummary[];
@@ -348,13 +348,15 @@ function ExtraPartyCard({
   const spec = EXTRA[role];
   const v = (k: keyof ExtraParty) => (party?.[k] as string | null) ?? "";
   const set = (k: keyof ExtraParty) => (value: string) => void onSave({ [k]: value || null });
-  const choices = spec.from === "partners" ? partners.filter((p) => spec.roles?.includes(p.role)) : [];
+  const choices = spec.from.includes("partners") ? partners.filter((p) => spec.roles?.includes(p.role)) : [];
 
+  // Picked from one, it is no longer linked to a record in the other.
   async function pickPartner(id: string) {
     const p = partners.find((x) => x.id === id);
     if (!p) return onSave({ partner_id: null });
     await onSave({
       partner_id: p.id,
+      customer_id: null,
       name: p.organisation || p.name,
       contact_person: p.organisation ? p.name : null,
       email: p.emails[0] ?? null,
@@ -369,6 +371,7 @@ function ExtraPartyCard({
     const r = c as unknown as Record<string, string | null | string[]>;
     await onSave({
       customer_id: c.id,
+      partner_id: null,
       name: (r.billing_name as string) || c.company || c.name,
       contact_person: (r.billing_attention as string) || c.name,
       email: (r.billing_email as string) || c.emails?.[0] || null,
@@ -384,41 +387,43 @@ function ExtraPartyCard({
     <div>
       <p className="text-[11px] leading-relaxed text-text-muted">{spec.hint}</p>
 
-      {spec.from && (
-        <div className="mt-3 max-w-md">
-          <span className="mb-0.5 block text-[11px] text-text-secondary">
-            {spec.from === "partners" ? "From the partner book" : "From the customer directory"}
-          </span>
-          {spec.from === "partners" ? (
-            <select
-              value={party?.partner_id ?? ""}
-              onChange={(e) => void pickPartner(e.target.value)}
-              className="h-8 w-full"
-            >
-              <option value="">{choices.length ? "Choose, or type below" : "None in the partner book yet"}</option>
-              {choices.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.organisation || p.name}
-                  {p.organisation && p.name ? ` — ${p.name}` : ""}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              value={party?.customer_id ?? ""}
-              onChange={(e) => void pickCustomer(e.target.value)}
-              className="h-8 w-full"
-            >
-              <option value="">Choose, or type below</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company || c.name} ({c.id})
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
+      <div className={`mt-3 grid gap-3 ${spec.from.length > 1 ? "md:grid-cols-2" : "max-w-md"}`}>
+        {spec.from.map((from) => (
+          <div key={from} className="min-w-0">
+            <span className="mb-0.5 block text-[11px] text-text-secondary">
+              {from === "partners" ? "From the partner book" : "From the customer directory"}
+            </span>
+            {from === "partners" ? (
+              <select
+                value={party?.partner_id ?? ""}
+                onChange={(e) => void pickPartner(e.target.value)}
+                className="h-8 w-full"
+              >
+                <option value="">{choices.length ? "Choose, or type below" : "None in the partner book yet"}</option>
+                {choices.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.organisation || p.name}
+                    {p.organisation && p.name ? ` — ${p.name}` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={party?.customer_id ?? ""}
+                onChange={(e) => void pickCustomer(e.target.value)}
+                className="h-8 w-full"
+              >
+                <option value="">Choose, or type below</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company || c.name} ({c.id})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="space-y-3">
@@ -435,7 +440,8 @@ function ExtraPartyCard({
             <Field label="City" value={v("city")} onCommit={set("city")} />
             <Field label="Country" value={v("country")} onCommit={set("country")} />
           </div>
-          {role === "billing_customer" && (
+          {/* The customer may be billed (140): its GSTIN goes on the invoice. */}
+          {role === "destination_agent" && (
             <Field label="GSTIN" value={v("gstin")} mono onCommit={(x) => set("gstin")(x.toUpperCase())} />
           )}
           <Field label="Notes" value={v("notes")} onCommit={set("notes")} />
@@ -578,7 +584,43 @@ export default function ShipmentParties() {
     );
   };
 
-  const extraSection = (role: ExtraPartyRole) => {
+  /** Who the job is billed to: the consignee or the customer, both on this tab (140). */
+  const [billing, setBilling] = useState(false);
+  async function bill(to: "consignee" | "customer") {
+    setBilling(true);
+    await write({ billed_party: to });
+    setBilling(false);
+  }
+  const billedName =
+    shipment.billed_party === "consignee" ? consignee.name : shipment.billed_party === "customer" ? byRole("destination_agent")?.name ?? "" : "";
+  const billingSection = (
+    <section className="card mt-4 px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Receipt size={12} className="shrink-0 text-text-muted" />
+          <h2 className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">Billing customer</h2>
+          <span className="truncate text-[11px] text-text-muted">
+            {shipment.billed_party
+              ? billedName || `the ${shipment.billed_party}, not named above yet`
+              : "the consignee or the customer"}
+          </span>
+        </div>
+        <div className="w-full sm:w-64">
+          <Segmented
+            options={[
+              { value: "consignee", label: "Consignee" },
+              { value: "customer", label: "Customer" },
+            ]}
+            value={shipment.billed_party}
+            busy={billing}
+            onChange={(to) => void bill(to)}
+          />
+        </div>
+      </div>
+    </section>
+  );
+
+  const extraSection = (role: ShownRole) => {
     const party = byRole(role);
     return (
       <Collapsible
@@ -624,8 +666,9 @@ export default function ShipmentParties() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-prose text-[12px] leading-relaxed text-text-secondary">
-          Everyone on this job. Shipper, consignee and notify customer 1 are printed on the house
-          bill; the rest are who the desk works with. Nothing here is required.
+          Everyone on this job. Shipper, consignee and notify customer are printed on the house
+          bill; the rest are who the desk works with, and the job is billed to the consignee or the
+          customer. Nothing here is required.
         </p>
         {saved && (
           <span className="inline-flex items-center gap-1 text-[11px] text-text-success">
@@ -664,9 +707,8 @@ export default function ShipmentParties() {
       )}
       {extraSection("destination_agent")}
       {extraSection("origin_agent")}
-      {extraSection("billing_customer")}
-      {blSection("notify", "Notify customer 1", notify)}
-      {extraSection("notify_2")}
+      {billingSection}
+      {blSection("notify", "Notify customer", notify)}
       {extraSection("forwarder")}
       {extraSection("customs_house_agent")}
 

@@ -129,16 +129,26 @@ export default function ShipmentOverview() {
             />
           </Field>
 
-          <Field
-            label="Direct"
-            hint={s.direct ? "The carrier's bill goes to the shipper; no house bill." : undefined}
-          >
-            <YesNo
-              value={s.direct}
-              busy={busy === "direct"}
-              onChange={(v) => void save("direct", { direct: v })}
-            />
-          </Field>
+          {/* Direct and Reworking side by side, in the one cell (140). */}
+          <div className="grid min-w-0 grid-cols-2 gap-3">
+            <Field
+              label="Direct"
+              hint={s.direct ? "The carrier's bill goes to the shipper; no house bill." : undefined}
+            >
+              <YesNo
+                value={s.direct}
+                busy={busy === "direct"}
+                onChange={(v) => void save("direct", { direct: v })}
+              />
+            </Field>
+            <Field label="Reworking">
+              <YesNo
+                value={s.reworking}
+                busy={busy === "reworking"}
+                onChange={(v) => void save("reworking", { reworking: v })}
+              />
+            </Field>
+          </div>
 
           <Field label="Routed">
             <Segmented

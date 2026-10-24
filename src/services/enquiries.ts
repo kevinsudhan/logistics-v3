@@ -463,6 +463,10 @@ export interface Shipment {
   shipment_date: string | null;
   /** The carrier's bill goes straight to the shipper; no house bill. */
   direct: boolean;
+  /** Reworking, yes or no: beside Direct (140). */
+  reworking: boolean;
+  /** Who the job is billed to: its consignee, or its customer on the Parties tab; unset until chosen (140). */
+  billed_party: "consignee" | "customer" | null;
   routed: "self" | "agent";
   routed_agent_id: string | null;
   origin_booking_person: string | null;

@@ -33,7 +33,7 @@ import type { MailMessage } from "../services/backend";
  */
 
 const ROLE: Record<string, string> = {
-  destination_agent: "Destination agent",
+  destination_agent: "Customer",
   origin_agent: "Origin agent",
   billing_customer: "Billing customer",
   notify_2: "Second notify",
