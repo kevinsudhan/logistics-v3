@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Link } from "react-router-dom";
 import { AlertCircle, AlertTriangle, Check, ChevronDown, ClipboardCopy, FileSearch, Loader2, PenLine, Save, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -106,6 +107,8 @@ const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00Z`
 const day = (iso: string | null) => (iso ? formatDate(iso, { day: "numeric", month: "short", year: "numeric" }) : "");
 
 export default function ReceivedHbl({ shipment: s, onChanged }: { shipment: Shipment; onChanged: () => void }) {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const stageRow = useRovingButtons();
   const { session } = useAuth();
   const [row, setRow] = useState<ReceivedHblRow | null>(null);
   const [f, setF] = useState<Form | null>(null);
@@ -365,7 +368,7 @@ export default function ReceivedHbl({ shipment: s, onChanged }: { shipment: Ship
         </div>
 
         {/* Where the bill stands. Each step saves the form with it. */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3" role="group" aria-label="Where their B/L stands">
+        <div {...stageRow} className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3" aria-label="Where their B/L stands">
           {(["draft", "confirmed", "final"] as ReceivedStage[]).map((st, n) => (
             <button
               key={st}

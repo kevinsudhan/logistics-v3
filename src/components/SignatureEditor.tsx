@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Loader2, X } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
+import { useDialog } from "../lib/useDialog";
 
 /**
  * The sender's email signature.
@@ -35,6 +36,9 @@ export default function SignatureEditor({
   };
   const closeRef = useRef(requestClose);
   closeRef.current = requestClose;
+  // Tab stays inside and focus goes back on closing; Escape stays this dialog's own, below.
+  const panel = useRef<HTMLDivElement>(null);
+  useDialog(panel, undefined, { escape: false });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) closeRef.current();
@@ -63,9 +67,11 @@ export default function SignatureEditor({
       onClick={requestClose}
     >
       <div
+        ref={panel}
         className="w-full max-w-lg card shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Email signature"
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">

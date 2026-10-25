@@ -6,6 +6,7 @@ import { draftReply } from "../services/classify";
 import { recordReply } from "../services/replyLog";
 import { withToken } from "../services/caseFile";
 import RichTextEditor from "./RichTextEditor";
+import { useDialog } from "../lib/useDialog";
 import Drafting from "./Drafting";
 import { greetingHtml } from "../lib/greeting";
 import MailAttachments, { type Attachable, type Attached } from "./MailAttachments";
@@ -293,6 +294,9 @@ export default function ComposeMail({
   };
   const closeRef = useRef(requestClose);
   closeRef.current = requestClose;
+  // Tab stays inside and focus goes back on closing; Escape stays this dialog's own, below.
+  const panel = useRef<HTMLDivElement>(null);
+  useDialog(panel, undefined, { escape: false });
 
   // Escape closes, as it does in every mail client — asking first, as above.
   useEffect(() => {
@@ -409,9 +413,11 @@ export default function ComposeMail({
       onClick={requestClose}
     >
       <div
+        ref={panel}
         className={`w-full rounded-t-card bg-surface-1 sm:card shadow-xl flex flex-col ${big ? "h-[100dvh] sm:h-[calc(100dvh-3rem)] sm:max-w-6xl" : "max-h-[92vh] sm:max-w-3xl"}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label={TITLE[kind ?? (editing ? "draft" : "new")]}
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">

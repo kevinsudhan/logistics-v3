@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { useDialog } from "../lib/useDialog";
 import { failureText } from "../lib/errorText";
 import { FIELD_LABEL, finalDestination, hawbFromJob, missingForOriginal, refetch, type HawbData } from "../lib/hawb";
 import HawbBoxes from "./HawbBoxes";
@@ -470,6 +471,9 @@ function Labelled({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function HistoryPanel({ history, people, onClose }: { history: HawbHistory[]; people: Person[]; onClose: () => void }) {
+  // Escape closes it, Tab stays in it, and focus goes back to the History button.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose);
   const show = (v: unknown) => {
     if (v === null || v === undefined || v === "") return "(blank)";
     if (typeof v === "string") return v.length > 60 ? `${v.slice(0, 60)}…` : v;
@@ -484,8 +488,15 @@ function HistoryPanel({ history, people, onClose }: { history: HawbHistory[]; pe
     printed: "Printed",
   };
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose} role="dialog" aria-modal="true" aria-label="HAWB history">
-      <div className="h-full w-full max-w-md overflow-y-auto bg-surface-1 p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+      <div
+        ref={box}
+        className="h-full w-full max-w-md overflow-y-auto bg-surface-1 p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="HAWB history"
+      >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">History logs</h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-text-muted hover:text-text-primary" aria-label="Close">

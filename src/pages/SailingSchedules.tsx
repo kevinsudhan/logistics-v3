@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, ArrowUp, CalendarRange, Check, ChevronDown, Download, Loader2, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import AddContainer from "../components/AddContainer";
+import DialogPanel from "../components/DialogPanel";
 import ContainerList from "../components/ContainerList";
 import PageHeader from "../components/PageHeader";
 import { failureText } from "../lib/errorText";
@@ -576,13 +577,9 @@ function ScheduleForm({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Sailing schedule"
-    >
-      <div className="card mt-8 w-full max-w-3xl p-5">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
+      {/* Tab stays inside; Escape is left alone here, so a half-typed sailing is not lost to it. */}
+      <DialogPanel onClose={onClose} escape={false} aria-label="Sailing schedule" className="card mt-8 w-full max-w-3xl p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">{schedule ? `Edit ${schedule.id}` : "Create sailing schedule"}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-text-muted hover:text-text-primary" aria-label="Close">
@@ -677,7 +674,7 @@ function ScheduleForm({
             Save
           </button>
         </div>
-      </div>
+      </DialogPanel>
     </div>
   );
 }
@@ -690,13 +687,8 @@ function UploadPreview({ result, onClose, onDone }: { result: ImportResult & { f
   const fresh = result.rows.length - updates;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Upload preview"
-    >
-      <div className="card mt-8 w-full max-w-2xl p-5">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
+      <DialogPanel onClose={onClose} aria-label="Upload preview" className="card mt-8 w-full max-w-2xl p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">Upload {result.file}</h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-text-muted hover:text-text-primary" aria-label="Close">
@@ -786,7 +778,7 @@ function UploadPreview({ result, onClose, onDone }: { result: ImportResult & { f
             </div>
           </>
         )}
-      </div>
+      </DialogPanel>
     </div>
   );
 }

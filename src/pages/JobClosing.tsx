@@ -411,7 +411,19 @@ export default function JobClosing() {
                       onClick={() => setOpen(isOpen ? null : r.job.id)}
                     >
                       <td className="px-2 py-2.5 text-text-muted">
-                        <ChevronDown size={14} className={`transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                        {/* The row opens by click; this is the same for the keyboard. */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpen(isOpen ? null : r.job.id);
+                          }}
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? "Hide" : "Show"} the costs of ${r.job.id}`}
+                          className="grid h-6 w-6 place-items-center rounded hover:text-text-primary"
+                        >
+                          <ChevronDown size={14} className={`transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                        </button>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">
                         <p className="font-mono text-[12px] font-medium text-text-accent">{r.job.id}</p>

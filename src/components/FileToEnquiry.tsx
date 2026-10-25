@@ -11,6 +11,7 @@ import {
 } from "../services/enquiries";
 import type { MailMessage } from "../services/mockMail";
 import { ListSkeleton } from "./Loading";
+import DialogPanel from "./DialogPanel";
 
 type Row = Enquiry & { customer: Customer | null };
 
@@ -84,17 +85,9 @@ export default function FileToEnquiry({
     }
   }, [open, load]);
 
-  // Escape closes, as everywhere else. No backdrop dismissal: there is nothing
-  // typed here worth losing, but the list is long and a mis-click while
-  // scrolling it should not throw the whole thing away.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  // Escape closes (DialogPanel), as everywhere else. No backdrop dismissal:
+  // there is nothing typed here worth losing, but the list is long and a
+  // mis-click while scrolling it should not throw the whole thing away.
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -162,8 +155,8 @@ export default function FileToEnquiry({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6">
-          <div
-            role="dialog"
+          <DialogPanel
+            onClose={() => setOpen(false)}
             aria-label="File this thread against an enquiry"
             className="flex max-h-[80vh] w-full flex-col rounded-t-card bg-surface-1 shadow-xl sm:card sm:max-w-lg"
           >
@@ -290,7 +283,7 @@ export default function FileToEnquiry({
                 enquiry without anybody doing this again.
               </p>
             </footer>
-          </div>
+          </DialogPanel>
         </div>
       )}
     </>

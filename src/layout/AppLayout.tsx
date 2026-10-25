@@ -293,8 +293,11 @@ export default function AppLayout() {
   }, []);
 
   // Escape closes it, and the page behind must not scroll while it is over it.
+  // Opened, focus goes into it; shut, back to the button that opened it (25 Oct).
   useEffect(() => {
     if (!navOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => document.querySelector<HTMLElement>("aside a[href]")?.focus({ preventScroll: true }));
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setNavOpen(false);
     };
@@ -302,6 +305,9 @@ export default function AppLayout() {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      cancelAnimationFrame(frame);
+      const now = document.activeElement;
+      if ((!now || now === document.body || now.closest("aside")) && opener?.isConnected) opener.focus({ preventScroll: true });
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
@@ -309,6 +315,17 @@ export default function AppLayout() {
 
   return (
     <div className="flex min-h-screen bg-surface-0">
+      {/* The first Tab on any page: past the sidebar's links straight to the page's own (25 Oct). */}
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-white focus:shadow-pop"
+      >
+        Skip to the page
+      </a>
       <Sidebar open={navOpen} onClose={closeNav} rail={rail} onToggleRail={toggleRail} />
 
       {/*
@@ -322,7 +339,7 @@ export default function AppLayout() {
             height sums them: 56 + 32 at lg, 56 + 48 from xl). With the sidebar folded to
             its rail the page takes the whole width it gave back (13 Oct): folding it is
             asking for room, and the 1400-px cap used to leave that room empty on the right. */}
-        <main className={`flex-1 w-full max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-5 lg:py-4 xl:px-8 xl:py-6 ${rail ? "lg:max-w-none" : ""}`}>
+        <main id="main" tabIndex={-1} className={`flex-1 w-full max-w-[1400px] outline-none px-4 py-5 sm:px-6 sm:py-6 lg:px-5 lg:py-4 xl:px-8 xl:py-6 ${rail ? "lg:max-w-none" : ""}`}>
           {/* A page still downloading waits here, under the sidebar and top bar,
               rather than taking the whole window with it. */}
           <Suspense fallback={<PageSkeleton />}>

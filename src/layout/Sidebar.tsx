@@ -246,12 +246,19 @@ export default function Sidebar({
         of those wins depends on the order Tailwind happens to emit them in, not
         on the order they are written here.
       */}
+      {/*
+        Shut, the drawer is also out of reach (25 Oct): slid off screen, its
+        thirty-odd links were still in the Tab order, so on a narrow window Tab
+        spent half a minute walking through links nobody could see. `invisible`
+        takes them out. Shutting, visibility rides the slide, so it goes once the
+        drawer is off; opening, it comes at once, so focus can go straight in.
+      */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-40 w-[17rem] shrink-0 border-r border-border bg-surface-1
-          flex flex-col transition-transform duration-200 ease-out
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          lg:sticky lg:inset-y-auto lg:top-0 lg:z-auto ${rail ? "lg:w-16" : "lg:w-60"} lg:h-screen lg:translate-x-0
+          flex flex-col duration-200 ease-out
+          ${open ? "translate-x-0 transition-transform" : "-translate-x-full invisible transition-[transform,visibility]"}
+          lg:visible lg:sticky lg:inset-y-auto lg:top-0 lg:z-auto ${rail ? "lg:w-16" : "lg:w-60"} lg:h-screen lg:translate-x-0
         `}
       >
         <div className={`flex items-start justify-between gap-2 px-5 py-5 ${rail ? "lg:justify-center lg:px-0 lg:py-4" : ""}`}>

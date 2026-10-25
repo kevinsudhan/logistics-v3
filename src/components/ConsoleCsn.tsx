@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Check } from "lucide-react";
 import { formatDate } from "../lib/dates";
 import { failureText } from "../lib/errorText";
@@ -25,6 +26,8 @@ import CsnFiling from "./CsnFiling";
  */
 
 export default function ConsoleCsn({ console: c, onChanged }: { console: Console; onChanged: () => void }) {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const filerRow = useRovingButtons();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const coload = c.space_from === "coloader";
@@ -57,7 +60,7 @@ export default function ConsoleCsn({ console: c, onChanged }: { console: Console
 
       {/* ---- on a co-load, who files it: decided console by console (122) ---- */}
       {coload && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <div {...filerRow} aria-label="Who files it" className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[11.5px] text-text-secondary">Who files it</span>
           {(
             [

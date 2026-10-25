@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Loader2 } from "lucide-react";
 import { failureText } from "../lib/errorText";
 import type { Enquiry } from "../services/enquiries";
@@ -37,6 +38,8 @@ export default function TradeDirectionPicker({
 }) {
   const [busy, setBusy] = useState<Direction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // One Tab stop, the arrows along it; Enter or Space asks to change (lib/useRovingButtons).
+  const row = useRovingButtons<HTMLSpanElement>();
 
   async function pick(v: Direction) {
     if (v === value || busy) return;
@@ -56,6 +59,7 @@ export default function TradeDirectionPicker({
   return (
     <span className="inline-flex items-center gap-1.5">
       <span
+        {...row}
         role="radiogroup"
         aria-label="Import or export"
         title={locked ? "This job is closed: it keeps the list it was worked to" : "Import or export: the workflow follows it"}

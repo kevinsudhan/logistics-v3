@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Archive, ChevronDown, Folder, FolderInput, Inbox, ShieldAlert } from "lucide-react";
 import type { FolderId, MailFolder } from "../services/backend";
+import { useMenu } from "../lib/useMenu";
 
 /**
  * Outlook's "Move to": every folder a message can be filed in — the Inbox,
@@ -21,6 +22,9 @@ export default function MoveMenu({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // Arrows, Escape and Tab work in it (lib/useMenu).
+  const menu = useRef<HTMLDivElement>(null);
+  useMenu(menu, open, () => setOpen(false));
   const targets = folders.filter((f) => f.id !== current && f.id !== "sent" && f.id !== "drafts" && f.id !== "deleted");
   const icon = (id: FolderId) => (id === "inbox" ? Inbox : id === "archive" ? Archive : id === "junk" ? ShieldAlert : Folder);
 
@@ -41,7 +45,7 @@ export default function MoveMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-9 z-30 max-h-80 w-60 overflow-y-auto rounded-xl border border-border bg-surface-1 p-1 shadow-lg">
+          <div ref={menu} className="absolute left-0 top-9 z-30 max-h-80 w-60 overflow-y-auto rounded-xl border border-border bg-surface-1 p-1 shadow-lg">
             <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">Move to</p>
             {targets.map((f) => {
               const Icon = icon(f.id);

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import Select from "./Select";
+import { useDialog } from "../lib/useDialog";
 import {
   createEnquiry,
   findOrCreateCustomer,
@@ -52,11 +53,9 @@ export default function NewEnquiry({
     void listCustomers().then(setCustomers);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Tab stays inside, Escape closes (not when it only shut a dropdown), focus goes back on closing.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose);
 
   const newCustomer = !customerId;
 
@@ -95,9 +94,11 @@ export default function NewEnquiry({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6" onClick={onClose}>
       <div
+        ref={box}
         className="w-full max-w-lg card shadow-xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="New enquiry"
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">

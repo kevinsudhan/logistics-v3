@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlarmClock, ChevronDown } from "lucide-react";
 import { snoozeChoices, snoozeLabel } from "../lib/snoozeTimes";
+import { useMenu } from "../lib/useMenu";
 
 /**
  * Outlook's Snooze: later today, tomorrow, the weekend, next week, or a
@@ -9,6 +10,9 @@ import { snoozeChoices, snoozeLabel } from "../lib/snoozeTimes";
  */
 export default function SnoozeMenu({ onPick, compact }: { onPick: (until: Date) => void; compact?: boolean }) {
   const [open, setOpen] = useState(false);
+  // Arrows, Escape and Tab work in it (lib/useMenu).
+  const menu = useRef<HTMLDivElement>(null);
+  useMenu(menu, open, () => setOpen(false));
   const [custom, setCustom] = useState("");
   const now = new Date();
   const choices = open ? snoozeChoices(now) : [];
@@ -37,7 +41,7 @@ export default function SnoozeMenu({ onPick, compact }: { onPick: (until: Date) 
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-9 z-30 w-64 rounded-xl border border-border bg-surface-1 p-1 shadow-lg sm:left-0 sm:right-auto">
+          <div ref={menu} className="absolute right-0 top-9 z-30 w-64 rounded-xl border border-border bg-surface-1 p-1 shadow-lg sm:left-0 sm:right-auto">
             <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">Snooze until</p>
             {choices.map((c) => (
               <button

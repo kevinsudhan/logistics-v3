@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Timer } from "lucide-react";
 import Select from "./Select";
@@ -122,6 +123,8 @@ export function FreeTimeTermsCard({
   summary: FreeTimeSummary;
   onSave: (patch: Partial<FreeTimeTerms>) => void;
 }) {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const basisRow = useRovingButtons();
   const combined = terms.free_time_basis === "combined";
   const currency = terms.dnd_currency || "USD";
   const days = (v: number | null) => (v === null ? null : Math.max(0, Math.min(365, Math.round(v))));
@@ -140,7 +143,7 @@ export function FreeTimeTermsCard({
         <FreeTimePill summary={summary} quiet />
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="How free time is granted">
+      <div {...basisRow} className="mb-3 flex flex-wrap gap-1.5" aria-label="How free time is granted">
         {(
           [
             { v: "separate", label: "Demurrage and detention separately" },

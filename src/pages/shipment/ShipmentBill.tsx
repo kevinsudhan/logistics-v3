@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRovingButtons } from "../../lib/useRovingButtons";
 import { Link } from "react-router-dom";
 import { AlertCircle, Info, Layers, Ship } from "lucide-react";
 import Select from "../../components/Select";
@@ -38,6 +39,8 @@ import {
  * ---------------------------------------------------------------------------
  */
 export default function ShipmentBill() {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const issuerRow = useRovingButtons();
   const { shipment, enquiry, reload } = useShipment();
   const [consoles, setConsoles] = useState<Console[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -215,7 +218,7 @@ export default function ShipmentBill() {
 
         {/* who issued the bill this cargo travels under */}
         <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-3">
-          <div className="flex gap-1.5">
+          <div {...issuerRow} aria-label="Who issued the bill" className="flex gap-1.5">
             {(
               [
                 { v: "house", label: `Our ${house}` },

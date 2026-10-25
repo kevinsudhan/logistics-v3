@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, Loader2, Paperclip, Plus, X } from "lucide-react";
 import { asOutgoing, listFiles, type EnquiryFile } from "../services/attachments";
 import type { OutgoingAttachment } from "../services/graphMail";
 import { failureText } from "../lib/errorText";
 import { bytesToBase64 } from "../lib/base64";
+import { useMenu } from "../lib/useMenu";
 
 /**
  * What goes out attached to the message.
@@ -79,6 +80,9 @@ export default function MailAttachments({
   onChange: (next: Attached[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Arrows, Escape and Tab work in it (lib/useMenu).
+  const menu = useRef<HTMLDivElement>(null);
+  useMenu(menu, open, () => setOpen(false));
   const [filed, setFiled] = useState<EnquiryFile[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -224,14 +228,15 @@ export default function MailAttachments({
             <>
               {/* Click-away, the way every other menu on this screen closes. */}
               <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-              <div className="absolute bottom-9 left-0 z-20 max-h-[300px] w-[330px] overflow-y-auto rounded-xl border border-border bg-surface-1 p-1.5 shadow-lg">
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-text-primary transition-colors hover:bg-surface-2">
+              <div ref={menu} className="absolute bottom-9 left-0 z-20 max-h-[300px] w-[330px] overflow-y-auto rounded-xl border border-border bg-surface-1 p-1.5 shadow-lg">
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-text-primary transition-colors hover:bg-surface-2 focus-within:bg-surface-2 focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-[var(--text-accent)]">
                   <Paperclip size={13} className="shrink-0 text-text-muted" />
                   From this computer
+                  {/* Out of sight but not out of reach: Tab lands on it, Enter or Space opens the picker. */}
                   <input
                     type="file"
                     multiple
-                    className="hidden"
+                    className="sr-only"
                     onChange={(e) => {
                       void attachLocal(e.target.files);
                       // Cleared so choosing the same file twice running still

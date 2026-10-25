@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarRange, Loader2, X } from "lucide-react";
 import { onLane } from "../lib/schedules";
+import DialogPanel from "./DialogPanel";
 import { departureName, upcomingSchedules, type Schedule } from "../services/schedules";
 import { InlineLoading } from "./Loading";
 import { formatDate } from "../lib/dates";
@@ -75,12 +76,14 @@ export default function SchedulePicker({
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Pick a sailing"
           onClick={() => setOpen(false)}
         >
-          <div className="card mt-10 w-full max-w-3xl p-5" onClick={(e) => e.stopPropagation()}>
+          <DialogPanel
+            onClose={() => setOpen(false)}
+            aria-label="Pick a sailing"
+            className="card mt-10 w-full max-w-3xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold text-text-primary">Pick a sailing</h2>
               <button type="button" onClick={() => setOpen(false)} className="rounded p-1 text-text-muted hover:text-text-primary" aria-label="Close">
@@ -166,7 +169,7 @@ export default function SchedulePicker({
                 </table>
               </div>
             )}
-          </div>
+          </DialogPanel>
         </div>
       )}
     </>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 
 /**
  * The controls the enquiry panels are built from.
@@ -31,7 +32,7 @@ export function Field({
   );
 }
 
-/** A row of joined buttons, one of which is on. */
+/** A row of joined buttons, one of which is on: one stop for Tab, the arrows along it (lib/useRovingButtons). */
 export function Segmented<T extends string>({
   options,
   value,
@@ -43,8 +44,9 @@ export function Segmented<T extends string>({
   busy?: boolean;
   onChange: (v: T) => void;
 }) {
+  const row = useRovingButtons();
   return (
-    <div className="flex h-9 overflow-hidden rounded-lg border border-border bg-surface-1">
+    <div {...row} className="flex h-9 overflow-hidden rounded-lg border border-border bg-surface-1">
       {options.map((o, i) => {
         const on = o.value === value;
         return (

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, Loader2, X } from "lucide-react";
 import Select from "./Select";
+import { useDialog } from "../lib/useDialog";
 import {
   listCustomers,
   listPeople,
@@ -65,11 +66,9 @@ export default function PushToInbound({
     void listPeople().then(setPeople).catch(() => setPeople([]));
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Tab stays inside, Escape closes (not when it only shut a dropdown), focus goes back on closing.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose);
 
   /**
    * A customer this row probably belongs to.
@@ -133,9 +132,11 @@ export default function PushToInbound({
       onClick={onClose}
     >
       <div
+        ref={box}
         className="w-full max-w-lg card shadow-xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Push to inbound enquiries"
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">

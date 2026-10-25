@@ -4,6 +4,7 @@ import AddressInput from "./AddressInput";
 import { parseAddresses } from "../lib/addresses";
 import type { FolderId, MailFolder } from "../services/backend";
 import { createRule, deleteRule, GraphForbiddenError, listRules, setRuleEnabled, type MailRule, type MailRuleInput } from "../services/mailRules";
+import { useDialog } from "../lib/useDialog";
 
 /**
  * Outlook's inbox rules, from the CRM: "when a message from … arrives, move it
@@ -65,6 +66,9 @@ export default function RulesDialog({ mailbox, folders, onClose }: { mailbox: st
     if (started && !window.confirm("Discard this rule?")) return;
     onClose();
   }, [onClose]);
+  // Tab stays inside and focus goes back on closing; Escape stays this dialog's own, below.
+  const panel = useRef<HTMLDivElement>(null);
+  useDialog(panel, undefined, { escape: false });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -151,7 +155,7 @@ export default function RulesDialog({ mailbox, folders, onClose }: { mailbox: st
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={requestClose}>
-      <div className="flex max-h-[92vh] w-full flex-col rounded-t-card bg-surface-1 shadow-xl sm:card sm:max-w-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Rules">
+      <div ref={panel} className="flex max-h-[92vh] w-full flex-col rounded-t-card bg-surface-1 shadow-xl sm:card sm:max-w-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Rules">
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="flex items-center gap-2 text-[14px] font-medium text-text-primary">
             <ListFilter size={15} /> Rules

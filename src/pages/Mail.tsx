@@ -96,6 +96,7 @@ import {
   type MailMessage,
 } from "../services/backend";
 import { intakeByMessage, type Intake } from "../services/intake";
+import { useMenu } from "../lib/useMenu";
 import { refsFor } from "../services/threadRefs";
 import { listPeople, type Person } from "../services/enquiries";
 import { ListSkeleton, SectionSkeleton } from "../components/Loading";
@@ -270,6 +271,11 @@ export default function Mail() {
   }, [toast]);
   const [showKeys, setShowKeys] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The More folders and the shortcuts list: arrows, Escape and Tab work in them (lib/useMenu).
+  const moreMenu = useRef<HTMLDivElement>(null);
+  const keysMenu = useRef<HTMLDivElement>(null);
+  useMenu(moreMenu, moreOpen, () => setMoreOpen(false));
+  useMenu(keysMenu, showKeys, () => setShowKeys(false));
   const [rulesOpen, setRulesOpen] = useState(false);
   /** What is snoozed in this mailbox and not back yet, by the id it has in the Snoozed folder. */
   const [snoozes, setSnoozes] = useState<Snooze[]>([]);
@@ -1032,7 +1038,7 @@ export default function Mail() {
   keyHandler.current = (e: KeyboardEvent) => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
     const target = e.target instanceof Element ? e.target : null;
-    if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="listbox"]')) return;
+    if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="listbox"], [data-menu]')) return;
     if (composing || editingSignature || rulesOpen) return;
     const at = rows.findIndex((r) => r.group.some((x) => x.id === selectedId));
     const key = e.key;
@@ -1258,7 +1264,7 @@ export default function Mail() {
                 {moreOpen && (
                   <>
                     <div className="fixed inset-0 z-20" onClick={() => setMoreOpen(false)} />
-                    <div className="absolute left-0 top-9 z-30 max-h-96 w-64 overflow-y-auto rounded-xl border border-border bg-surface-1 p-1 shadow-lg">
+                    <div ref={moreMenu} className="absolute left-0 top-9 z-30 max-h-96 w-64 overflow-y-auto rounded-xl border border-border bg-surface-1 p-1 shadow-lg">
                       {others.length === 0 && <p className="px-2.5 py-2 text-[12px] text-text-muted">No other folders.</p>}
                       {others.map((f, i) => {
                         const Icon = iconFor(f.id);
@@ -1363,7 +1369,7 @@ export default function Mail() {
           {showKeys && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setShowKeys(false)} />
-              <div className="absolute right-0 top-9 z-30 w-60 rounded-xl border border-border bg-surface-1 p-3 text-[12px] shadow-lg">
+              <div ref={keysMenu} className="absolute right-0 top-9 z-30 w-60 rounded-xl border border-border bg-surface-1 p-3 text-[12px] shadow-lg">
                 <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">Keyboard shortcuts</p>
                 {[
                   ["↑ ↓  or  j k", "Previous / next"],

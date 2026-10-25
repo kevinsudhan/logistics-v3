@@ -576,14 +576,16 @@ export default function RichTextEditor({
         <label
           title="Insert picture"
           onMouseDown={(e) => e.preventDefault()}
-          className="h-7 w-7 grid place-items-center rounded text-text-secondary hover:bg-surface-1 hover:text-text-primary cursor-pointer"
+          className="h-7 w-7 grid place-items-center rounded text-text-secondary hover:bg-surface-1 hover:text-text-primary cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-[var(--text-accent)]"
         >
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+          {/* Out of sight but not out of reach: Tab lands on it, Enter or Space opens the picker. */}
           <input
             type="file"
             accept="image/*"
             multiple
-            className="hidden"
+            aria-label="Insert picture"
+            className="sr-only"
             disabled={uploading}
             onChange={(e) => {
               const f = Array.from(e.target.files ?? []);

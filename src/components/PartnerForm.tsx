@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { AlertCircle, Loader2, Plus, X } from "lucide-react";
 import Select from "./Select";
+import { useDialog } from "../lib/useDialog";
 import {
   createPartner,
   updatePartner,
@@ -83,14 +84,10 @@ export default function PartnerForm({
     draftTag.trim() !== "" ||
     tags.length > 0;
 
-  useEffect(() => {
-    if (inline) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, inline]);
+  // As a dialog: Tab stays inside, Escape closes (not when it only shut a
+  // dropdown), focus goes back on closing. Inline it holds nothing: no ref.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose);
 
   const list = (s: string) =>
     s
@@ -172,8 +169,10 @@ export default function PartnerForm({
             ? "card max-w-2xl flex flex-col"
             : "w-full sm:max-w-lg rounded-t-card bg-surface-1 sm:card shadow-xl max-h-[92vh] flex flex-col"
         }
+        ref={inline ? undefined : box}
         onClick={inline ? undefined : (e) => e.stopPropagation()}
         role={inline ? "group" : "dialog"}
+        aria-modal={inline ? undefined : true}
         aria-label={partner ? "Edit partner" : "Add partner"}
       >
         <header className="flex items-center justify-between px-5 py-3 border-b border-border">

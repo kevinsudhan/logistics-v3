@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { AlertCircle, ArrowRight, Loader2, X } from "lucide-react";
 import Select from "./Select";
+import { useDialog } from "../lib/useDialog";
 import SchedulePicker from "./SchedulePicker";
 import { CONTAINER_TYPES, DEFAULT_CONTAINER, createContainer, linkContainerSchedule, type Container } from "../services/containers";
 import type { Partner } from "../services/partners";
@@ -48,11 +49,9 @@ export default function AddContainer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Tab stays inside, Escape closes (not over the schedule picker, nor when it only shut a dropdown).
+  const box = useRef<HTMLFormElement>(null);
+  useDialog(box, onClose);
 
   const ready = origin.trim() && destination.trim() && sailingDate;
 
@@ -84,10 +83,12 @@ export default function AddContainer({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={onClose}>
       <form
+        ref={box}
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[92vh] w-full flex-col rounded-t-card bg-surface-1 shadow-pop sm:card sm:max-w-lg"
         role="dialog"
+        aria-modal="true"
         aria-label="Add a container"
         noValidate
       >

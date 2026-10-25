@@ -25,6 +25,7 @@ import type { Enquiry, Quote } from "../services/enquiries";
 import { addToBuyRate } from "../services/buyRates";
 import { mergeBuyLines, pasteSummary, type StoredBuyLine } from "../lib/buyRate";
 import { listPartners, type Partner } from "../services/partners";
+import { useDialog } from "../lib/useDialog";
 
 /**
  * "Paste a quotation": the rate as the desk has it — from a mail, a WhatsApp
@@ -97,6 +98,9 @@ export default function PasteQuoteDialog({
   const [termsText, setTermsText] = useState("");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Tab stays inside and focus goes back on closing; Escape stays this dialog's own, below.
+  const panel = useRef<HTMLDivElement>(null);
+  useDialog(panel, undefined, { escape: false });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -372,7 +376,7 @@ export default function PasteQuoteDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6">
-      <div className="flex max-h-[94vh] w-full flex-col rounded-t-card bg-surface-1 shadow-xl sm:card sm:max-w-5xl" role="dialog" aria-label={cost ? "Paste the partner's rate" : "Paste a quotation"}>
+      <div ref={panel} className="flex max-h-[94vh] w-full flex-col rounded-t-card bg-surface-1 shadow-xl sm:card sm:max-w-5xl" role="dialog" aria-modal="true" aria-label={cost ? "Paste the partner's rate" : "Paste a quotation"}>
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="flex items-center gap-2 text-[14px] font-medium text-text-primary">
             <ClipboardPaste size={15} /> {cost ? "Paste the partner's rate" : "Paste a quotation"}

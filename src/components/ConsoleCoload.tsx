@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { AlertTriangle, Loader2, Mail } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { failureText } from "../lib/errorText";
@@ -25,6 +26,8 @@ const fig = (n: number, dp = 2) => n.toLocaleString("en-IN", { maximumFractionDi
  * the console, and the booking request to them. The rules are lib/coload.ts.
  */
 export default function ConsoleCoload({ console: c, partners, onChanged }: { console: Console; partners: Partner[]; onChanged: () => void }) {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const spaceRow = useRovingButtons();
   const { session } = useAuth();
   const coload = c.space_from === "coloader";
   const coloader = partners.find((p) => p.id === c.coloader_id) ?? null;
@@ -105,7 +108,7 @@ export default function ConsoleCoload({ console: c, partners, onChanged }: { con
   return (
     <section>
       <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-secondary">Space</h3>
-      <div className="flex flex-wrap gap-1.5">
+      <div {...spaceRow} aria-label="Space" className="flex flex-wrap gap-1.5">
         <button type="button" aria-pressed={!coload} disabled={busy !== null} onClick={() => coload && void save("from", { space_from: "line" })} className={tab(!coload)}>
           Our own box, with the line
         </button>

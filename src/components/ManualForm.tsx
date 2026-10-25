@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Plus, Trash2 } from "lucide-react";
 import { Section } from "./HblBoxes";
 import {
@@ -138,6 +139,8 @@ function TableSection({
 }
 
 function FieldBox({ field: f, value, onChange, compact = false }: { field: ManualField; value: string; onChange: (v: string) => void; compact?: boolean }) {
+  // A row of choices is one Tab stop, the arrows along it (lib/useRovingButtons).
+  const choiceRow = useRovingButtons();
   const input = f.input ?? "text";
   const unreadable = input === "number" && value.trim() !== "" && parseNumber(value) === undefined;
   const cls = `w-full ${compact ? "h-8 text-[12.5px]" : "h-9"} ${unreadable ? "!border-[var(--text-danger)]" : ""}`;
@@ -162,7 +165,7 @@ function FieldBox({ field: f, value, onChange, compact = false }: { field: Manua
     return (
       <div className={`min-w-0 ${f.wide ? "sm:col-span-full" : ""}`}>
         <span className={`mb-1 block ${compact ? "text-[11px]" : "text-[11.5px]"} font-medium text-text-secondary`}>{f.label}</span>
-        <div role="radiogroup" aria-label={f.label} className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
+        <div {...choiceRow} role="radiogroup" aria-label={f.label} className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5">
           {opts.map((o) => (
             <button
               key={o.value}

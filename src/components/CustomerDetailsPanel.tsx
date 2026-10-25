@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, Building2, Check, Loader2, Search, TriangleAlert, X } from "lucide-react";
 import Collapsible from "./Collapsible";
 import { useAuth } from "../lib/auth";
 import { failureText } from "../lib/errorText";
+import { useMenu } from "../lib/useMenu";
 import {
   assignEnquiry,
   listPeople,
@@ -291,6 +292,9 @@ function Picker({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  // Escape shuts it and goes back to the button; Tab past the list shuts it too (lib/useMenu).
+  const box = useRef<HTMLDivElement>(null);
+  useMenu(box, true, onClose);
 
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -312,7 +316,7 @@ function Picker({
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
-      <div className="absolute left-0 right-0 z-20 mt-1 rounded-xl border border-border-strong bg-surface-1 p-2 shadow-lg">
+      <div ref={box} className="absolute left-0 right-0 z-20 mt-1 rounded-xl border border-border-strong bg-surface-1 p-2 shadow-lg">
         <div className="relative mb-1.5">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <input

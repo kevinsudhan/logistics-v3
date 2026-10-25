@@ -4,6 +4,7 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { downloadBytes, kindOf, type ViewerFile } from "../lib/attachmentFiles";
+import { useDialog } from "../lib/useDialog";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -55,6 +56,10 @@ export default function AttachmentViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tab stays in the viewer, and focus goes back to the file that was opened.
+  const panel = useRef<HTMLDivElement>(null);
+  useDialog(panel, undefined, { escape: false });
+
   // Escape closes the viewer and nothing behind it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -71,7 +76,7 @@ export default function AttachmentViewer({
   const zoomable = kind === "pdf" || kind === "image";
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#1c2230]" role="dialog" aria-label={`${name} — attachment`}>
+    <div ref={panel} className="fixed inset-0 z-[60] flex flex-col bg-[#1c2230]" role="dialog" aria-modal="true" aria-label={`${name} — attachment`}>
       <header className="flex items-center gap-2 border-b border-white/10 px-3 py-2 text-white sm:px-4">
         <p className="min-w-0 flex-1 truncate text-[13px] font-medium" title={name}>
           {name}

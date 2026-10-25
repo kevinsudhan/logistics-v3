@@ -228,6 +228,23 @@ pre {
   border-radius: 6px;
 }
 
+/* Tick boxes, round choices and anything else made reachable by Tab (25 Oct)
+ * showed nothing when it got there: the fields' green ring is a shadow drawn
+ * for text, and a tick box has nowhere to draw it. The same ring as a button. */
+:where(input[type="checkbox"], input[type="radio"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+/* A field reached by Tab is scrolled into view, and on a long page it used to
+ * land under the top bar, which stays put above everything (Topbar, 56 px).
+ * Room for the bar above it, and a little below. Fields only: lists that
+ * scroll inside themselves (Mail's) keep their rows where they put them. */
+main :where(input, select, textarea, [contenteditable="true"]) {
+  scroll-margin-top: 72px;
+  scroll-margin-bottom: 16px;
+}
+
 /* ---------------------------------------------------------------------------
  * Motion
  *

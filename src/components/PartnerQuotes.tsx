@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -16,6 +16,7 @@ import {
 import AskPartners from "./AskPartners";
 import ThreadReader from "./ThreadReader";
 import { useAuth } from "../lib/auth";
+import { useDialog } from "../lib/useDialog";
 import { conversationMessages, mailIsLive, type MailMessage } from "../services/backend";
 import {
   QUOTE_STATUS_LABEL,
@@ -442,6 +443,9 @@ function EditQuote({
   const [notes, setNotes] = useState(quote.quote_notes ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tab stays inside and focus goes back on closing; Escape is left alone, so a corrected rate is not lost to it.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose, { escape: false });
 
   async function save() {
     setBusy(true);
@@ -469,9 +473,11 @@ function EditQuote({
       onClick={onClose}
     >
       <div
+        ref={box}
         onClick={(e) => e.stopPropagation()}
         className="card w-full max-w-sm shadow-pop"
         role="dialog"
+        aria-modal="true"
         aria-label="Correct the rate"
       >
         <header className="flex items-center justify-between border-b border-border px-4 py-3">

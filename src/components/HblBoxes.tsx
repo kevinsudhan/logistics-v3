@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useRovingButtons } from "../lib/useRovingButtons";
 import { Plus, Trash2 } from "lucide-react";
 import {
   defaultCharges,
@@ -52,6 +53,8 @@ export default function HblBoxes({
    */
   manual?: boolean;
 }) {
+  // The choice rows below: one Tab stop each, the arrows along them (lib/useRovingButtons).
+  const consigneeRow = useRovingButtons();
   const base = inputBase;
   const T = (k: keyof HblData, placeholder = "") => (
     <input value={d[k] as string} disabled={ro} placeholder={placeholder} onChange={(e) => set(k, e.target.value.toUpperCase() as never)} className={`${base} h-8 w-full`} />
@@ -91,7 +94,7 @@ export default function HblBoxes({
           </div>
           <div className="space-y-2">
             <Labelled label="Consignee">
-              <div className="mb-1 flex gap-1" role="group" aria-label="Consignee">
+              <div {...consigneeRow} className="mb-1 flex gap-1" aria-label="Consignee">
                 {(
                   [
                     { v: "named", label: "Named" },

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import PageHeader from "../components/PageHeader";
+import { useDialog } from "../lib/useDialog";
 import { CHARGE_HEADS, LINE_CURRENCIES, UNITS } from "../services/charges";
 import {
   expired,
@@ -273,6 +274,9 @@ function RateForm({
 }) {
   const [form, setForm] = useState<Partial<RateCard>>(initial);
   const [saving, setSaving] = useState(false);
+  // Tab stays inside and focus goes back on closing; Escape is left alone, so a half-typed rate is not lost to it.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, onClose, { escape: false });
   const [error, setError] = useState<string | null>(null);
 
   const set = <K extends keyof RateCard>(k: K, v: RateCard[K]) =>
@@ -318,9 +322,11 @@ function RateForm({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={onClose}>
       <div
+        ref={box}
         className="flex max-h-[92vh] w-full flex-col rounded-t-card bg-surface-1 sm:card sm:max-w-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label={form.id ? "Edit rate" : "Add rate"}
       >
         <header className="flex items-center justify-between border-b border-border px-5 py-3">

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import RateRequestForm from "./RateRequestForm";
+import { useDialog } from "../lib/useDialog";
 import type { BurstResult } from "../services/rfq";
 import type { Enquiry } from "../services/enquiries";
 
@@ -21,15 +22,14 @@ export default function AskPartners({
 }) {
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, busy]);
+  // Tab stays inside; Escape closes, but not while the request is going out.
+  const box = useRef<HTMLDivElement>(null);
+  useDialog(box, () => !busy && onClose());
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={() => !busy && onClose()}>
       <div
+        ref={box}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[94vh] w-full flex-col rounded-t-card bg-surface-1 shadow-pop sm:card sm:max-w-3xl"
         role="dialog"
