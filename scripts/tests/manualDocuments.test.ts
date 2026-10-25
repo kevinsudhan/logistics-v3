@@ -25,6 +25,8 @@ import { DOCUMENTS, documentSpec } from "../../src/lib/documents/registry";
 import { chargeHead, chargeTotals, lineTax, rupeesInWords, taxSummary, usualGst } from "../../src/lib/documents/charges";
 import type { DocumentData } from "../../src/lib/documents/types";
 import { documentDataFromBooking, readiness } from "../../src/lib/documents/data";
+import { documentStatuses } from "../../src/lib/documents/index";
+import { PROFORMA_INVOICE, TAX_INVOICE, readyToNumber } from "../../src/lib/documents/invoice";
 import { renderDocument } from "../../src/lib/documents/render";
 import { issuedToday } from "../../src/lib/documents/letterhead";
 import type { jsPDF } from "jspdf";
@@ -42,13 +44,21 @@ const has = (label: string, list: readonly string[], want: string[]) => is(label
 
 console.log("the fields a document prints, read from the document");
 const an = documentSpec("arrival-notice")!;
-has("the CAN: everything an import desk's CAN carries", keysOf(an), [
-  "notifyName", "notifyAddress", "notifyGstin", "consigneeName", "consigneeAddress", "consigneeCountry", "consigneeGstin", "shipperName", "shipperAddress",
-  "blNumber", "blDate", "masterBlNumber", "masterBlDate", "bookingNumber", "serviceType", "vessel", "voyage", "origin", "portOfLoading",
-  "destination", "etaDate", "finalDestination", "finalEtaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "cfsName", "cfsAddress",
-  "carrier", "freightTerms", "freeTimeText", "poNumber", "invoiceRef", "salesRef", "releaseMode",
+// Every box of the line's CAN (HCSE2609X113) and its freight certificate.
+has("the CAN: everything the line's CAN carries, and its freight certificate", keysOf(an), [
+  "notifyName", "notifyAddress", "notifyGstin", "consigneeName", "consigneeAddress", "consigneeGstin", "shipperName", "shipperAddress", "salesRef",
+  "jobDate", "invoiceRef", "igmNumber", "igmDate", "originAgent", "poNumber", "blNumber", "blDate", "vessel", "voyage", "bookingNumber", "serviceType",
+  "masterBlNumber", "masterBlDate", "origin", "portOfLoading", "destination", "etaDate", "finalDestination", "finalEtaDate", "cfsName", "cfsAddress", "cfsEtaDate",
+  "authBlNumber", "authBlDate", "freightTerms", "igmItemNo", "igmSubItemNo", "carrier", "freeTimeText", "releaseMode",
   "marksNumbers", "cargoDescription", "hsCode", "containerId", "containerType", "sealNumber", "packageCount", "packageType", "grossWeightKg", "volumeCbm",
   "freightAmountInr",
+]);
+// Every box of the line's DO (QDWJ26093202).
+has("the DO: everything the line's DO carries", keysOf(documentSpec("delivery-order")!), [
+  "cfsName", "cfsAddress", "deliverTo", "consigneeName", "consigneeAddress", "consigneeIec", "consigneeIecType", "notifyName", "chaName", "doDate", "doValidity",
+  "vessel", "voyage", "masterBlNumber", "masterBlDate", "blNumber", "blDate", "portOfLoading", "destination", "etaDate", "igmNumber", "igmDate", "igmItemNo",
+  "igmSubItemNo", "tsaNumber", "containerId", "containerType", "serviceType", "unstuffDate", "packageCount", "packageType", "grossWeightKg", "volumeCbm",
+  "marksNumbers", "cargoDescription",
 ]);
 const quo = documentSpec("quotation")!;
 has("both sides of a ?? and an && are found", keysOf(quo), ["company", "customerName", "origin", "destination"]);
@@ -97,38 +107,77 @@ const everything: ManualValues = {
   consigneeName: "GULF TRADERS", consigneeAddress: "PO BOX 1, DUBAI", consigneeCountry: "UAE", origin: "CHENNAI", destination: "JEBEL ALI",
   sailingDate: "2026-10-14", etaDate: "2026-10-28", containerType: "40HC", containerId: "PCIU1234567", cargoDescription: "COTTON YARN",
   hsCode: "5205", packageCount: "120", packageType: "BALES", netWeightKg: "18000", grossWeightKg: "18500", invoiceValueInr: "2500000",
-  freightAmountInr: "95000", incoterm: "FOB", paymentTerms: "30 DAYS", invoice_no: "9", invoice_date: "2026-10-23",
+  freightAmountInr: "95000", incoterm: "FOB", paymentTerms: "30 DAYS", invoice_date: "2026-10-23",
 };
 s.shipment = everything;
 is("every shipment document ready once everything is typed", MANUAL_DOCUMENTS.filter((x) => x.store === "shipment" && missingOf(x, s).length).map((x) => x.id), []);
 
-console.log("\na job's own documents print as they did");
+console.log("\na job's own documents print what the job holds");
 const booking = documentDataFromBooking(
   { id: "x", enquiry_ref: "ALG09004-26", origin: "Chennai", destination: "Jebel Ali", cargo: "Yarn", piece_count: 1, volume_cbm: 1, gross_weight_kg: 1, agreed_inr: 1, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "HBL1", vessel: "MSC ANNA", etd: null, eta: "2026-10-28" },
   null
 );
-const HAND_TYPED = [
-  "vessel", "voyage", "portOfLoading", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "cfsName", "cfsAddress", "vgmMethod", "vgmFacility",
-  "vgmWeighedOn", "deliveredOn", "receivedBy", "blDate", "masterBlDate", "bookingNumber", "serviceType", "shipperAddress", "consigneeGstin",
-  "notifyName", "notifyAddress", "notifyGstin", "finalDestination", "finalEtaDate", "releaseMode", "freightTerms", "marksNumbers", "sealNumber",
-  "poNumber", "invoiceRef", "salesRef",
-];
-is("nothing on a booking fills the hand-typed fields", HAND_TYPED.filter((k) => (booking as unknown as Record<string, unknown>)[k] !== undefined), []);
-/** The fields one row reads, as keysOf finds them. */
-const readsOf = (row: { value: (d: never) => unknown }) => {
-  const read = new Set<string>();
-  for (const fill of [undefined, 1]) {
-    try {
-      row.value(new Proxy({}, { get: (_, k) => (typeof k === "string" && read.add(k), fill) }) as never);
-    } catch {
-      // as keysOf
-    }
+const job = documentDataFromBooking(
+  {
+    id: "x", enquiry_ref: "ALG09004-26", origin: "QINGDAO", destination: "CHENNAI", cargo: "GRAPHITE DISC", piece_count: 1, volume_cbm: 0.4, gross_weight_kg: 330, agreed_inr: null,
+    sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "QDWJ26093202", vessel: null, etd: null, eta: "2026-10-14",
+    voyage: "2608W", port_of_loading: "QINGDAO", consignee_name: "APARAJIT INSTRUMENTS", consignee_iec: "0412345678", notify_name: "APARAJIT INSTRUMENTS",
+    marks_and_numbers: "N M", tsa_no: "LC0010", freight_terms: "collect", billed_party: "customer", transport_mode: "sea_lcl", shipment_date: "2026-09-28",
+  },
+  null,
+  {
+    vessel: "SNL ZHANGJIAGANG", cfsName: "KAILASH SHIPPING SERVICES PVT. LTD", unstuffDate: "2026-10-23", chaName: "ATS ELGI LTD",
+    igm: { number: "1214865", date: "2026-10-01", item: "644", subItem: "LC0010" },
+    customerParty: { name: "SAMPLE FORWARDERS FZE", address: "JEBEL ALI", gstin: "29ABCDE1234F1Z5" },
+    containers: [{ containerId: "TWCU8075142", containerType: "40HC", packageCount: 1, packageType: "PACKAGE(S)", grossWeightKg: 330, volumeCbm: 0.4 }, { containerId: "" }],
+    charges: [{ charge: "Ocean freight", currency: "USD", rate: 60, quantity: 1, gstPercent: 5 }],
+    exchangeRates: { USD: 88.2 },
+    invoiceNumber: "ALG/26-27/0003",
   }
-  return [...read];
-};
-const typedOnly = an.sections.flatMap((x) => x.rows).filter((r) => readsOf(r).every((k) => HAND_TYPED.includes(k)));
-is("…and the CAN's rows of them are optional, so a job's notice leaves them out", typedOnly.filter((r) => !r.optional).map((r) => r.label), []);
-is("…which is most of them", typedOnly.length >= 15, true);
+);
+is("the job's own: its vessel (its console's, where its row has none), voyage, ports, IEC, notify party, marks, freight terms and dates", [
+  job.vessel, job.voyage, job.portOfLoading, job.consigneeIec, job.notifyName, job.marksNumbers, job.freightTerms, job.etaDate, job.serviceType,
+], ["SNL ZHANGJIAGANG", "2608W", "QINGDAO", "0412345678", "APARAJIT INSTRUMENTS", "N M", "Collect", "14-Oct-2026", "LCL"]);
+is("what it holds besides: the IGM line, the CHA, the CFS, the TSA and the day the box was unstuffed", [
+  job.igmNumber, job.igmDate, job.igmItemNo, job.igmSubItemNo, job.chaName, job.cfsName, job.tsaNumber, job.unstuffDate,
+], ["1214865", "01-Oct-2026", "644", "LC0010", "ATS ELGI LTD", "KAILASH SHIPPING SERVICES PVT. LTD", "LC0010", "23-Oct-2026"]);
+is("its boxes, a box without a number left out, each with the job's service and unstuff date", [job.containerId, job.containers], [
+  "TWCU8075142",
+  [{ serviceType: "LCL", unstuffDate: "23-Oct-2026", containerId: "TWCU8075142", containerType: "40HC", packageCount: 1, packageType: "PACKAGE(S)", grossWeightKg: 330, volumeCbm: 0.4 }],
+]);
+is("billed as the Parties tab says; the accepted quotation's charges; the invoice's number; the original", [
+  job.billTo, job.customerParty?.name, job.charges?.length, job.exchangeRates?.USD, job.invoice?.number, job.invoice?.copy, job.jobDate,
+], ["customer", "SAMPLE FORWARDERS FZE", 1, 88.2, "ALG/26-27/0003", "ORIGINAL", "28-Sep-2026"]);
+/** What only a person types: the weighing and the receipt, which no job record holds. */
+const HAND_TYPED = ["vgmMethod", "vgmFacility", "vgmWeighedOn", "deliveredOn", "receivedBy"];
+is("nothing on a booking fills the fields only a person types", HAND_TYPED.filter((k) => (job as unknown as Record<string, unknown>)[k] !== undefined), []);
+const typedOnJob = documentDataFromBooking(
+  {
+    id: "x", enquiry_ref: "ALG09031-26", origin: "SHEKOU", destination: "CHENNAI", cargo: "POS TERMINALS", piece_count: 1, volume_cbm: 1, gross_weight_kg: 1, agreed_inr: null,
+    sailing_date: null, carrier: null, booking_number: "WHL-77812", container_number: null, bl_number: "HCSE2609X113", mainline_no: "030G547522", vessel: null, etd: null, eta: null,
+    po_number: "PO-4471", sales_ref: "8762010", invoice_ref: "", bl_date: "2026-10-04", mainline_date: null, auth_bl_no: "SGL26095691", auth_bl_date: "2026-10-03",
+    final_eta: "2026-10-16", cfs_eta: "2026-10-15", cfs_address: "ENNORE, CHENNAI 600057", consignee_iec_type: "Company", deliver_to: "ATS ELGI LTD",
+    do_issued_on: "2026-10-17", do_valid_until: "2026-11-16",
+  },
+  null,
+  { masterDate: "2026-10-04", invoiceNumber: "ALG/26-27/0007", originAgent: "SHENZHEN GLOBAL LOGISTICS" }
+);
+is("the arrival notice's and the DO's own particulars, typed on the job (142)", [
+  typedOnJob.poNumber, typedOnJob.salesRef, typedOnJob.blDate, typedOnJob.authBlNumber, typedOnJob.authBlDate, typedOnJob.finalEtaDate, typedOnJob.cfsEtaDate,
+  typedOnJob.cfsAddress, typedOnJob.consigneeIecType, typedOnJob.deliverTo, typedOnJob.doDate, typedOnJob.doValidity, typedOnJob.bookingNumber,
+], ["PO-4471", "8762010", "04-Oct-2026", "SGL26095691", "03-Oct-2026", "16-Oct-2026", "15-Oct-2026", "ENNORE, CHENNAI 600057", "Company", "ATS ELGI LTD", "17-Oct-2026", "16-Nov-2026", "WHL-77812"]);
+is("…or read in: the master's date from the console, the invoice ref from the tax invoice, From from the origin agent", [
+  typedOnJob.masterBlDate, typedOnJob.invoiceRef, typedOnJob.originAgent,
+], ["04-Oct-2026", "ALG/26-27/0007", "SHENZHEN GLOBAL LOGISTICS"]);
+const fromBill = documentDataFromBooking(
+  { id: "x", enquiry_ref: "ALG09031-26", origin: "SHEKOU", destination: "CHENNAI", cargo: null, piece_count: null, volume_cbm: null, gross_weight_kg: null, agreed_inr: null, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "HCSE2609X113", vessel: null, etd: null, eta: null },
+  null,
+  { bill: { date: "2026-10-04", releaseMode: "telex", placeOfDelivery: "ICD WHITEFIELD", doIssuedOn: "2026-10-17", doValidUntil: "2026-11-16" } }
+);
+is("the bill, as Gemini read it in: its date, its release, where it delivers, our DO's date and validity", [
+  fromBill.blDate, fromBill.releaseMode, fromBill.finalDestination, fromBill.doDate, fromBill.doValidity,
+], ["04-Oct-2026", "telex", "ICD WHITEFIELD", "17-Oct-2026", "16-Nov-2026"]);
+is("typed on the job, the job's wins over the bill's", documentDataFromBooking({ ...({ id: "x", enquiry_ref: "A", origin: null, destination: null, cargo: null, piece_count: null, volume_cbm: null, gross_weight_kg: null, agreed_inr: null, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "H", vessel: null, etd: null, eta: null }), bl_date: "2026-10-05" }, null, { bill: { date: "2026-10-04" } }).blDate, "05-Oct-2026");
 
 console.log("\nthe console's documents");
 const con: ManualValues = {
@@ -227,7 +276,7 @@ for (const id of ["shipping-instructions", "arrival-notice", "commercial-invoice
   is(`${spec.shortName}: across ${checked} lengths, the signature is never alone on a page`, alone, 0);
 }
 
-console.log("\na CAN with everything a CAN carries, on one page");
+console.log("\na CAN with everything a CAN carries: its notice on one page, the freight certificate on a second");
 const fullCan: ManualValues = {
   reference: "ALG09004-26", blNumber: "HBL/26-27/0042", blDate: "2026-09-28", masterBlNumber: "MAEU254781936", masterBlDate: "2026-09-28",
   bookingNumber: "177516002885", serviceType: "LCL", shipperName: "SAMPLE TEXTILES CO LTD", shipperAddress: "NO. 8 HARBOUR ROAD, PUDONG, SHANGHAI 200120, CHINA",
@@ -239,18 +288,51 @@ const fullCan: ManualValues = {
   freeTimeText: "14 days demurrage, 7 days detention", releaseMode: "original", freightTerms: "Collect", poNumber: "PO-5521", invoiceRef: "INV/26-27/0311",
   salesRef: "1775004", marksNumbers: "N/M", cargoDescription: "COTTON FABRIC ROLLS", hsCode: "5208", containerId: "MSKU7834512", containerType: "40HC",
   sealNumber: "SL998877", packageCount: "120", packageType: "ROLLS", grossWeightKg: "18500", volumeCbm: "62.5", freightAmountInr: "95000",
+  jobDate: "2026-10-15", originAgent: "SHANGHAI SAMPLE LOGISTICS", authBlNumber: "SGL26095691", authBlDate: "2026-10-03", finalEtaDate: "2026-10-22",
+  cfsEtaDate: "2026-10-21", prepared_by: "Kevin",
 };
 const fullPages = await bodies(renderDocument(an, documentDataFromManual(fullCan)));
-is("one page, signed on it", [fullPages.length, fullPages[0].includes("Authorised signatory")], [1, true]);
+is("two pages: the notice, signed on it, and the freight certificate, signed on its own", [
+  fullPages.length, fullPages[0].includes("Authorised signatory"), fullPages[1].includes("FREIGHT CERTIFICATE"), fullPages[1].includes("Authorised signatory"),
+], [2, true, true, true]);
 const fullText = fullPages[0].join(" ");
-is("the particulars, by what they say", [
-  "SAMPLE CUSTOMS BROKERS", "TEST IMPORTS PVT LTD", "SAMPLE TEXTILES CO LTD", "State code 33", "HBL/26-27/0042 / 28-Sep-2026", "MAEU254781936 / 28-Sep-2026",
-  "177516002885", "LCL", "MSC ANNA / FJ642W", "2345678 dated 18-Oct-2026", "10, sub-item 2", "CONTINENTAL CFS", "MSC AGENCY INDIA", "Collect",
-  "PO-5521", "INV/26-27/0311", "1775004", "N/M", "MSKU7834512 - 40HC", "SL998877", "120 ROLLS", "18,500.000", "62.500", "USD 95,000",
-  "freight certificate", "One original house B/L", "PAN ABDCA2229C",
+is("the particulars, by what they say, as the line's CAN has them", [
+  "CARGO ARRIVAL NOTICE", "SAMPLE CUSTOMS BROKERS", "TEST IMPORTS PVT LTD", "SAMPLE TEXTILES CO LTD", "State code 33", "Sales ref", "1775004",
+  "Job ref no", "ALG09004-26 / 15-Oct-2026", "Invoice ref", "INV/26-27/0311", "IGM no / date", "2345678 / 18-Oct-2026", "From", "SHANGHAI SAMPLE LOGISTICS",
+  "PO no", "PO-5521", "HBL no / date", "HBL/26-27/0042 / 28-Sep-2026", "MSC ANNA / FJ642W", "Booking no", "177516002885", "Service", "LCL",
+  "OBL no / date", "MAEU254781936 / 28-Sep-2026", "Origin", "Port of loading", "Port of discharge", "ETA", "20-Oct-2026", "Final destination",
+  "ETA (final dest.)", "22-Oct-2026", "Warehouse (CFS)", "CONTINENTAL CFS", "ETA (CFS)", "21-Oct-2026", "Auth. B/L", "SGL26095691 / 03-Oct-2026",
+  "Freight", "Collect", "Item no", "10", "Sub item no", "Carrier", "MSC AGENCY INDIA", "MARKS & NUMBERS", "DESCRIPTION", "CONTAINER", "SEAL", "PKGS",
+  "N/M", "COTTON FABRIC ROLLS", "MSKU7834512 - 40HC", "SL998877", "120 ROLLS", "18,500.000", "62.500",
+  "is expected to arrive on or about 20-Oct-2026 at CHENNAI", "original bill of lading, duly endorsed", "PAN ABDCA2229C", "freight certificate",
+  "Bank details", "50200110838580", "auction",
 ].filter((want) => !fullText.includes(want)), []);
+const certificate = fullPages[1].join(" ");
+is("the freight certificate: the shipment it is for, and the freight", [
+  "Consignee", "MBL no", "MAEU254781936 / 28-Sep-2026", "HBL no", "HBL/26-27/0042 / 28-Sep-2026", "Container no", "MSKU7834512", "Gross weight", "18,500.000 KGS",
+  "No of pkgs", "120 ROLLS", "Port of loading", "SHANGHAI", "Port of discharge", "Place of delivery", "SHANGHAI to CHENNAI", "PARTICULAR", "CURRENCY", "AMOUNT",
+  "Ocean freight", "USD", "95,000.00",
+].filter((want) => !certificate.includes(want)), []);
 is("not said how it is released: no original assumed", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, releaseMode: "" }))))[0].join(" ").includes("or our confirmation of its telex release"), true);
-is("in rupees when rupees are chosen", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, currency: "INR" }))))[0].join(" ").includes("Rs. 95,000"), true);
+is("in rupees when rupees are chosen", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, currency: "INR" }))))[1].join(" ").includes("INR 95,000.00"), true);
+const itemised = (await bodies(renderDocument(an, documentDataFromManual({
+  ...fullCan,
+  roe_USD: "88",
+  charges: [
+    { charge: "Ocean freight", currency: "USD", rate: "40", quantity: "62.5" },
+    { charge: "Bunker adjustment factor (BAF)", currency: "USD", rate: "5", quantity: "62.5" },
+    { charge: "Destination THC", currency: "INR", rate: "650", quantity: "62.5" },
+  ],
+}))))[1];
+is("itemised, the freight and its surcharges, a line each, totalled; not the local charges", [
+  itemised.includes("Ocean freight"), itemised.includes("Bunker adjustment factor (BAF)"), itemised.includes("Destination THC"), itemised.includes("2,500.00"), itemised.includes("2,812.50"),
+], [true, true, false, true, true]);
+is("no freight known: its amount TBD", (await bodies(renderDocument(an, documentDataFromManual({ ...fullCan, freightAmountInr: "" }))))[1].includes("TBD"), true);
+const canPdf = renderDocument(an, documentDataFromManual(fullCan));
+const footItems = (await pdfjs.getDocument({ data: new Uint8Array(canPdf.output("arraybuffer")), verbosity: 0 }).promise.then((d) => d.getPage(2)).then((pg) => pg.getTextContent())).items as Array<{ str: string }>;
+is("the reference at the foot: its number, the day and by whom; which page of how many", [
+  footItems.some((i) => i.str === `Ref: AN-HBL/26-27/0042 on ${issuedToday()} by Kevin`), footItems.some((i) => i.str === "Page 2 of 2"),
+], [true, true]);
 
 console.log("\nthe currency, on every document that prints a sum");
 const fieldKeys = (id: string) => (manualDocument(id) as FormDoc).sections.flatMap((s) => (s.fields ?? []).map((f) => f.key));
@@ -267,7 +349,9 @@ is("the LCL set", chargeTable?.presets?.find((p) => p.label === "LCL export")?.r
 ]);
 is("the usual currency: freight in dollars, the rest in rupees", chargeTable?.presets?.find((p) => p.label === "LCL export")?.rows.map((r) => r.currency), ["USD", "INR", "INR", "INR", "INR", "INR"]);
 const invoice: ManualValues = {
-  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", roe_USD: "83.50", invoice_no: "12", invoice_date: "2026-10-23",
+  reference: "ALG09004-26", company: "TEST IMPORTS PVT LTD", origin: "CHENNAI", destination: "JEBEL ALI", roe_USD: "83.50", invoice_date: "2026-10-23",
+  // Numbered for its B/L, as the database gave it (141).
+  blNumber: "HBL/26-27/0042", invoice_number: "ALG/26-27/0012", invoice_number_bl: "HBL/26-27/0042",
   charges: [
     { charge: "Ocean freight", basis: "W/M", quantity: "4.5", currency: "USD", rate: "60", gst: "", sac: "" },
     { charge: "CFS charges", basis: "", quantity: "4.5", currency: "INR", rate: "650", gst: "18", sac: "" },
@@ -371,32 +455,32 @@ is("billed to the shipper: it in full as Billed to, with the state and PAN read 
   statementText.includes("GSTIN / IEC: 33AABCS1234F1Z9"), statementText.split(" ").includes("AABCS1234F"),
 ], [true, true, false, true, true, false]);
 
-console.log("\nthe tax invoice's number: ALG, the financial year, the last part typed");
+console.log("\nthe tax invoice's number: given by the series, kept for its B/L");
 const numbered = (v: ManualValues) => fi.documentNo?.({ ...parties, invoice_kind: "freight", ...v });
 is("the financial year runs April to March", [financialYear("2026-03-31"), financialYear("2026-04-01"), financialYear("2027-01-15"), financialYear("2099-12-31")], ["25-26", "26-27", "26-27", "99-00"]);
-is("the last part made four digits; a longer one as typed", [
-  numbered({ invoice_no: "4", invoice_date: "2026-10-23" }), numbered({ invoice_no: " 12 ", invoice_date: "2026-10-23" }), numbered({ invoice_no: "12345", invoice_date: "2026-10-23" }),
-], ["ALG/26-27/0004", "ALG/26-27/0012", "ALG/26-27/12345"]);
-is("the year from the invoice date: a March invoice is the year before's", numbered({ invoice_no: "7", invoice_date: "2027-03-31" }), "ALG/26-27/0007");
-is("the year from today while no date is typed", numbered({ invoice_no: "4", invoice_date: "" }), `ALG/${financialYear(new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10))}/0004`);
-const unnumbered = { ...parties, invoice_kind: "freight", invoice_no: "" };
-const unnumberedText = (await bodies(fi.render(unnumbered))).flat().join(" ");
-is("not typed: a draft that says so, the number TBD, still kept and named by its job", [
-  missingOf(fi, { ...emptyState(), shipment: unnumbered }), unnumberedText.includes("DRAFT"), unnumberedText.includes("ALG/"), fi.documentNo?.(unnumbered),
-], [["Invoice number"], true, false, "FI-HBL/26-27/0042"]);
-const numberAsked = fi.sections.find((s) => s.title === "Invoice particulars")!;
-is("asked for on the tax invoice, not the proforma, which keeps its PI- number", [
-  shownFields(numberAsked, { invoice_kind: "freight" }).some((f) => f.key === "invoice_no"),
-  shownFields(numberAsked, { invoice_kind: "proforma" }).some((f) => f.key === "invoice_no"),
-  missingOf(fi, { ...emptyState(), shipment: { ...unnumbered, invoice_kind: "proforma" } }), fi.documentNo?.({ ...unnumbered, invoice_no: "4", invoice_kind: "proforma" }),
-], [true, false, [], "PI-HBL/26-27/0042"]);
+is("the number as it was given, for the B/L it was given for, however that is typed; another B/L's is not this one's", [
+  numbered({}), numbered({ blNumber: " hbl/26-27/0042" }), numbered({ blNumber: "HBL/26-27/0043" }),
+], ["ALG/26-27/0012", "ALG/26-27/0012", "ALG/26-27/ the next in the series"]);
+const fresh: ManualValues = { ...parties, invoice_kind: "freight", invoice_number: "", invoice_number_bl: "" };
+const ask = fi.numbering?.(fresh);
+is("complete with its B/L: it asks for the next number, in the invoice date's year", [ask?.bl, ask?.date, ask?.take], ["HBL/26-27/0042", "2026-10-23", true]);
+is("what comes back is what it prints, kept with the B/L it is for", [fi.documentNo?.(ask!.apply("ALG/26-27/0031")), ask!.apply("ALG/26-27/0031").invoice_number_bl], ["ALG/26-27/0031", "HBL/26-27/0042"]);
+is("none back: none printed", fi.documentNo?.(ask!.apply(undefined)), "ALG/26-27/ the next in the series");
+is("a draft only looks its number up; it does not spend one", fi.numbering?.({ ...fresh, roe_EUR: "" })?.take, false);
+is("no B/L to number by, or a proforma, numbered PI- by its job: nothing asked", [fi.numbering?.({ ...fresh, blNumber: "" }), fi.numbering?.({ ...fresh, invoice_kind: "proforma" })], [undefined, undefined]);
+const unnumberedText = (await bodies(fi.render(fresh))).flat().join(" ");
+is("until it is numbered it prints as a draft, the number TBD, named by its job; the form does not ask for it, being numbered as it prints", [
+  missingOf(fi, { ...emptyState(), shipment: fresh }), unnumberedText.includes("DRAFT"), unnumberedText.includes("ALG/"), fi.fileName(fresh),
+], [[], true, false, "TI-HBL-26-27-0042-tax-invoice.pdf"]);
+is("without a B/L, it says what it is numbered by", missingOf(fi, { ...emptyState(), shipment: { ...fresh, blNumber: "" } }), ["B/L number, to number it by"]);
+is("nothing to type for the number; the proforma keeps its PI- number", [fieldKeys("freight-invoice").includes("invoice_no"), fi.documentNo?.({ ...fresh, invoice_kind: "proforma" })], [false, "PI-HBL/26-27/0042"]);
 
 console.log("\na tax invoice, with every particular of the e-invoice");
 is("called a tax invoice; still found as the freight invoice, kept as it was; numbered in our series", [
   fi.shortName, matches(fi, "freight invoice"), matches(fi, "tax invoice"), fi.fileName({ ...parties, invoice_kind: "freight" }), fi.documentNo?.({ ...parties, invoice_kind: "freight" }), fi.id,
 ], ["Tax invoice", true, true, "ALG-26-27-0012-tax-invoice.pdf", "ALG/26-27/0012", "freight-invoice"]);
 has("every particular typed on the form", fieldKeys("freight-invoice"), [
-  "invoice_no", "copy", "invoice_date", "due_date", "job_date", "customer_code", "customer_pan", "irn", "advance_receipt", "shipper_ref", "vehicle_no", "note", "our_tan", "our_lut", "our_msme",
+  "copy", "invoice_date", "due_date", "jobDate", "customer_code", "customer_pan", "irn", "advance_receipt", "shipper_ref", "vehicle_no", "note", "our_tan", "our_lut", "our_msme",
   "vessel", "voyage", "sailingDate", "etaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "salesRef", "masterBlNumber", "blNumber", "containerId", "containerType",
 ]);
 const IRN = "dbe6a5131bd804ccbefed158dc302ddf383fb85a34db1284bc69ddd273656b6e";
@@ -520,7 +604,79 @@ is("a new invoice is billed to the notify party; one saved to the consignee stay
 ], ["notify", "consignee"]);
 is("a B/L number written one way, as the database writes it", normaliseBl("  hbl/26-27/0042   x "), "HBL/26-27/0042 X");
 
-is("without lines, the one freight figure, as before; and a tax invoice its number", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate", "Invoice number"]);
+is("without lines, the one freight figure, as before; and a B/L to number it by", missingOf(fi, { ...emptyState(), shipment: { origin: "CHENNAI", destination: "JEBEL ALI" } }), ["Agreed freight rate", "B/L number, to number it by"]);
+
+console.log("\nthe delivery order, closed and on one page");
+const dorder = manualDocument("delivery-order") as FormDoc;
+const deliver: ManualValues = {
+  reference: "ALG09012-26", blNumber: "QDWJ26093202", blDate: "2026-09-28", masterBlNumber: "JJCQDCNA6550166A", masterBlDate: "2026-09-28",
+  consigneeName: "APARAJIT INSTRUMENTS", consigneeAddress: "ALAPAKKAM, CHENNAI 600116", consigneeIec: "0412345678", notifyName: "APARAJIT INSTRUMENTS",
+  chaName: "ATS ELGI LTD", deliverTo: "ATS ELGI LTD", cfsName: "KAILASH SHIPPING SERVICES PVT. LTD", cfsAddress: "MANALI NEW TOWN, CHENNAI 600 103",
+  origin: "QINGDAO", portOfLoading: "QINGDAO", destination: "CHENNAI", vessel: "SNL ZHANGJIAGANG", voyage: "2608W", etaDate: "2026-10-14",
+  igmNumber: "1214865", igmDate: "2026-10-01", igmItemNo: "644", igmSubItemNo: "LC0010", tsaNumber: "LC0010", unstuffDate: "2026-10-23", doValidity: "2026-11-23",
+  serviceType: "LCL", containerId: "TWCU8075142", containerType: "40HC", packageCount: "1", packageType: "PACKAGE(S)", grossWeightKg: "330", volumeCbm: "0.4",
+  marksNumbers: "N M", cargoDescription: "GRAPHITE DISC AS PER BL", consigneeIecType: "Company", doDate: "2026-10-24", prepared_by: "Kevin",
+};
+has("every particular of the line's DO typed on the form", fieldKeys("delivery-order"), [
+  "blNumber", "blDate", "masterBlNumber", "masterBlDate", "consigneeName", "consigneeAddress", "consigneeIec", "consigneeIecType", "notifyName", "chaName", "deliverTo", "cfsName",
+  "cfsAddress", "portOfLoading", "destination", "vessel", "voyage", "etaDate", "igmNumber", "igmDate", "igmItemNo", "igmSubItemNo", "tsaNumber", "unstuffDate",
+  "doDate", "doValidity", "serviceType", "containerId", "containerType", "packageCount", "packageType", "grossWeightKg", "volumeCbm", "marksNumbers", "cargoDescription",
+]);
+has("every particular of the line's CAN typed on the form", fieldKeys("arrival-notice"), [
+  "jobDate", "invoiceRef", "originAgent", "poNumber", "authBlNumber", "authBlDate", "finalEtaDate", "cfsEtaDate", "salesRef", "sealNumber", "freightAmountInr",
+]);
+is("complete: nothing outstanding", missingOf(dorder, { ...emptyState(), shipment: deliver }), []);
+const doPdf = dorder.render(deliver);
+const doText = (await bodies(doPdf)).flat().join(" ");
+is("on one page, label and value, the boxes ruled across, signed, subject to the relative B/L", [
+  "DELIVERY ORDER", "Attention to", "The Manager", "KAILASH SHIPPING SERVICES PVT. LTD", "Please deliver to", "ATS ELGI LTD", "Consignee", "IEC / type", "0412345678 / Company",
+  "Notify party", "CHA", "DO number", "DO-QDWJ26093202", "Valid until", "23-Nov-2026", "Vessel / voyage", "SNL ZHANGJIAGANG / 2608W", "Master B/L",
+  "JJCQDCNA6550166A / 28-Sep-2026", "House B/L", "QDWJ26093202 / 28-Sep-2026", "Port of loading", "Port of discharge", "IGM no / date", "1214865 / 01-Oct-2026",
+  "Item / line no", "Sub item / line no", "LC0010", "TSA no", "Unstuff place", "CONTAINER NO", "LCL / FCL", "UNSTUFF DATE", "NO OF PKGS", "WEIGHT IN KGS", "VOLUME (CBM)",
+  "TWCU8075142 - 40HC", "LCL", "23-Oct-2026", "1 PACKAGE(S)", "330.000", "0.400", "Marks & Nos", "N M", "Description", "GRAPHITE DISC AS PER BL", "For AASHISH LOGISTICS GLOBAL",
+].filter((w) => !doText.includes(w)).concat(doPdf.getNumberOfPages() === 1 ? [] : ["one page"]), []);
+const doFoot = (await pdfjs.getDocument({ data: new Uint8Array(doPdf.output("arraybuffer")), verbosity: 0 }).promise.then((d) => d.getPage(1)).then((pg) => pg.getTextContent())).items as Array<{ str: string }>;
+is("its footnote at the foot of the page, the reference under it", [
+  doFoot.some((i) => i.str.includes("subject to the terms and conditions of the relative B/L")), doFoot.some((i) => i.str === `Ref: DO-QDWJ26093202 on ${issuedToday()} by Kevin`),
+  doFoot.some((i) => i.str === "Page 1 of 1"),
+], [true, true, true]);
+is("dated as issued: the DO's own date, else the day it is printed", [doText.includes("24-Oct-2026"), (await bodies(dorder.render({ ...deliver, doDate: "" })))[0].includes(issuedToday())], [true, true]);
+const toConsignee = (await bodies(dorder.render({ ...deliver, deliverTo: "" })))[0];
+is("delivered to the consignee unless another is named; the CHA then only as the CHA", [toConsignee.join(" ").includes("Please deliver to : APARAJIT INSTRUMENTS"), toConsignee.filter((t) => t === "ATS ELGI LTD").length], [true, 1]);
+const boxes = documentDataFromBooking(
+  { id: "x", enquiry_ref: "ALG09012-26", origin: "QINGDAO", destination: "CHENNAI", cargo: "DISCS", piece_count: 3, volume_cbm: 1, gross_weight_kg: 1, agreed_inr: null, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "QDWJ26093202", vessel: "SNL ZHANGJIAGANG", etd: null, eta: "2026-10-14", consignee_name: "APARAJIT INSTRUMENTS", transport_mode: "sea_fcl" },
+  null,
+  {
+    containers: [
+      { containerId: "TWCU8075142", containerType: "40HC", packageCount: 10, packageType: "PALLETS", grossWeightKg: 8000, volumeCbm: 20 },
+      { containerId: "TGHU7654321", containerType: "20GP", packageCount: 12, packageType: "PALLETS", grossWeightKg: 9500.5, volumeCbm: 22 },
+    ],
+  }
+);
+const boxesText = (await bodies(renderDocument(documentSpec("delivery-order")!, boxes))).flat();
+is("a job's boxes, a line each, totalled under them", [
+  "TWCU8075142 - 40HC", "TGHU7654321 - 20GP", "FCL", "10 PALLETS", "12 PALLETS", "8,000.000", "9,500.500", "Total", "22 PALLETS", "17,500.500", "42.000",
+].filter((w) => !boxesText.includes(w)), []);
+const crowdedDo = renderDocument(documentSpec("delivery-order")!, {
+  ...boxes,
+  containers: Array.from({ length: 45 }, (_, i) => ({ containerId: `TGHU${1000000 + i}`, containerType: "40HC", packageCount: 10, packageType: "PALLETS", grossWeightKg: 8000, volumeCbm: 20 })),
+});
+is("forty-five boxes, still the one page", crowdedDo.getNumberOfPages(), 1);
+
+console.log("\nthe tax invoice, the same on the shipment as here");
+is("one spec for both pages: the shipment's list has the tax invoice and the proforma, in the same layout", [
+  documentSpec("tax-invoice") === TAX_INVOICE, documentSpec("proforma-invoice") === PROFORMA_INVOICE, TAX_INVOICE.layout, PROFORMA_INVOICE.layout, documentSpec("freight-invoice"),
+], [true, true, "invoice", "invoice", undefined]);
+const jobPriced = documentDataFromBooking(
+  { id: "x", enquiry_ref: "ALG09012-26", origin: "QINGDAO", destination: "CHENNAI", cargo: "DISCS", piece_count: 1, volume_cbm: 1, gross_weight_kg: 1, agreed_inr: null, sailing_date: null, carrier: null, booking_number: null, container_number: null, bl_number: "QDWJ26093202", vessel: null, etd: null, eta: null, consignee_name: "APARAJIT INSTRUMENTS" },
+  null,
+  { charges: [{ charge: "Ocean freight", currency: "USD", rate: 60, quantity: 1, gstPercent: 5 }], exchangeRates: { USD: 88.2 } }
+);
+const statusOf = (d: DocumentData) => documentStatuses(d).find((x) => x.spec.id === "tax-invoice")!;
+is("jobPriced, with a B/L: ready, and given its number as it is made", [statusOf(jobPriced).ready, statusOf(jobPriced).missingLabels, readyToNumber(jobPriced)], [true, [], true]);
+is("numbered: printed with it, not as a draft", [readyToNumber({ ...jobPriced, invoice: { number: "ALG/26-27/0007" } }), (await bodies(renderDocument(TAX_INVOICE, { ...jobPriced, invoice: { number: "ALG/26-27/0007", copy: "ORIGINAL" } }))).flat().join(" ").includes("ALG/26-27/0007")], [false, true]);
+is("without a B/L: waiting on it, never numbered", [statusOf({ ...jobPriced, blNumber: undefined }).missingLabels, readyToNumber({ ...jobPriced, blNumber: undefined })], [["B/L number, to number it by"], false]);
+is("a rate missing: a draft, not given a number", readyToNumber({ ...jobPriced, exchangeRates: {} }), false);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

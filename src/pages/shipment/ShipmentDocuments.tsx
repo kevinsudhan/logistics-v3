@@ -12,6 +12,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
+import ArrivalParticulars from "../../components/ArrivalParticulars";
 import Collapsible from "../../components/Collapsible";
 import DocumentsPanel from "../../components/DocumentsPanel";
 import { Segmented } from "../../components/formControls";
@@ -19,6 +20,8 @@ import { useShipment } from "../ShipmentDetail";
 import { useAuth } from "../../lib/auth";
 import { failureText } from "../../lib/errorText";
 import { documentDataFromBooking } from "../../lib/documents";
+import type { BookingExtras } from "../../lib/documents/data";
+import { documentExtras } from "../../services/documentExtras";
 import {
   DOCUMENT_TYPES,
   fileUrl,
@@ -50,7 +53,7 @@ import { useCachedState } from "../../lib/useCachedState";
  * ---------------------------------------------------------------------------
  */
 export default function ShipmentDocuments() {
-  const { shipment } = useShipment();
+  const { shipment, reload } = useShipment();
   const navigate = useNavigate();
   const { session } = useAuth();
   // Kept per job (lib/queryCache): the tab opens on its list and reads again behind it (7 Oct).
@@ -71,6 +74,18 @@ export default function ShipmentDocuments() {
   useEffect(() => {
     void load();
   }, [load, live]);
+
+  // What the documents print besides the shipment's row: the accepted quotation's charges, the IGM line, the CHA, the boxes, the bills, the invoice's number.
+  const [extras, setExtras] = useState<BookingExtras>({});
+  const [numbered, setNumbered] = useState(0);
+  const liveExtras = useLiveVersion("quotes", "shipment_customs", "shipment_parties", "shipment_containers", "house_bills", "received_house_bills");
+  useEffect(() => {
+    let current = true;
+    void documentExtras(shipment).then((x) => current && setExtras(x));
+    return () => {
+      current = false;
+    };
+  }, [shipment, liveExtras, numbered]);
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -210,11 +225,14 @@ export default function ShipmentDocuments() {
         )}
       </Collapsible>
 
+      <ArrivalParticulars shipment={shipment} extras={extras} onSaved={reload} />
+
       {/* Drafted from this booking; a draft names what it is missing, and the
           missing particulars are on the Cargo tab. */}
       <section className="card mt-4 px-5 py-2">
         <DocumentsPanel
-          data={documentDataFromBooking(shipment, shipment.customer)}
+          data={{ ...documentDataFromBooking(shipment, shipment.customer, extras), preparedBy: session?.name || undefined }}
+          onNumbered={() => setNumbered((n) => n + 1)}
           defaultOpen
           onFillDetails={() => navigate("../cargo")}
           // Each one sent from here, from the person's own Outlook (6 Oct); the quotation from the enquiry's.

@@ -115,6 +115,13 @@ export interface FormDoc extends ManualDocBase {
   missing: (v: ManualValues) => string[];
   /** The number it prints under, shown above the form. */
   documentNo?: (v: ManualValues) => string;
+  /**
+   * What the page asks the database for before printing: the tax invoice's
+   * number for its B/L (141), taken from the series when `take` (nothing else
+   * outstanding) and only looked up otherwise; `apply` puts what came back
+   * (none, when there is none yet) into the form for the document to print.
+   */
+  numbering?: (v: ManualValues) => { bl: string; date: string; take: boolean; apply: (number: string | undefined) => ManualValues } | undefined;
 }
 
 // ---------------------------------------------------------------------------

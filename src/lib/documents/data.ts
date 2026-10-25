@@ -1,7 +1,9 @@
 import type { Shipment } from "../../types";
 import { fieldDef, type RequestDetails } from "../../data/requestFields";
-import type { DataKey, DocumentData } from "./types";
+import type { ChargeLine, ContainerLine, DataKey, DocumentData } from "./types";
 import { appliesTo, termsText, type FreeTimeTerms } from "../freeTime";
+import { docDate } from "./letterhead";
+import type { ReleaseMode } from "../hbl";
 
 /**
  * Builds the one shape every document draws from.
@@ -75,6 +77,19 @@ const LOCAL_LABELS: Partial<Record<DataKey, string>> = {
   poNumber: "PO number",
   invoiceRef: "Invoice reference",
   salesRef: "Sales reference",
+  consigneeIec: "Consignee IEC",
+  chaName: "CHA",
+  tsaNumber: "TSA number",
+  unstuffDate: "Unstuff date",
+  deliverTo: "Please deliver to",
+  doValidity: "DO valid until",
+  jobDate: "Job date",
+  authBlNumber: "Auth. B/L number",
+  authBlDate: "Auth. B/L date",
+  cfsEtaDate: "ETA at the CFS",
+  consigneeIecType: "Importer type",
+  originAgent: "From (origin agent)",
+  doDate: "DO date",
 };
 
 /**
@@ -209,6 +224,39 @@ export function documentDataFromEnquiry(
 }
 
 /**
+ * What a job holds besides its shipment row, for the papers that print it
+ * (services/documentExtras): the accepted quotation's charges, for the
+ * invoices; the import IGM line; the CHA and the customer on the Parties tab;
+ * the boxes; and the tax invoice's number, once its B/L has been given one.
+ * From the console a house travels in, what the job's own row leaves empty:
+ * the vessel, the CFS and the day the box was destuffed there.
+ */
+export interface BookingExtras {
+  charges?: ChargeLine[];
+  exchangeRates?: Record<string, number>;
+  igm?: { number?: string; date?: string; item?: string; subItem?: string };
+  vessel?: string;
+  voyage?: string;
+  cfsName?: string;
+  unstuffDate?: string;
+  /** The master's date, the console's. */
+  masterDate?: string;
+  /**
+   * The house bill the job travels under, as the job keeps it: the agent's,
+   * read in from their PDF by Gemini (088), or our own (123). Its date, how it
+   * is released, where it delivers, and — on the agent's — our DO's date and
+   * validity, recorded when the DO is issued from the Bill tab.
+   */
+  bill?: { date?: string; releaseMode?: ReleaseMode; placeOfDelivery?: string; doIssuedOn?: string; doValidUntil?: string };
+  /** Who the shipment comes from: the origin agent on the Parties tab, or the agent whose B/L it is. */
+  originAgent?: string;
+  chaName?: string;
+  customerParty?: DocumentData["customerParty"];
+  containers?: ContainerLine[];
+  invoiceNumber?: string;
+}
+
+/**
  * A real booking, from the shipments table.
  *
  * ---------------------------------------------------------------------------
@@ -275,10 +323,49 @@ export function documentDataFromBooking(
     payment_terms?: string | null;
     letter_of_credit?: boolean | null;
     transport_mode?: string | null;
+    // What the invoices and the delivery order print besides (065, 033, 032, 140).
+    voyage?: string | null;
+    port_of_loading?: string | null;
+    port_of_discharge?: string | null;
+    shipper_address?: string | null;
+    consignee_gstin?: string | null;
+    consignee_iec?: string | null;
+    notify_name?: string | null;
+    notify_address?: string | null;
+    notify_gstin?: string | null;
+    marks_and_numbers?: string | null;
+    freight_terms?: "prepaid" | "collect" | null;
+    tsa_no?: string | null;
+    cfs_location?: string | null;
+    cfs_clearance_date?: string | null;
+    shipment_date?: string | null;
+    billed_party?: "consignee" | "customer" | null;
+    // What the arrival notice and the delivery order print that nothing else keeps (142).
+    po_number?: string | null;
+    sales_ref?: string | null;
+    invoice_ref?: string | null;
+    bl_date?: string | null;
+    mainline_date?: string | null;
+    auth_bl_no?: string | null;
+    auth_bl_date?: string | null;
+    final_eta?: string | null;
+    cfs_eta?: string | null;
+    cfs_address?: string | null;
+    consignee_iec_type?: string | null;
+    deliver_to?: string | null;
+    do_issued_on?: string | null;
+    do_valid_until?: string | null;
   } & Partial<FreeTimeTerms>,
-  customer?: { name?: string | null; company?: string | null; phone?: string | null } | null
+  customer?: { name?: string | null; company?: string | null; phone?: string | null } | null,
+  extras: BookingExtras = {}
 ): DocumentData {
   const un = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
+  /** A day as the documents print it, 14-Oct-2026. */
+  const day = (v: string | null | undefined) => (v ? docDate(v) : undefined);
+  /** A box's or a job's service, as a delivery order prints it. */
+  const service = s.transport_mode === "sea_fcl" ? "FCL" : s.transport_mode === "sea_lcl" ? "LCL" : undefined;
+  const boxes = extras.containers?.filter((c) => c.containerId);
+  const unstuffed = day(extras.unstuffDate) || day(s.cfs_clearance_date);
   // The house bill the cargo is released against: the origin agent's on an
   // import that travels under theirs, ours otherwise.
   const house = s.bl_type === "forwarder" && s.forwarders_bl_no ? s.forwarders_bl_no : s.bl_number;
@@ -294,6 +381,18 @@ export function documentDataFromBooking(
     // The same number twice says nothing: on a direct job the carrier's bill is
     // both, and the second line would only look like a second document.
     masterBlNumber: s.mainline_no && s.mainline_no !== house ? s.mainline_no : undefined,
+    // Typed on the job, or the bill's and the console's own.
+    blDate: day(s.bl_date) || day(extras.bill?.date),
+    masterBlDate: s.mainline_no && s.mainline_no !== house ? day(s.mainline_date) || day(extras.masterDate) : undefined,
+    authBlNumber: un(s.auth_bl_no),
+    authBlDate: day(s.auth_bl_date),
+    bookingNumber: un(s.booking_number),
+    jobDate: day(s.shipment_date),
+    poNumber: un(s.po_number),
+    salesRef: un(s.sales_ref),
+    // The notice's own reference, or the tax invoice's number once it has one.
+    invoiceRef: un(s.invoice_ref) || extras.invoiceNumber,
+    releaseMode: extras.bill?.releaseMode,
     // Only a full container load has a box on the line's clock.
     freeTimeText: appliesTo(s.transport_mode)
       ? termsText({
@@ -320,14 +419,53 @@ export function documentDataFromBooking(
     consigneeAddress: un(s.consignee_address),
     consigneeCountry: un(s.consignee_country) || un(s.destination),
 
-    origin: un(s.origin),
-    destination: un(s.destination),
-    carrier: un(s.carrier),
-    containerId: un(s.container_number),
-    containerType: un(s.container_type),
-    sailingDate: un(s.sailing_date) || un(s.etd),
-    etaDate: un(s.eta),
+    shipperAddress: un(s.shipper_address),
+    consigneeGstin: un(s.consignee_gstin),
+    consigneeIec: un(s.consignee_iec),
+    consigneeIecType: un(s.consignee_iec_type),
+    originAgent: extras.originAgent,
+    notifyName: un(s.notify_name),
+    notifyAddress: un(s.notify_address),
+    notifyGstin: un(s.notify_gstin),
+    chaName: extras.chaName,
 
+    origin: un(s.origin),
+    destination: un(s.port_of_discharge) || un(s.destination),
+    // The job's destination where it is beyond its port, else where the bill says it delivers.
+    finalDestination: finalDestination(
+      s.port_of_discharge || s.destination,
+      s.port_of_discharge && s.destination !== s.port_of_discharge ? s.destination : extras.bill?.placeOfDelivery
+    ),
+    finalEtaDate: day(s.final_eta),
+    carrier: un(s.carrier),
+    // The booking's box, or the job's boxes by number (032) when it names none.
+    containerId: un(s.container_number) || boxes?.map((c) => c.containerId).join(", ") || undefined,
+    containerType: un(s.container_type) || (boxes?.length === 1 ? boxes[0].containerType : undefined),
+    containers: boxes?.length ? boxes.map((c) => ({ serviceType: service, unstuffDate: unstuffed, ...c })) : undefined,
+    sealNumber: boxes?.length === 1 ? boxes[0].sealNumber : undefined,
+    serviceType: service,
+    sailingDate: day(s.sailing_date) || day(s.etd),
+    etaDate: day(s.eta),
+
+    vessel: un(s.vessel) || extras.vessel,
+    voyage: un(s.voyage) || extras.voyage,
+    portOfLoading: un(s.port_of_loading),
+    igmNumber: extras.igm?.number,
+    igmDate: day(extras.igm?.date),
+    igmItemNo: extras.igm?.item,
+    igmSubItemNo: extras.igm?.subItem,
+    cfsName: un(s.cfs_location) || extras.cfsName,
+    cfsAddress: un(s.cfs_address),
+    cfsEtaDate: day(s.cfs_eta),
+    tsaNumber: un(s.tsa_no),
+    unstuffDate: unstuffed,
+    deliverTo: un(s.deliver_to),
+    // The DO as the Bill tab issued it on the agent's B/L (088), or as typed on the job.
+    doDate: day(extras.bill?.doIssuedOn) || day(s.do_issued_on),
+    doValidity: day(extras.bill?.doValidUntil) || day(s.do_valid_until),
+    freightTerms: s.freight_terms === "prepaid" ? "Prepaid" : s.freight_terms === "collect" ? "Collect" : undefined,
+
+    marksNumbers: un(s.marks_and_numbers),
     cargoDescription: un(s.cargo),
     hsCode: un(s.hs_code),
     pieceCount: un(s.piece_count),
@@ -343,12 +481,24 @@ export function documentDataFromBooking(
     paymentTerms: un(s.payment_terms),
     letterOfCredit: un(s.letter_of_credit),
 
+    // Billed as the Parties tab says (140): the consignee, or the customer there; the consignee until it is chosen.
+    billTo: s.billed_party === "customer" ? "customer" : "consignee",
+    customerParty: extras.customerParty,
+    charges: extras.charges,
+    exchangeRates: extras.exchangeRates,
+    // ORIGINAL, as the e-invoice marks the copy sent; dated the day it is printed.
+    invoice: { number: extras.invoiceNumber, copy: "ORIGINAL" },
+
     sourceNote: `From the booking on job ${s.enquiry_ref}.`,
     raw: {} as RequestDetails,
   };
 }
 
-
+/** Where the cargo ends up, when that is beyond the port of discharge: nothing when it is the port. */
+function finalDestination(port: string | null | undefined, beyond: string | null | undefined): string | undefined {
+  const b = beyond?.trim();
+  return b && b.toUpperCase() !== (port ?? "").trim().toUpperCase() ? b : undefined;
+}
 
 /**
  * The number a document prints and is filed under: what kind it is, then what
@@ -356,9 +506,14 @@ export function documentDataFromBooking(
  *
  * It used to lead with ARX-, the house prefix from before Aashish Logistics
  * had its own references. The ALG in the job reference says whose it is.
+ *
+ * A document numbered in a series of its own prints that instead, once it has
+ * it: the tax invoice, ALG/26-27/0001 (141).
  */
-export const documentNo = (spec: { numberPrefix: string }, data: { documentNumber: string }): string =>
-  `${spec.numberPrefix}-${data.documentNumber}`;
+export const documentNo = (
+  spec: { numberPrefix: string; number?: (d: DocumentData) => string | undefined },
+  data: { documentNumber: string }
+): string => spec.number?.(data as DocumentData) ?? `${spec.numberPrefix}-${data.documentNumber}`;
 
 /**
  * The same number as a file name, with the document's kind spelled out.
@@ -367,7 +522,10 @@ export const documentNo = (spec: { numberPrefix: string }, data: { documentNumbe
  * to the browser and an invalid name to a mail attachment, so the characters
  * no file system accepts become hyphens.
  */
-export const documentFilename = (spec: { numberPrefix: string; id: string }, data: { documentNumber: string }): string =>
+export const documentFilename = (
+  spec: { numberPrefix: string; id: string; number?: (d: DocumentData) => string | undefined },
+  data: { documentNumber: string }
+): string =>
   `${documentNo(spec, data)}-${spec.id}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
 
 /** Which of a document's required fields are still outstanding. */

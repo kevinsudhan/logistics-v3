@@ -1,8 +1,10 @@
 import type { DocSpec, DocumentData } from "./types";
 import { COMPANY } from "../company";
 import { deliveryNeeds } from "../arrivalNotice";
-import { chargesOutstanding, docMoney } from "./charges";
+import { chargesOutstanding, docMoney, isFreightCharge, lineAmount, lineCurrency } from "./charges";
 import { labelFor } from "./data";
+import { issuedToday } from "./letterhead";
+import { PROFORMA_INVOICE, TAX_INVOICE } from "./invoice";
 
 /**
  * Every document the forwarder issues, as a declaration.
@@ -37,6 +39,107 @@ const gstin = (g?: string) => (g ? `${g}${/^\d{2}/.test(String(g)) ? `  ·  Stat
 /** A weight or measure as a manifest prints it: 330.000. */
 const three = (n?: number) =>
   n !== undefined ? n.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : undefined;
+/** A party as a closed document prints it: the name, then what goes under it, a line each; nothing without the name. */
+const party = (name?: string, ...under: Array<string | undefined>) => (name ? [name, ...under].filter(Boolean).join("\n") : undefined);
+/** A party's GSTIN line, with the state it is registered in. */
+const gstinLine = (g?: string) => (g ? `GSTIN: ${gstin(g)}` : undefined);
+/** The packages as a line of a table prints them: "120 ROLLS". */
+const pkgs = (d: DocumentData) => (d.packageCount !== undefined ? `${d.packageCount} ${d.packageType ?? "PACKAGE(S)"}`.trim() : undefined);
+/** The packages of several boxes added up, in their kind where they are all of one. */
+const pkgsTotal = (ls: DocumentData[]) => {
+  const n = ls.map((l) => l.packageCount);
+  if (n.some((x) => x === undefined)) return undefined;
+  const kinds = new Set(ls.map((l) => l.packageType ?? "PACKAGE(S)"));
+  return `${n.reduce((t, x) => t! + x!, 0)} ${kinds.size === 1 ? [...kinds][0] : "PACKAGE(S)"}`;
+};
+/** A box as a table prints it: its number, then its size and type, "TWCU8075142 - 40HC". */
+const box = (d: DocumentData) => (d.containerId ? [d.containerId, d.containerType].filter(Boolean).join(" - ") : undefined);
+/** The job's boxes, a record each with the box's own figures over the job's; none, the one the fields describe. */
+const boxes = (d: DocumentData) => d.containers?.map((c) => ({ ...d, ...c }));
+/** Where the freight was carried from and to, as a freight certificate heads its figures. */
+const carriedFrom = (d: DocumentData) => d.portOfLoading ?? d.origin;
+const carriedTo = (d: DocumentData) => d.finalDestination ?? d.destination;
+/** A figure in its currency, as a certificate prints it. */
+const amount = (n?: number) => (n === undefined ? undefined : n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+/** The one freight line a certificate's record carries (freightLines), when it carries one. */
+const freightLine = (d: DocumentData) => (d.charges?.length === 1 && isFreightCharge(d.charges[0]) ? d.charges[0] : undefined);
+/** The freight, a record a line: the freight lines of the charges, or — not itemised — the one freight figure. */
+const freightLines = (d: DocumentData) => {
+  const lines = (d.charges ?? []).filter(isFreightCharge);
+  return lines.length ? lines.map((l) => ({ ...d, charges: [l] })) : [{ ...d, charges: [] }];
+};
+
+/**
+ * The freight certificate, the arrival notice's second page, as the line's
+ * (HCSE2609X113) has it: the shipment it is for, label and value, then the
+ * freight ruled — what the consignee's CHA declares as the freight in the
+ * assessable value.
+ */
+const FREIGHT_CERTIFICATE: DocSpec = {
+  id: "freight-certificate",
+  title: "FREIGHT CERTIFICATE",
+  shortName: "Freight certificate",
+  purpose: "The freight charged on the shipment, for its assessable value at customs.",
+  issuer: "desk",
+  numberPrefix: "FC",
+  requires: [],
+  parties: false,
+  layout: "order",
+  sections: [
+    {
+      title: "Shipment",
+      place: "below",
+      rows: [
+        { label: "Consignee", value: (d) => d.consigneeName, bold: true },
+        { label: "MBL no", value: (d) => numberAndDate(d.masterBlNumber, d.masterBlDate), optional: true },
+        { label: "HBL no", value: (d) => numberAndDate(d.blNumber, d.blDate) },
+        { label: "Container no", value: (d) => d.containerId },
+        { label: "Gross weight", value: (d) => (d.grossWeightKg !== undefined ? `${three(d.grossWeightKg)} KGS` : undefined) },
+        { label: "No of pkgs", value: pkgs },
+        { label: "Port of loading", value: carriedFrom },
+        { label: "Port of discharge", value: (d) => d.destination },
+        { label: "Place of delivery", value: carriedTo },
+        { label: "Freight from", value: (d) => (carriedFrom(d) && carriedTo(d) ? `${carriedFrom(d)} to ${carriedTo(d)}` : undefined) },
+      ],
+    },
+    {
+      title: "Freight",
+      place: "table",
+      each: freightLines,
+      rows: [
+        { label: "Particular", value: (d) => freightLine(d)?.charge ?? "Ocean freight", width: 3 },
+        {
+          label: "Currency",
+          value: (d) => {
+            const l = freightLine(d);
+            return l ? lineCurrency(l) : d.freightAmountInr !== undefined ? (d.currency ?? "INR") : undefined;
+          },
+          width: 1,
+        },
+        {
+          label: "Amount",
+          value: (d) => {
+            const l = freightLine(d);
+            return amount(l ? lineAmount(l) : d.freightAmountInr);
+          },
+          width: 1.4,
+          align: "right",
+          // Added up only in one currency; across two, the lines say it.
+          total: (ls) => {
+            const lines = ls.map(freightLine);
+            if (new Set(lines.map((l) => (l ? lineCurrency(l) : ""))).size !== 1) return "";
+            const sums = lines.map((l) => (l ? lineAmount(l) : undefined));
+            return sums.some((n) => n === undefined) ? undefined : amount(sums.reduce((t: number, n) => t + n!, 0));
+          },
+        },
+      ],
+    },
+  ],
+  declaration: "Certified that the freight charged for the carriage of the consignment described above is as stated.",
+};
+
+/** Weights or measures added up as a manifest prints them; nothing while any is unknown. */
+const sum = (ns: Array<number | undefined>) => (ns.some((n) => n === undefined) ? undefined : three(ns.reduce((t: number, n) => t + n!, 0)));
 /** Our PAN, for a consignee deducting tax at source: a GSTIN carries its holder's PAN as characters 3 to 12. */
 const PAN = COMPANY.gstin.slice(2, 12);
 
@@ -294,171 +397,217 @@ export const DOCUMENTS: DocSpec[] = [
   // ------------------------------------------------------------------ arrival
   {
     /*
-      The cargo arrival notice (CAN), in two columns.
+      The cargo arrival notice (CAN), as the line's (HCSE2609X113) is set out
+      and closed as the tax invoice and the DO are: no boxes, its notice on
+      the one page, the freight certificate on a second.
       ------------------------------------------------------------------------
-      Laid out the way an import desk's CAN is: who it concerns down the left
-      (the CHA it is copied to, the consignee, the shipper), the shipment on
-      the right (the two bills, the vessel, the ports and ETA, the IGM line the
-      Bill of Entry is filed against, the CFS it is delivered from), the cargo
-      as one line across, then what the consignee has to do to take delivery.
+      Who it concerns down the left — the notify party (the consignee's
+      broker), the consignee and the shipper, each with address and GSTIN —
+      and the job, its IGM and the shipment down the right; the cargo ruled
+      across, a line a box; then what to do to take delivery, our bank account
+      beside the signature.
 
-      Most of the right-hand column is optional: a job's notice prints what its
-      booking holds and leaves the rest out, rather than a column of TBD.
+      Most of the right is optional: a job's notice prints what the job holds
+      and leaves the rest out, rather than a column of TBD.
     */
     id: "arrival-notice",
     title: "CARGO ARRIVAL NOTICE",
     shortName: "Arrival notice",
-    purpose: "Tells the consignee the cargo has arrived and what is owed before release.",
+    purpose: "Tells the consignee the cargo is arriving, and what to bring and pay to take delivery.",
     issuer: "desk",
     numberPrefix: "AN",
     requires: ["blNumber", "consigneeName", "destination", "etaDate"],
-    // The parties are the left column's boxes, below, not the usual pair.
     parties: false,
-    layout: "split",
+    layout: "order",
     sections: [
       {
-        title: "Notify party (CHA / broker)",
+        title: "Notify party",
         place: "left",
-        rows: [
-          { label: "Name", value: (d) => d.notifyName, bare: true, optional: true },
-          { label: "Address", value: (d) => d.notifyAddress, bare: true, optional: true },
-          { label: "GSTIN", value: (d) => gstin(d.notifyGstin), optional: true },
-        ],
+        rows: [{ label: "Notify party", value: (d) => party(d.notifyName, d.notifyAddress, gstinLine(d.notifyGstin)), bold: true, optional: true }],
       },
       {
         title: "Consignee",
         place: "left",
-        rows: [
-          { label: "Name", value: (d) => d.consigneeName, bare: true },
-          { label: "Address", value: (d) => d.consigneeAddress, bare: true },
-          { label: "Country", value: (d) => d.consigneeCountry, bare: true, optional: true },
-          { label: "GSTIN", value: (d) => gstin(d.consigneeGstin), optional: true },
-        ],
+        rows: [{ label: "Consignee", value: (d) => party(d.consigneeName, d.consigneeAddress, gstinLine(d.consigneeGstin)), bold: true }],
       },
       {
         title: "Shipper",
         place: "left",
         rows: [
-          { label: "Name", value: (d) => d.shipperName, bare: true },
-          { label: "Address", value: (d) => d.shipperAddress, bare: true, optional: true },
+          { label: "Shipper", value: (d) => party(d.shipperName, d.shipperAddress), bold: true },
+          { label: "Sales ref", value: (d) => d.salesRef, optional: true },
+        ],
+      },
+      {
+        title: "Job",
+        place: "right",
+        rows: [
+          { label: "Job ref no", value: (d) => (d.reference === "TBD" ? undefined : numberAndDate(d.reference, d.jobDate)), bold: true },
+          { label: "Invoice ref", value: (d) => d.invoiceRef, optional: true },
+          { label: "IGM no / date", value: (d) => numberAndDate(d.igmNumber, d.igmDate), optional: true },
+          { label: "From", value: (d) => d.originAgent, optional: true },
         ],
       },
       {
         title: "Shipment details",
         place: "right",
         rows: [
-          { label: "House B/L", value: (d) => numberAndDate(d.blNumber, d.blDate) },
-          { label: "Service", value: (d) => d.serviceType, optional: true },
-          { label: "Master B/L (OBL)", value: (d) => numberAndDate(d.masterBlNumber, d.masterBlDate), optional: true },
-          { label: "Booking number", value: (d) => d.bookingNumber, optional: true },
+          { label: "PO no", value: (d) => d.poNumber, optional: true },
+          { label: "HBL no / date", value: (d) => numberAndDate(d.blNumber, d.blDate) },
           { label: "Vessel / voyage", value: vesselVoyage, optional: true },
-          { label: "Carrier", value: (d) => d.carrier, optional: true },
+          { label: "Booking no", value: (d) => d.bookingNumber, optional: true },
+          { label: "Service", value: (d) => d.serviceType, optional: true },
+          { label: "OBL no / date", value: (d) => numberAndDate(d.masterBlNumber, d.masterBlDate), optional: true },
           { label: "Origin", value: (d) => d.origin, optional: true },
           { label: "Port of loading", value: (d) => d.portOfLoading, optional: true },
           { label: "Port of discharge", value: (d) => d.destination },
           { label: "ETA", value: (d) => d.etaDate },
           { label: "Final destination", value: (d) => d.finalDestination, optional: true },
-          { label: "ETA at final destination", value: (d) => d.finalEtaDate, optional: true },
-          { label: "IGM", value: igm, optional: true },
-          { label: "IGM item", value: igmItem, optional: true },
-          {
-            label: "Delivery from (CFS / warehouse)",
-            value: (d) => [d.cfsName, d.cfsAddress].filter(Boolean).join("\n") || undefined,
-            optional: true,
-            wide: true,
-          },
+          { label: "ETA (final dest.)", value: (d) => d.finalEtaDate, optional: true },
+          { label: "Warehouse (CFS)", value: (d) => party(d.cfsName, d.cfsAddress), optional: true },
+          { label: "ETA (CFS)", value: (d) => d.cfsEtaDate, optional: true },
+          { label: "Auth. B/L", value: (d) => numberAndDate(d.authBlNumber, d.authBlDate), optional: true },
           { label: "Freight", value: (d) => d.freightTerms, optional: true },
-          { label: "Free time per box", value: (d) => d.freeTimeText, optional: true },
-          { label: "PO number", value: (d) => d.poNumber, optional: true },
-          { label: "Invoice reference", value: (d) => d.invoiceRef, optional: true },
-          { label: "Sales reference", value: (d) => d.salesRef, optional: true },
+          { label: "Item no", value: (d) => d.igmItemNo, optional: true },
+          { label: "Sub item no", value: (d) => d.igmSubItemNo, optional: true },
+          { label: "Carrier", value: (d) => d.carrier, optional: true },
+          { label: "Free time", value: (d) => d.freeTimeText, optional: true },
         ],
       },
       {
+        // A line a box; the marks and the description, the bill's, on the first.
         title: "Cargo",
         place: "table",
+        each: boxes,
         rows: [
-          // Optional, so a job's notice (whose booking holds neither) leaves the cells blank rather than TBD.
-          { label: "Marks & numbers", value: (d) => d.marksNumbers, width: 24, optional: true },
-          {
-            label: "Description",
-            value: (d) => [d.cargoDescription, d.hsCode && `HS ${d.hsCode}`].filter(Boolean).join("\n") || undefined,
-            width: 44,
-          },
-          {
-            label: "Container",
-            value: (d) => (d.containerId ? [d.containerId, d.containerType].filter(Boolean).join(" - ") : d.containerType),
-            width: 32,
-          },
-          { label: "Seal", value: (d) => d.sealNumber, width: 22, optional: true },
-          {
-            label: "Packages",
-            value: (d) => (d.packageCount !== undefined ? `${d.packageCount} ${d.packageType ?? ""}`.trim() : undefined),
-            width: 20,
-            align: "right",
-          },
-          { label: "Gross kg", value: (d) => three(d.grossWeightKg), width: 19, align: "right" },
-          { label: "CBM", value: (d) => three(d.volumeCbm), width: 17, align: "right" },
+          { label: "Marks & numbers", value: (d) => d.marksNumbers, width: 1.5, optional: true, firstOnly: true },
+          { label: "Description", value: (d) => [d.cargoDescription, d.hsCode && `HS ${d.hsCode}`].filter(Boolean).join("\n") || undefined, width: 2, firstOnly: true },
+          { label: "Container", value: box, width: 1.9 },
+          { label: "Seal", value: (d) => d.sealNumber, width: 1.45, optional: true },
+          { label: "Pkgs", value: pkgs, width: 1.1, total: pkgsTotal },
+          { label: "Weight (kgs)", value: (d) => three(d.grossWeightKg), width: 1.1, align: "right", total: (ls) => sum(ls.map((l) => l.grossWeightKg)) },
+          { label: "Volume (CBM)", value: (d) => three(d.volumeCbm), width: 0.95, align: "right", optional: true, total: (ls) => sum(ls.map((l) => l.volumeCbm)) },
         ],
-      },
-      {
-        // Under the parties, where the left column has room the right does not use.
-        title: "Payable before release",
-        place: "left",
-        rows: [{ label: "Freight and charges", value: (d) => money(d, d.freightAmountInr) }],
       },
     ],
     notes: {
-      title: "To take delivery",
+      title: "",
       lead: (d) =>
         d.etaDate
           ? `${d.vessel ? `The vessel ${d.vessel}${d.voyage ? ` (voyage ${d.voyage})` : ""}` : "The vessel"} is expected to arrive on or about ${d.etaDate} at ${d.destination ?? "the port of discharge"}.`
           : undefined,
-      // The same list the import desk's arrival mail sends (lib/arrivalNotice),
-      // for the way the house bill is released and whether freight is collect.
+      // As the line's notice words it; the release as the house bill is released (lib/arrivalNotice).
       lines: (d) => {
         const needs = deliveryNeeds({ release: d.releaseMode ?? null, freightCollect: d.freightTerms === "Collect" });
         return [
-          // Not said how it is released: not assumed to need an original.
-          d.releaseMode ? needs[0] : "The house B/L as released to you: the original, duly endorsed, or our confirmation of its telex release",
-          `${needs[1]}, payable to ${COMPANY.legalName} (PAN ${PAN})`,
-          ...(d.freightTerms === "Collect" ? ["A freight certificate on your letterhead, for the assessable value"] : []),
-          needs[2],
-          needs[3],
+          d.releaseMode === "original" || !d.releaseMode
+            ? `Kindly submit the original bill of lading, duly endorsed${d.releaseMode ? "" : ", or our confirmation of its telex release"}, to release the shipment.`
+            : `${needs[0]}.`,
+          `Payment of ${d.freightTerms === "Collect" ? "the freight (collect) and " : ""}our delivery order charges should be by NEFT / RTGS to the account below, or by demand draft or pay order favouring ${COMPANY.legalName} (PAN ${PAN}).`,
+          "We wish to advise you that your consignment is coming forward as per the subject vessel. We send this notice so that you can make all arrangements for speedy clearance of the cargo on its arrival, and avoid port demurrage and container detention charges. The delivery order is issued from our office against the release above, after payment of the relevant charges.",
+          "Please send your KYC documents and an authorisation letter for your customs broker (CHA), who files the Bill of Entry once the IGM is filed. Our freight certificate, for the assessable value, is on the next page.",
+          "We thank you for using our services, and assure you of our best attention at all times.",
         ];
       },
     },
+    bank: true,
     declaration:
-      "Free time runs from discharge; demurrage, detention and storage beyond it are at the carrier's and the CFS's tariff. Duties, taxes, port dues, storage and detention are to the consignee's account. Cargo not cleared within thirty days of landing may be sold under section 48 of the Customs Act, 1962.",
+      "Cargo remaining undelivered for 30 days from the date of arrival will be listed for auction and duly auctioned on completion of Customs and CFS formalities (section 48 of the Customs Act, 1962). Free time runs from discharge; demurrage, detention and storage beyond it are at the carrier's and the CFS's tariff, and duties, taxes and port dues are to the consignee's account.",
+    appendix: FREIGHT_CERTIFICATE,
   },
   {
+    /*
+      The delivery order, set out as the line's (QDWJ26093202) is and closed
+      as the tax invoice is: no boxes, one page (layout "order").
+      ------------------------------------------------------------------------
+      To the CFS's manager, with the party to deliver to, the consignee, its
+      IEC, the notify party and the CHA down the left; the order's number,
+      date and validity, then the vessel, the two bills, the ports, the ETA,
+      the IGM line and the TSA down the right. The boxes ruled across, a line
+      each; the marks and the description under them; the signature; and at
+      the foot, that it is subject to the relative B/L.
+    */
     id: "delivery-order",
     title: "DELIVERY ORDER",
     shortName: "Delivery order",
-    purpose: "Authorises the terminal to release the container to the consignee.",
+    purpose: "Authorises the CFS to deliver the cargo to the consignee, or to its CHA.",
     issuer: "desk",
     numberPrefix: "DO",
     requires: ["blNumber", "consigneeName", "containerId", "destination"],
-    parties: true,
+    parties: false,
+    layout: "order",
     sections: [
       {
-        title: "Release",
+        title: "Attention",
+        place: "left",
         rows: [
-          { label: "B/L number", value: (d) => d.blNumber },
-          { label: "Master B/L", value: (d) => d.masterBlNumber, optional: true },
-          { label: "Release to", value: (d) => d.consigneeName },
-          { label: "Vessel / voyage", value: vesselVoyage, optional: true },
-          { label: "IGM", value: igm, optional: true },
-          { label: "Container number", value: (d) => d.containerId },
-          { label: "Container type", value: (d) => d.containerType },
-          { label: "Place of delivery", value: (d) => d.destination },
-          { label: "Delivery from (CFS)", value: (d) => d.cfsName, optional: true },
+          { label: "Attention to", value: (d) => (d.cfsName ? ["The Manager", d.cfsName, d.cfsAddress].filter(Boolean).join("\n") : undefined) },
         ],
       },
-      { title: "Cargo", rows: CARGO_ROWS },
+      {
+        title: "Deliver to",
+        place: "left",
+        rows: [
+          // The consignee, unless another — its CHA — is named to take it.
+          { label: "Please deliver to", value: (d) => d.deliverTo ?? d.consigneeName, bold: true },
+          { label: "Consignee", value: (d) => (d.consigneeName ? [d.consigneeName, d.consigneeAddress].filter(Boolean).join("\n") : undefined), bold: true },
+          { label: "IEC / type", value: (d) => [d.consigneeIec, d.consigneeIecType].filter(Boolean).join(" / ") || undefined, optional: true },
+          { label: "Notify party", value: (d) => d.notifyName, optional: true },
+          { label: "CHA", value: (d) => d.chaName, optional: true },
+        ],
+      },
+      {
+        title: "Order",
+        place: "right",
+        rows: [
+          { label: "DO number", value: (d) => `DO-${d.documentNumber}`, bold: true },
+          { label: "Date", value: (d) => d.doDate ?? issuedToday() },
+          { label: "Valid until", value: (d) => d.doValidity, optional: true },
+        ],
+      },
+      {
+        title: "Shipment",
+        place: "right",
+        rows: [
+          { label: "Vessel / voyage", value: vesselVoyage },
+          { label: "Master B/L", value: (d) => numberAndDate(d.masterBlNumber, d.masterBlDate), optional: true },
+          { label: "House B/L", value: (d) => numberAndDate(d.blNumber, d.blDate) },
+          { label: "Port of loading", value: (d) => d.portOfLoading ?? d.origin },
+          { label: "Port of discharge", value: (d) => d.destination },
+          { label: "ETA", value: (d) => d.etaDate },
+          { label: "IGM no / date", value: (d) => numberAndDate(d.igmNumber, d.igmDate), optional: true },
+          { label: "Item / line no", value: (d) => d.igmItemNo, optional: true },
+          { label: "Sub item / line no", value: (d) => d.igmSubItemNo, optional: true },
+          { label: "TSA no", value: (d) => d.tsaNumber, optional: true },
+          { label: "Unstuff place", value: (d) => d.cfsName, optional: true },
+        ],
+      },
+      {
+        // A line per box: the job's boxes (032), or the one the fields describe.
+        title: "Containers",
+        place: "table",
+        each: boxes,
+        rows: [
+          { label: "Container no", value: box, width: 2.3 },
+          { label: "LCL / FCL", value: (d) => d.serviceType, optional: true, width: 0.8 },
+          { label: "Unstuff date", value: (d) => d.unstuffDate, optional: true, width: 1.1 },
+          { label: "No of pkgs", value: pkgs, width: 1.5, total: pkgsTotal },
+          { label: "Weight in kgs", value: (d) => three(d.grossWeightKg), width: 1.1, align: "right", total: (ls) => sum(ls.map((l) => l.grossWeightKg)) },
+          { label: "Volume (CBM)", value: (d) => three(d.volumeCbm), optional: true, width: 1, align: "right", total: (ls) => sum(ls.map((l) => l.volumeCbm)) },
+        ],
+      },
+      {
+        title: "Cargo",
+        place: "below",
+        rows: [
+          { label: "Marks & Nos", value: (d) => d.marksNumbers },
+          { label: "Description", value: (d) => d.cargoDescription },
+        ],
+      },
     ],
     declaration:
-      "Please release the container described above to the named party against surrender of this order. Valid only when all charges are settled and customs clearance is complete.",
+      "Please deliver the cargo described above to the party named, against surrender of this order, once all charges are settled and customs clearance is complete.",
+    footnote: "This Delivery Order is subject to the terms and conditions of the relative B/L.",
   },
 
   // ------------------------------------------------------------------ closing
@@ -500,42 +649,9 @@ export const DOCUMENTS: DocSpec[] = [
       },
     ],
   },
-  {
-    id: "freight-invoice",
-    title: "FREIGHT INVOICE",
-    shortName: "Freight invoice",
-    purpose: "What the customer owes us for the forwarding service.",
-    issuer: "desk",
-    numberPrefix: "FI",
-    requires: ["origin", "destination"],
-    // The freight as one figure, or the charges line by line with a rate on each.
-    check: (d) => (d.charges?.length ? chargesOutstanding(d) : d.freightAmountInr === undefined ? [labelFor("freightAmountInr")] : []),
-    parties: false,
-    sections: [
-      {
-        title: "Billed to",
-        rows: [
-          { label: "Customer", value: (d) => d.company ?? d.customerName },
-          { label: "GSTIN / IEC", value: (d) => d.shipperGstinIec },
-          { label: "Contact", value: (d) => d.phone },
-        ],
-      },
-      {
-        title: "Shipment",
-        rows: [
-          { label: "Route", value: route },
-          { label: "B/L number", value: (d) => d.blNumber },
-          { label: "Container", value: (d) => d.containerType },
-          // Itemised, the lines below say it; the one figure as well would be counting it twice.
-          { label: "Ocean freight", value: (d) => (d.charges?.length ? undefined : money(d, d.freightAmountInr)), optional: true },
-          { label: "Payment terms", value: (d) => d.paymentTerms },
-        ],
-      },
-    ],
-    charges: { title: "Charges" },
-    declaration:
-      "Payable per the terms stated. Local charges, duties and taxes at destination are payable by the consignee unless the Incoterm provides otherwise.",
-  },
+  // The proforma, then the tax invoice: the same paper, laid out as the line's e-invoice (lib/documents/invoice).
+  PROFORMA_INVOICE,
+  TAX_INVOICE,
   {
     id: "proof-of-delivery",
     title: "PROOF OF DELIVERY",

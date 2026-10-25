@@ -18,11 +18,13 @@ import {
   type DocSpec,
   type DocumentData,
 } from "../lib/documents";
+import { renderDocument } from "../lib/documents/render";
 import { useAuth } from "../lib/auth";
 import { AUDIENCE_WORD, audienceOf, documentMailBody, documentMailSubject, documentSentSummary, recipientsFor } from "../lib/documentMail";
 import { failureText } from "../lib/errorText";
 import type { MailMessage } from "../services/backend";
 import { threadWith } from "../services/customerThread";
+import { numberedInvoice } from "../services/invoiceNumbers";
 import { logEvent, partiesFor, type Customer } from "../services/enquiries";
 import ComposeMail from "./ComposeMail";
 
@@ -44,6 +46,8 @@ export interface DocumentMail {
 
 interface Composing {
   spec: DocSpec;
+  /** The record as it went into the mail: with the tax invoice's number, where it was given one. */
+  data: DocumentData;
   ready: boolean;
   missing: string[];
   to: Array<{ address: string; name: string | null }>;
@@ -63,13 +67,19 @@ interface Composing {
  * customer to chase the missing details, so refusing to produce it would remove the tool
  * that closes the gap.
  */
+/** Today in India, as the database dates an invoice. */
+const todayIst = () => new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+
 export default function DocumentsPanel({
   data,
   defaultOpen = false,
   onFillDetails,
+  onNumbered,
   mail,
 }: {
   data: DocumentData;
+  /** A tax invoice was given its number as it was made: the record is read again, so the list shows it. */
+  onNumbered?: () => void;
   /** Given, each document can be sent from here, from the person's own mailbox (6 Oct). */
   mail?: DocumentMail;
   /** Open on a shipment page, where documents are the point; collapsed in a list row. */
@@ -93,6 +103,54 @@ export default function DocumentsPanel({
   const [compose, setCompose] = useState<Composing | null>(null);
   const [sent, setSent] = useState<Record<string, string>>({});
   const [mailError, setMailError] = useState<string | null>(null);
+  /** Which document is being numbered before it is made, and what went wrong if it could not be. */
+  const [numbering, setNumbering] = useState<string | null>(null);
+  const [numberError, setNumberError] = useState<{ id: string; text: string } | null>(null);
+
+  /**
+   * The record a document is made from: as it is, or for a tax invoice not yet
+   * numbered, with its B/L's number — the next in the series, when nothing
+   * else is outstanding (141).
+   */
+  async function made(spec: DocSpec): Promise<DocumentData> {
+    if (!spec.number || spec.number(data) || !data.blNumber) return data;
+    setNumbering(spec.id);
+    setNumberError(null);
+    try {
+      const d = await numberedInvoice(data, todayIst());
+      if (d !== data) onNumbered?.();
+      return d;
+    } finally {
+      setNumbering(null);
+    }
+  }
+
+  /** Read in a tab; a tax invoice numbered first, in a tab opened now so the pop-up blocker lets it through. */
+  async function view(spec: DocSpec) {
+    if (!spec.number || spec.number(data) || !data.blNumber) {
+      if (!viewDocument(spec, data)) setBlocked(spec.id);
+      return;
+    }
+    const tab = window.open("", "_blank");
+    if (!tab) return setBlocked(spec.id);
+    tab.opener = null;
+    try {
+      const url = renderDocument(spec, await made(spec)).output("bloburl") as unknown as string;
+      tab.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      tab.close();
+      setNumberError({ id: spec.id, text: failureText(e, "The invoice could not be numbered.").message });
+    }
+  }
+
+  async function generate(spec: DocSpec) {
+    try {
+      generateDocument(spec, await made(spec));
+    } catch (e) {
+      setNumberError({ id: spec.id, text: failureText(e, "The invoice could not be numbered.").message });
+    }
+  }
 
   /**
    * Opens the mail: addressed to whom the document is for, into the
@@ -103,6 +161,7 @@ export default function DocumentsPanel({
     setOpening(spec.id);
     setMailError(null);
     try {
+      const d = await made(spec);
       const parties = await partiesFor(mail.enquiryRef).catch(() => []);
       const to = recipientsFor(audienceOf(spec), {
         customer: mail.customer ? { name: mail.customer.name, company: mail.customer.company, emails: mail.customer.emails ?? [] } : null,
@@ -110,7 +169,7 @@ export default function DocumentsPanel({
         parties,
       });
       const replyTo = to.length ? await threadWith(mail.enquiryRef, session?.email ?? "", to.map((t) => t.address)).catch(() => null) : null;
-      setCompose({ spec, ready, missing, to, replyTo });
+      setCompose({ spec, data: d, ready, missing, to, replyTo });
     } catch (e) {
       setMailError(failureText(e, "The mail could not be opened.").message);
     } finally {
@@ -186,6 +245,17 @@ export default function DocumentsPanel({
                     {have} of {need} — needs: {missingLabels.join(", ")}
                   </p>
                 )}
+                {spec.number &&
+                  (spec.number(data) ? (
+                    <p className="mt-1 text-[12px] text-text-secondary">
+                      Numbered <span className="font-mono text-text-primary">{spec.number(data)}</span>
+                    </p>
+                  ) : (
+                    ready && (
+                      <p className="mt-1 text-[12px] text-text-muted">Takes the next number in the ALG series when it is viewed, generated or sent.</p>
+                    )
+                  ))}
+                {numberError?.id === spec.id && <p className="mt-1 text-[12px] text-text-danger">{numberError.text}</p>}
                 {blocked === spec.id && (
                   <p className="mt-1 text-[12px] text-text-danger">
                     Your browser blocked the new tab. Allow pop-ups for this site, or use Generate.
@@ -203,24 +273,24 @@ export default function DocumentsPanel({
               {/* Reading and keeping are different acts. View opens it; Generate
                   puts a copy on the machine. Most checks want the first. */}
               <button
-                onClick={() => {
-                  if (!viewDocument(spec, data)) setBlocked(spec.id);
-                }}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
+                onClick={() => void view(spec)}
+                disabled={numbering === spec.id}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary disabled:opacity-60"
               >
                 <Eye size={13} />
                 View
               </button>
 
               <button
-                onClick={() => generateDocument(spec, data)}
-                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors ${
+                onClick={() => void generate(spec)}
+                disabled={numbering === spec.id}
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors disabled:opacity-60 ${
                   ready
                     ? "bg-brand text-white hover:bg-brand-dark"
                     : "border border-border text-text-secondary hover:border-border-strong hover:text-text-primary"
                 }`}
               >
-                <FileDown size={13} />
+                {numbering === spec.id ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
                 {ready ? "Generate" : "Draft"}
               </button>
 
@@ -267,12 +337,12 @@ export default function DocumentsPanel({
           }
           initial={{
             to: compose.to.map((t) => t.address).join(", "),
-            subject: compose.replyTo ? undefined : documentMailSubject(compose.spec, data, compose.ready),
-            body: documentMailBody(compose.spec, data, { ready: compose.ready, missing: compose.missing, to: compose.to[0] ?? { name: null, address: null } }),
+            subject: compose.replyTo ? undefined : documentMailSubject(compose.spec, compose.data, compose.ready),
+            body: documentMailBody(compose.spec, compose.data, { ready: compose.ready, missing: compose.missing, to: compose.to[0] ?? { name: null, address: null } }),
           }}
           // The PDF goes with it, as View shows it — a draft stamped as one.
-          attachments={[documentBytes(compose.spec, data)]}
-          attachables={[{ id: compose.spec.id, label: `${compose.spec.shortName} (PDF)`, make: () => documentBytes(compose.spec, data) }]}
+          attachments={[documentBytes(compose.spec, compose.data)]}
+          attachables={[{ id: compose.spec.id, label: `${compose.spec.shortName} (PDF)`, make: () => documentBytes(compose.spec, compose.data) }]}
           onClose={() => setCompose(null)}
           onSent={({ to }) => {
             const c = compose;

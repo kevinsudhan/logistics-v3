@@ -35,7 +35,8 @@ export const AUDIENCE: Record<string, Audience> = {
   "arrival-notice": "consignee",
   "delivery-order": "consignee",
   "commercial-invoice": "customer",
-  "freight-invoice": "customer",
+  "proforma-invoice": "customer",
+  "tax-invoice": "customer",
   "proof-of-delivery": "customer",
 };
 
@@ -54,7 +55,8 @@ const ASK: Record<string, string> = {
   "arrival-notice": "Your cargo is due to arrive as shown. Kindly arrange the clearance, and contact us for the delivery order.",
   "delivery-order": "Please present it to take delivery of the cargo.",
   "commercial-invoice": "Kindly check it before the shipping bill is filed.",
-  "freight-invoice": "Kindly arrange the payment by the due date.",
+  "proforma-invoice": "Kindly confirm the charges, or arrange the advance, so the tax invoice can follow.",
+  "tax-invoice": "Kindly arrange the payment by the due date.",
   "proof-of-delivery": "It confirms the delivery of your cargo.",
 };
 

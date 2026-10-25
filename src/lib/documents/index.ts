@@ -9,6 +9,7 @@ import {
   readiness,
 } from "./data";
 import { renderDocument } from "./render";
+import { outstanding } from "./invoice";
 import { renderQuotationPdf, type QuotationPdfInput } from "./quotation";
 import { quotationFileName } from "../quoteRevision";
 import type { DocSpec, DocumentData } from "./types";
@@ -54,9 +55,17 @@ export function viewDocument(spec: DocSpec, data: DocumentData): boolean {
   return Boolean(tab);
 }
 
-/** Readiness for every document against one record, for the UI list. */
+/**
+ * Readiness for every document against one record, for the UI list. A tax
+ * invoice with a B/L is not waiting on its number: it is given one as it is
+ * made (lib/documents/invoice).
+ */
 export function documentStatuses(data: DocumentData) {
-  return DOCUMENTS.map((spec) => ({ spec, ...readiness(data, spec.requires, spec.check) }));
+  return DOCUMENTS.map((spec) => {
+    const r = readiness(data, spec.requires, spec.check);
+    const missingLabels = outstanding(spec, data, r.missingLabels);
+    return { spec, ...r, missingLabels, ready: missingLabels.length === 0, need: r.need - (r.missingLabels.length - missingLabels.length) };
+  });
 }
 
 /**

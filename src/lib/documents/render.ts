@@ -67,18 +67,19 @@ const TBD = "TBD";
  * real B/L, and each section under a tinted header bar. The structure is doing
  * the same job the printed forms these replace have always done.
  *
- * A document declared `layout: "split"` (the cargo arrival notice) is drawn in
- * two columns instead — its parties boxed down the left, its details in a grid
- * on the right, its cargo as a table across, and what the consignee must do
- * beside the terms and the signature — because that is how the people who
- * receive one expect to find things on it, and because it puts a CAN with
- * every particular filled in on one page.
- *
  * A document declared `layout: "invoice"` (the freight invoice and its
  * proforma) is drawn as a GST invoice to the trade, without boxes: label and
  * value in two columns, the charges ruled with the tax on each line and their
  * totals, then the tax by SAC, the terms, and our bank details beside the
  * signature — always on the one page (onOnePage).
+ *
+ * A document declared `layout: "order"` (the delivery order, the cargo arrival
+ * notice) is drawn in the same closed style and kept to its page the same way:
+ * its particulars in the two columns, its boxes ruled across under them, the
+ * marks and description the width of the page, its notes, the declaration and
+ * the signature (our bank account beside it on a notice), its footnote at the
+ * foot of the page — then any page of its own after it, the notice's freight
+ * certificate, and the reference line on each.
  * ---------------------------------------------------------------------------
  */
 
@@ -147,6 +148,13 @@ const FITS: Fit[] = [
 
 export function renderDocument(spec: DocSpec, data: DocumentData): jsPDF {
   if (spec.layout === "invoice") return onOnePage(spec, data);
+  if (spec.layout === "order") {
+    const doc = onOnePage(spec, data);
+    // Its own page after it, at its own size: the arrival notice's freight certificate.
+    if (spec.appendix) draw(spec.appendix, data, FITS[0], doc);
+    drawReference(doc, spec, data);
+    return doc;
+  }
   let doc: jsPDF | null = null;
   for (const fit of FITS) {
     const drawn = draw(spec, data, fit);
@@ -161,6 +169,9 @@ const LEAST_ROWS = 0.3;
 
 /** How far down an invoice's page it may run: it has no footer, so nearer the foot than other documents. */
 const INVOICE_LIMIT = PAGE_H - 18;
+/** A delivery order's: clear of the line at its foot (drawFootnote). */
+const ORDER_LIMIT = PAGE_H - 22;
+const limitOf = (spec: DocSpec) => (spec.layout === "order" ? ORDER_LIMIT : INVOICE_LIMIT);
 
 /**
  * An invoice is one page, however many charges it has.
@@ -186,9 +197,12 @@ const INVOICE_LIMIT = PAGE_H - 18;
  */
 function onOnePage(spec: DocSpec, data: DocumentData): jsPDF {
   const fits = (doc: jsPDF) => doc.getNumberOfPages() === 1;
+  const limit = limitOf(spec);
   /** Drawn again with the room it left given to the table; as it was, should that ever not fit. */
   const settle = (fit: Fit, drawn: { doc: jsPDF; end: number }) => {
-    const room = INVOICE_LIMIT - drawn.end - 1;
+    // A delivery order's signature stays under what it signs; only an invoice's table takes the room.
+    if (spec.layout !== "invoice") return drawn.doc;
+    const room = limit - drawn.end - 1;
     if (room < 0.5) return drawn.doc;
     const settled = draw(spec, data, { ...fit, stretch: room }).doc;
     return fits(settled) ? settled : drawn.doc;
@@ -219,7 +233,7 @@ function onOnePage(spec: DocSpec, data: DocumentData): jsPDF {
     return settle(best.fit, best.drawn);
   }
   const { end } = draw(spec, data, { ...crowded, rows: LEAST_ROWS, scale: 1 });
-  return draw(spec, data, { ...crowded, rows: LEAST_ROWS, scale: Math.min(1, (INVOICE_LIMIT - MARGIN) / (end - MARGIN)) }).doc;
+  return draw(spec, data, { ...crowded, rows: LEAST_ROWS, scale: Math.min(1, (limit - MARGIN) / (end - MARGIN)) }).doc;
 }
 
 /**
@@ -242,13 +256,45 @@ const rawWrite = (doc: jsPDF, ...ops: string[]) => (doc.internal as unknown as {
 
 type Colour = [number, number, number];
 
-function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPushed: boolean; end: number } {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+/** Our bank account, as an invoice and an arrival notice print it (bankBox). */
+const BANK: Array<[string, string]> = [
+  ["A/c name", COMPANY.bank.accountName],
+  ["Bank", COMPANY.bank.bank],
+  ["A/c no.", COMPANY.bank.accountNo],
+  ["IFSC", COMPANY.bank.ifsc],
+];
+const BANK_LINE = 3.8;
+const BANK_H = 6.4 + BANK.length * BANK_LINE + 0.6;
+
+/**
+ * The reference line at the foot of each page of a closed document, as the
+ * trade's papers carry it: its number, the day it was printed and by whom, and
+ * which page of how many.
+ */
+function drawReference(doc: jsPDF, spec: DocSpec, data: DocumentData) {
+  const pages = doc.getNumberOfPages();
+  const by = data.preparedBy ? ` by ${data.preparedBy}` : "";
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.6);
+    doc.setTextColor(FAINT[0], FAINT[1], FAINT[2]);
+    doc.text(`Ref: ${documentNo(spec, data)} on ${issuedToday()}${by}`, MARGIN, PAGE_H - 7);
+    doc.text(`Page ${p} of ${pages}`, PAGE_W - MARGIN, PAGE_H - 7, { align: "right" });
+  }
+}
+
+/** Draws a document on a new jsPDF, or `into` one already drawn, on a page of its own after it (an appendix). */
+function draw(spec: DocSpec, data: DocumentData, fit: Fit, into?: jsPDF): { doc: jsPDF; signPushed: boolean; end: number } {
+  const doc = into ?? new jsPDF({ unit: "mm", format: "a4" });
+  if (into) into.addPage();
   const zoomed = fit.scale !== undefined && fit.scale < 1;
   if (zoomed) zoom(doc, fit.scale!);
   const { ready, missingLabels } = readiness(data, spec.requires, spec.check);
-  const split = spec.layout === "split";
   const invoice = spec.layout === "invoice";
+  const order = spec.layout === "order";
+  /** Drawn closed, as an invoice to the trade is: the title centred over label-and-value columns, no bands or boxes. */
+  const closed = invoice || order;
   const signs = spec.issuer === "desk";
 
   const set = (c: Colour) => doc.setTextColor(c[0], c[1], c[2]);
@@ -256,7 +302,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
   const stroke = (c: Colour) => doc.setDrawColor(c[0], c[1], c[2]);
 
   // Laid out to be scaled onto one page: never broken over two.
-  const LIMIT = fit.scale !== undefined ? Infinity : invoice ? INVOICE_LIMIT : FOOTER_Y - 6;
+  const LIMIT = fit.scale !== undefined ? Infinity : closed ? limitOf(spec) : FOOTER_Y - 6;
   let y = MARGIN;
   /** Whether the signature went over to a new page: worth drawing again, tighter. */
   let signPushed = false;
@@ -334,12 +380,12 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     quotation or a bill of lading changes what every field below it means — and
     at 13pt bold on white it carried no more weight than a section heading.
 
-    An invoice's is centred and underlined over its particulars instead, as an
-    invoice to the trade sets it.
+    An invoice's, and a delivery order's, is centred and underlined over its
+    particulars instead, as an invoice to the trade sets it.
   */
   const TITLE_H = 11;
   doc.setFont("helvetica", "bold");
-  if (invoice) {
+  if (closed) {
     doc.setFontSize(13);
     set(INK);
     doc.text(spec.title, PAGE_W / 2, y + 5.4, { align: "center" });
@@ -363,7 +409,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
 
   // Which copy of a tax invoice this is, at the right of its title, as the e-invoice marks it: ORIGINAL.
   let copyW = 0;
-  const copy = invoice ? data.invoice?.copy : undefined;
+  const copy = spec.copies ? data.invoice?.copy : undefined;
   if (copy) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
@@ -379,7 +425,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     const w = doc.getTextWidth(label) + 7;
-    const top = invoice ? y + 1 : y + 2.6;
+    const top = closed ? y + 1 : y + 2.6;
     const right = PAGE_W - MARGIN - copyW;
     fill([250, 235, 215]);
     stroke(WARN);
@@ -390,7 +436,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     doc.setLineWidth(0.2);
   }
   // Never so tight that the line under the band touches it: below 4 mm "Document no" ran into the title.
-  y += invoice ? (fit.close ? 10 : 12) : TITLE_H + Math.max(4, 5 * fit.gap);
+  y += closed ? (fit.close ? 10 : 12) : TITLE_H + Math.max(4, 5 * fit.gap);
 
   // ------------------------------------------------------------- meta strip
   /*
@@ -398,7 +444,8 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     ------------------------------------------------------------------------
     They were four sentences ("Document no: X") which is how a label looks when
     nobody decided where the value goes. Split, they line up and can be scanned.
-    An invoice carries its number and date in its own particulars instead.
+    An invoice and a delivery order carry their number and date in their own
+    particulars instead.
   */
   const metaRows: Array<[string, string, string, string]> = [
     ["Document no", documentNo(spec, data), "Date issued", issuedToday()],
@@ -412,7 +459,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
 
   doc.setFontSize(8.2);
   const midX = MARGIN + CONTENT_W / 2;
-  for (const [k1, v1, k2, v2] of invoice ? [] : metaRows) {
+  for (const [k1, v1, k2, v2] of closed ? [] : metaRows) {
     doc.setFont("helvetica", "normal");
     set(FAINT);
     doc.text(k1, MARGIN, y);
@@ -423,7 +470,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     doc.text(v2, midX + 24, y, { maxWidth: CONTENT_W / 2 - 26 });
     y += 4.6;
   }
-  if (!invoice) y += 4 * fit.gap;
+  if (!closed) y += 4 * fit.gap;
 
   // ---------------------------------------------------------------- parties
   /*
@@ -433,7 +480,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     in the trade is laid out, and a reader who handles these all day finds the
     consignee by looking at the top-right box before reading a word.
   */
-  if (spec.parties && !split) {
+  if (spec.parties) {
     const gap = 5;
     const boxes: Array<[string, string[]]> = [
       ["Shipper / Exporter", [data.shipperName ?? TBD, `GSTIN / IEC: ${data.shipperGstinIec ?? TBD}`]],
@@ -470,10 +517,8 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     y += boxH + 7 * fit.gap;
   }
 
-  if (split) drawSplit();
-
   if (invoice) {
-    drawColumns();
+    drawColumns(["left", "right"]);
     if (data.charges?.length) drawCharges(data.charges);
     drawOutstanding();
     // Without a table to take it, the room left goes above the foot: the signature at the foot of the page all the same.
@@ -484,20 +529,30 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     return { doc, signPushed, end: y };
   }
 
+  if (order) {
+    drawColumns(["left", "right"]);
+    // Then its tables and what is the width of the page, in the order it declares them.
+    for (const section of spec.sections) {
+      if (section.place === "table") drawRuled(section);
+      else if (section.place === "below") drawColumns(["below"], [section]);
+    }
+    drawNotes();
+    drawOutstanding();
+    drawOrderClose();
+    if (zoomed) unzoom(doc);
+    // At the foot of the page at its full size, however small what is above it was set.
+    drawFootnote();
+    return { doc, signPushed, end: y };
+  }
+
   // --------------------------------------------------------------- sections
   const LABEL_W = 46;
-  const bands = spec.sections.filter((s) => !(split && s.place));
+  const bands = spec.sections;
   // The block straight above the signature, when it is a section: what goes over with it.
   const lastBand = bands.filter((s) => shown(s).some(({ value }) => value !== undefined)).pop();
-  const carriesLast = fit.carry && signs && !split && !spec.declaration && !missingLabels.length;
+  const carriesLast = fit.carry && signs && !spec.declaration && !missingLabels.length;
 
   for (const section of spec.sections) {
-    if (split && section.place === "table") {
-      drawTable(section);
-      continue;
-    }
-    if (split && section.place) continue;
-
     // A section whose every row is empty is dropped rather than printed as a
     // wall of TBD — the outstanding list below already says what is missing,
     // and repeating it as ten blank rows buries the rows that do carry
@@ -552,23 +607,17 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     y += 4 * fit.gap;
   }
 
-  if (spec.charges && data.charges?.length && !split) drawCharges(data.charges, spec.charges.title);
+  if (spec.charges && data.charges?.length) drawCharges(data.charges, spec.charges.title);
 
   // The declaration, as the band layout sets it full width.
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7.6);
-  const declLines = spec.declaration && !split ? (doc.splitTextToSize(spec.declaration, CONTENT_W - 4) as string[]) : [];
+  const declLines = spec.declaration ? (doc.splitTextToSize(spec.declaration, CONTENT_W - 4) as string[]) : [];
   const declH = declLines.length ? declLines.length * fit.declLine + 8.5 : 0;
   const SIGN_H = 4 * fit.gap + fit.sign + 7;
 
   // With no declaration, the outstanding list is what the signature carries over with.
-  drawOutstanding((h) => fit.carry && signs && !split && !declLines.length && y > MARGIN && y + h + 6 * fit.gap + SIGN_H >= LIMIT);
-
-  if (split) {
-    drawClosing();
-    drawFooters(doc, data);
-    return { doc, signPushed, end: y };
-  }
+  drawOutstanding((h) => fit.carry && signs && !declLines.length && y > MARGIN && y + h + 6 * fit.gap + SIGN_H >= LIMIT);
 
   // ------------------------------------------------------------ declaration
   if (declLines.length) {
@@ -643,177 +692,6 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       ly += 4;
     }
     y += h + 6 * fit.gap;
-  }
-
-  // ------------------------------------------------------------ split parts
-
-
-  /**
-   * The two columns: the parties boxed down the left, the details in a grid on
-   * the right, both the height of the taller so they read as one band.
-   */
-  function drawSplit() {
-    const LW = 66;
-    const COL_GAP = 4;
-    const RX = MARGIN + LW + COL_GAP;
-    const RW = CONTENT_W - LW - COL_GAP;
-    const STACK = 3;
-    const LINE = 3.7;
-
-    // The left: a box per party, a line per row; the first, the name, in bold.
-    doc.setFontSize(8.2);
-    const lefts = spec.sections
-      .filter((s) => s.place === "left")
-      .map((s) => {
-        const lines = shown(s).flatMap(({ row, value }, i) => {
-          const bold = i === 0 && Boolean(row.bare) && value !== undefined;
-          const text = row.bare ? (value ?? TBD) : `${row.label}: ${value ?? TBD}`;
-          doc.setFont("helvetica", bold ? "bold" : "normal");
-          return text
-            .split("\n")
-            .flatMap((t) => doc.splitTextToSize(t, LW - 7) as string[])
-            .map((t) => ({ t, bold, known: value !== undefined }));
-        });
-        return { title: s.title, lines, h: lines.length ? 10.2 + (lines.length - 1) * LINE + 3 : 0 };
-      })
-      .filter((b) => b.lines.length > 0);
-
-    // The right: label over value, two to a line; a wide one takes the line.
-    const inner = RW - 7;
-    const half = (inner - 4) / 2;
-    type Cell = { label: string; lines: string[]; known: boolean; h: number };
-    const cell = (row: DocRow, value: string | undefined, w: number): Cell => {
-      doc.setFont("helvetica", value === undefined ? "italic" : "bold");
-      doc.setFontSize(7.8);
-      const lines = (value ?? TBD).split("\n").flatMap((t) => doc.splitTextToSize(t, w) as string[]);
-      return { label: row.label, lines, known: value !== undefined, h: 5.4 + (lines.length - 1) * 3.4 + 1.9 };
-    };
-    const rights = spec.sections
-      .filter((s) => s.place === "right")
-      .map((s) => {
-        const grid: Array<{ cells: Cell[]; h: number }> = [];
-        let pending: Cell | null = null;
-        for (const { row, value } of shown(s)) {
-          if (row.wide) {
-            if (pending) grid.push({ cells: [pending], h: pending.h });
-            pending = null;
-            const c = cell(row, value, inner);
-            grid.push({ cells: [c], h: c.h });
-          } else if (pending) {
-            const c = cell(row, value, half);
-            grid.push({ cells: [pending, c], h: Math.max(pending.h, c.h) });
-            pending = null;
-          } else {
-            pending = cell(row, value, half);
-          }
-        }
-        if (pending) grid.push({ cells: [pending], h: pending.h });
-        return { title: s.title, grid, h: grid.length ? 8.2 + grid.reduce((t, g) => t + g.h, 0) + 1 : 0 };
-      })
-      .filter((b) => b.grid.length > 0);
-
-    const total = (bs: Array<{ h: number }>) => bs.reduce((t, b) => t + b.h, 0) + Math.max(0, bs.length - 1) * STACK;
-    const H = Math.max(total(lefts), total(rights));
-    // The shorter column's last box grows to meet the taller, so the two end level.
-    if (lefts.length) lefts[lefts.length - 1].h += H - total(lefts);
-    if (rights.length) rights[rights.length - 1].h += H - total(rights);
-
-    ensure(H + 2);
-    const top = y;
-
-    let ly = top;
-    for (const b of lefts) {
-      box(MARGIN, ly, LW, b.h, b.title);
-      let ty = ly + 10.2;
-      doc.setFontSize(8.2);
-      for (const line of b.lines) {
-        doc.setFont("helvetica", line.bold ? "bold" : line.known ? "normal" : "italic");
-        set(line.known ? INK : FAINT);
-        doc.text(line.t, MARGIN + 3.5, ty);
-        ty += LINE;
-      }
-      ly += b.h + STACK;
-    }
-
-    let ry = top;
-    for (const b of rights) {
-      box(RX, ry, RW, b.h, b.title);
-      let gy = ry + 8.2;
-      b.grid.forEach((g, i) => {
-        g.cells.forEach((c, n) => {
-          const x = RX + 3.5 + (n === 1 ? half + 4 : 0);
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(6);
-          set(MUTED);
-          doc.text(c.label, x, gy + 2.2);
-          doc.setFont("helvetica", c.known ? "bold" : "italic");
-          doc.setFontSize(7.8);
-          set(c.known ? INK : FAINT);
-          let vy = gy + 5.4;
-          for (const line of c.lines) {
-            doc.text(line, x, vy);
-            vy += 3.4;
-          }
-        });
-        gy += g.h;
-        if (i < b.grid.length - 1) {
-          stroke([238, 239, 233]);
-          doc.setLineWidth(0.15);
-          doc.line(RX + 3.5, gy - 0.5, RX + RW - 3.5, gy - 0.5);
-          doc.setLineWidth(0.2);
-        }
-      });
-      ry += b.h + STACK;
-    }
-
-    y = top + H + 5 * fit.gap;
-  }
-
-  /**
-   * A section as a table across the page: its rows are the columns, its values
-   * the one line. The column heads say what it is, so it has no bar of its own.
-   */
-  function drawTable(section: DocSection) {
-    const cols = section.rows.map((row) => ({ row, value: row.value(data) }));
-    if (cols.every(({ value }) => value === undefined)) return;
-
-    const weight = cols.reduce((t, c) => t + (c.row.width ?? 1), 0);
-    const widths = cols.map((c) => ((c.row.width ?? 1) / weight) * CONTENT_W);
-    doc.setFontSize(8);
-    const cells = cols.map(({ row, value }, i) => {
-      doc.setFont("helvetica", value === undefined ? "italic" : "bold");
-      const text = value ?? (row.optional ? "" : TBD);
-      return text.split("\n").flatMap((t) => doc.splitTextToSize(t, widths[i] - 3) as string[]);
-    });
-    const HEAD_H = 6;
-    const cellH = Math.max(...cells.map((c) => c.length)) * 3.7 + 3.2;
-
-    ensure(HEAD_H + cellH + 2);
-
-    let x = MARGIN;
-    cols.forEach(({ row, value }, i) => {
-      const w = widths[i];
-      const right = row.align === "right";
-      fill(TINT);
-      stroke(RULE);
-      doc.setLineWidth(0.2);
-      doc.rect(x, y, w, HEAD_H, "FD");
-      doc.rect(x, y + HEAD_H, w, cellH);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6.8);
-      set(MUTED);
-      doc.text(row.label, right ? x + w - 1.6 : x + 1.6, y + 4, { align: right ? "right" : "left" });
-      doc.setFont("helvetica", value === undefined ? "italic" : "bold");
-      doc.setFontSize(8);
-      set(value === undefined ? FAINT : INK);
-      let ly = y + HEAD_H + 4.3;
-      for (const line of cells[i]) {
-        doc.text(line, right ? x + w - 1.6 : x + 1.6, ly, { align: right ? "right" : "left" });
-        ly += 3.7;
-      }
-      x += w;
-    });
-    y += HEAD_H + cellH + 5 * fit.gap;
   }
 
   /**
@@ -1056,19 +934,24 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
    * no boxes round them. The sections in a column follow one another with a
    * little space between; a value of several lines (a party's name over its
    * address) hangs under its first. Closer set when the page is tight, never smaller.
+   * What is placed "below" (a delivery order's marks and description) is one
+   * column the width of the page.
    */
-  function drawColumns() {
+  function drawColumns(places: Array<"left" | "right" | "below">, sections: DocSection[] = spec.sections) {
     const SIZE = 7.8;
     const STEP = fit.close ? 3.15 : 3.7;
     const PART = fit.close ? 1.4 : 2.4;
-    const LEFT_W = 100;
+    // A delivery order's right column the wider: its bills print with their dates, "JJCQDCNA6550166A / 28-Sep-2026".
+    const LEFT_W = order ? 92 : 100;
     const GAP = 8;
     type Line = { t: string; bold: boolean; known: boolean };
-    const columns = [
-      { place: "left", x: MARGIN, w: LEFT_W, label: 25 },
-      { place: "right", x: MARGIN + LEFT_W + GAP, w: CONTENT_W - LEFT_W - GAP, label: 27 },
-    ].map((c) => {
-      const parts = spec.sections
+    const at = {
+      left: { x: MARGIN, w: LEFT_W, label: 25 },
+      right: { x: MARGIN + LEFT_W + GAP, w: CONTENT_W - LEFT_W - GAP, label: 27 },
+      below: { x: MARGIN, w: CONTENT_W, label: 25 },
+    };
+    const columns = places.map((place) => ({ place, ...at[place] })).map((c) => {
+      const parts = sections
         .filter((s) => s.place === c.place)
         .map((s) =>
           shown(s).map(({ row, value }) => {
@@ -1086,6 +969,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       const h = parts.reduce((t, rows) => t + rows.reduce((s, r) => s + r.lines.length * STEP, 0), 0) + Math.max(0, parts.length - 1) * PART;
       return { ...c, parts, h };
     });
+    if (columns.every((c) => !c.parts.length)) return;
     const H = Math.max(...columns.map((c) => c.h));
     ensure(H + 2);
     const top = y;
@@ -1111,6 +995,154 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     }
     // A clear gap before what comes under them: the charges' table.
     y = top + H + (fit.close ? 3 : 4);
+  }
+
+  /**
+   * A table's lines ruled as an invoice's charges are (a delivery order's
+   * boxes): its rows are the columns, a line for each record `each` gives —
+   * the one record without it — and under several, the columns' totals. An
+   * optional cell with nothing in it is left empty; any other prints TBD. Its
+   * lines smaller on a crowded page, as the charges' are.
+   */
+  function drawRuled(section: DocSection) {
+    const recs = section.each?.(data)?.length ? section.each(data)! : [data];
+    const cols = section.rows;
+    const weight = cols.reduce((t, c) => t + (c.width ?? 1), 0);
+    const widths = cols.map((c) => ((c.width ?? 1) / weight) * CONTENT_W);
+    const at = (c: DocRow, x: number, w: number) => (c.align === "right" ? x + w - 1.4 : x + 1.4);
+    const align = (c: DocRow) => (c.align === "right" ? "right" : "left");
+    const t = fit.rows ?? 1;
+    const SIZE = 7.6 * t;
+    const LINE = 3.4 * t;
+    const PAD = (fit.crowded ? 1.4 : 2) * t;
+    type Cell = { lines: string[]; tbd: boolean };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.2);
+    const heads = cols.map((c, i) => headLines(c.label, widths[i] - 2.4));
+    const HEAD_H = Math.max(...heads.map((h) => h.length)) * 2.4 + 3;
+    ensure(HEAD_H + 10);
+    const top = y;
+    set(INK);
+    let x = MARGIN;
+    cols.forEach((c, i) => {
+      heads[i].forEach((h, k) => doc.text(h, at(c, x, widths[i]), y + 3.5 + k * 2.4, { align: align(c) }));
+      x += widths[i];
+    });
+    y += HEAD_H;
+    rule(MARGIN, PAGE_W - MARGIN, y);
+    y += 0.4;
+
+    const cell = (text: string | undefined, optional: boolean | undefined, i: number): Cell => {
+      doc.setFont("helvetica", text === undefined ? "italic" : "normal");
+      doc.setFontSize(SIZE);
+      const shown = text ?? (optional ? "" : TBD);
+      return { lines: shown.split("\n").flatMap((p) => doc.splitTextToSize(p, widths[i] - 2.8) as string[]), tbd: text === undefined && !optional };
+    };
+    const line = (cells: Cell[], bold = false) => {
+      const h = Math.max(...cells.map((c) => c.lines.length)) * LINE + PAD;
+      ensure(h + 1);
+      let lx = MARGIN;
+      cells.forEach((c, i) => {
+        doc.setFont("helvetica", c.tbd ? "italic" : bold ? "bold" : "normal");
+        doc.setFontSize(SIZE);
+        set(c.tbd ? FAINT : INK);
+        c.lines.forEach((s, k) => doc.text(s, at(cols[i], lx, widths[i]), y + PAD / 2 + 2.6 * t + k * LINE, { align: align(cols[i]) }));
+        lx += widths[i];
+      });
+      y += h;
+    };
+    const blank = { lines: [""], tbd: false };
+    recs.forEach((rec, n) => line(cols.map((c, i) => (n && c.firstOnly ? blank : cell(c.value(rec), c.optional, i)))));
+    if (recs.length > 1 && cols.some((c) => c.total)) {
+      rule(MARGIN, PAGE_W - MARGIN, y);
+      line(cols.map((c, i) => (i === 0 ? { lines: ["Total"], tbd: false } : c.total ? cell(c.total(recs), false, i) : blank)), true);
+    }
+
+    stroke(GRID);
+    doc.setLineWidth(0.25);
+    doc.rect(MARGIN, top, CONTENT_W, y - top);
+    let rx = MARGIN;
+    widths.slice(0, -1).forEach((w) => {
+      rx += w;
+      doc.line(rx, top, rx, y);
+    });
+    doc.setLineWidth(0.2);
+    y += fit.close ? 4 : 5;
+  }
+
+  /**
+   * A closed document's notes, as paragraphs the width of the page: an
+   * arrival notice's word to the consignee — when the vessel is due, what to
+   * bring, how to pay. Under a heading when it has one.
+   */
+  function drawNotes() {
+    if (!spec.notes) return;
+    const lead = spec.notes.lead?.(data);
+    const paras = [...(lead ? [lead] : []), ...spec.notes.lines(data)];
+    if (!paras.length) return;
+    const LINE = fit.close ? 3.2 : 3.5;
+    const GAP = fit.close ? 1 : 1.6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.6);
+    const wrapped = paras.map((t) => doc.splitTextToSize(t, CONTENT_W) as string[]);
+    const head = spec.notes.title ? 4.6 : 0;
+    ensure(head + wrapped.reduce((t, w) => t + w.length * LINE + GAP, 0));
+    if (spec.notes.title) {
+      doc.setFont("helvetica", "bold");
+      set(INK);
+      doc.text(spec.notes.title, MARGIN, y + 2.4);
+      y += head;
+    }
+    doc.setFont("helvetica", "normal");
+    set(INK);
+    wrapped.forEach((w, n) => {
+      // The lead, when the vessel is due, in bold: the one line read first.
+      doc.setFont("helvetica", n === 0 && lead ? "bold" : "normal");
+      for (const l of w) {
+        doc.text(l, MARGIN, y + 2.4);
+        y += LINE;
+      }
+      y += GAP;
+    });
+    y += 2 * fit.gap;
+  }
+
+  /**
+   * A closed document's close: the declaration, then the signature under it,
+   * kept together on the page — with our bank account beside it where the
+   * document asks to be paid (an arrival notice).
+   */
+  function drawOrderClose() {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.4);
+    const decl = spec.declaration ? (doc.splitTextToSize(spec.declaration, CONTENT_W) as string[]) : [];
+    const DECL_LINE = 3.4;
+    const declH = decl.length ? decl.length * DECL_LINE + 2 : 0;
+    const SIGN = 3 + fit.sign + 3.6;
+    const foot = Math.max(spec.bank ? BANK_H : 0, signs ? SIGN : 0);
+    signPushed = (ensure(declH + 4 * fit.gap + foot + 2) && signs) || signPushed;
+    set(MUTED);
+    for (const l of decl) {
+      doc.text(l, MARGIN, y + 2.4);
+      y += DECL_LINE;
+    }
+    y += decl.length ? 2 + 4 * fit.gap : 0;
+    const top = y;
+    if (spec.bank) bankBox(MARGIN, top, 100, false);
+    if (signs) y = signature(top + 2.4) + 2;
+    y = Math.max(y, top + foot + 2);
+  }
+
+  /** The document's footnote at the foot of the page, under a rule: a delivery order's terms of the relative B/L. */
+  function drawFootnote() {
+    if (!spec.footnote) return;
+    const fy = PAGE_H - 15;
+    rule(MARGIN, PAGE_W - MARGIN, fy);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.6);
+    set(MUTED);
+    doc.text(spec.footnote, PAGE_W / 2, fy + 4.8, { align: "center" });
   }
 
   /**
@@ -1159,15 +1191,8 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     const terms = (spec.terms ?? []).map((t) => doc.splitTextToSize(t, textW - 5) as string[]);
     const textH = ours.length * 3.4 + 1.2 + (decl.length ? decl.length * STEP + 1.4 : 0) + (terms.length ? 3.6 + terms.flat().length * STEP : 0) + 2.5;
 
-    const bank: Array<[string, string]> = [
-      ["A/c name", COMPANY.bank.accountName],
-      ["Bank", COMPANY.bank.bank],
-      ["A/c no.", COMPANY.bank.accountNo],
-      ["IFSC", COMPANY.bank.ifsc],
-    ];
     const BANK_W = side ? SIDE_W : 100;
-    const BANK_LINE = 3.8;
-    const bankH = 6.4 + bank.length * BANK_LINE + 0.6;
+    const bankH = BANK_H;
     const SIGN = 3 + fit.sign + 3.6;
     // Crowded: the tax by SAC level with the bank account, then the rest; without the tax, the rest beside the bank account.
     const first = side && summary ? Math.max(sumH, bankH + 2.5) : 0;
@@ -1224,25 +1249,7 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     // Our bank account, ruled round as the sample has it: under the terms, or crowded, at the head of its own column.
     const bx = side ? PAGE_W - MARGIN - BANK_W : MARGIN;
     const by = side ? top : ly;
-    stroke(GRID);
-    doc.setLineWidth(0.25);
-    doc.rect(bx, by, BANK_W, bankH);
-    doc.setLineWidth(0.2);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.2);
-    set(INK);
-    doc.text("Bank details", bx + 3, by + 4.4);
-    bank.forEach(([label, value], i) => {
-      const ry = by + 8.6 + i * BANK_LINE;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      set(MUTED);
-      doc.text(label, bx + 3, ry);
-      doc.text(":", bx + 17, ry);
-      set(INK);
-      doc.setFontSize(side ? 7 : 7.4);
-      doc.text(value, bx + 19, ry);
-    });
+    bankBox(bx, by, BANK_W, side);
 
     // The signature beside the bank account, or crowded, at the foot of the block, beside the terms.
     if (signs) signature(side ? Math.max(top + bankH + 7, top + H - SIGN + 3) : by + 3);
@@ -1253,6 +1260,29 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
     doc.text("E. & O.E.", MARGIN, side ? ly + 1.1 : ly);
 
     y = top + H + 2;
+  }
+
+  /** Our bank account, ruled round, `w` wide at (x, top): the account an invoice or an arrival notice is paid into. */
+  function bankBox(x: number, top: number, w: number, small: boolean) {
+    stroke(GRID);
+    doc.setLineWidth(0.25);
+    doc.rect(x, top, w, BANK_H);
+    doc.setLineWidth(0.2);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.2);
+    set(INK);
+    doc.text("Bank details", x + 3, top + 4.4);
+    BANK.forEach(([label, value], i) => {
+      const ry = top + 8.6 + i * BANK_LINE;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      set(MUTED);
+      doc.text(label, x + 3, ry);
+      doc.text(":", x + 17, ry);
+      set(INK);
+      doc.setFontSize(small ? 7 : 7.4);
+      doc.text(value, x + 19, ry);
+    });
   }
 
   /**
@@ -1371,95 +1401,6 @@ function draw(spec: DocSpec, data: DocumentData, fit: Fit): { doc: jsPDF; signPu
       doc.setLineWidth(0.2);
     }
     y += 4 * fit.gap;
-  }
-
-  /**
-   * The close of a split document, in two columns: what the consignee must do
-   * on the left, the terms and the signature on the right. Side by side they
-   * take half the height they would one under the other, which is what keeps
-   * a CAN with every particular on one page; and drawn as one block, the
-   * signature cannot be parted from them.
-   */
-  function drawClosing() {
-    const DW = 70;
-    const NW = CONTENT_W - DW - 8;
-    const DX = MARGIN + NW + 8;
-
-    const lead = spec.notes?.lead?.(data);
-    const items = spec.notes?.lines(data).filter(Boolean) ?? [];
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    const leadLines = lead ? (doc.splitTextToSize(lead, NW) as string[]) : [];
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.8);
-    const itemLines = items.map((t) => doc.splitTextToSize(t, NW - 4.5) as string[]);
-    const notesH =
-      (leadLines.length ? leadLines.length * 3.7 + 2.4 : 0) + (items.length ? 4.6 + itemLines.flat().length * 3.5 : 0);
-
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(7);
-    const terms = spec.declaration ? (doc.splitTextToSize(spec.declaration, DW) as string[]) : [];
-    const termsH = terms.length ? terms.length * 3.1 + 2 : 0;
-    const signH = signs ? 4 + fit.sign + 3.6 : 0;
-    const H = Math.max(notesH, termsH + signH) + 5;
-
-    if (!notesH && !termsH && !signH) return;
-    // As one block: on this page whole, or over to the next whole.
-    signPushed = ensure(H + 2) && signs;
-
-    stroke(RULE);
-    doc.setLineWidth(0.15);
-    doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-    doc.setLineWidth(0.2);
-    const top = y + 4.6;
-
-    let ny = top;
-    if (leadLines.length) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      set(INK);
-      for (const line of leadLines) {
-        doc.text(line, MARGIN, ny);
-        ny += 3.7;
-      }
-      ny += 2.4;
-    }
-    if (items.length) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6.8);
-      set(MUTED);
-      doc.text(spec.notes!.title.toUpperCase(), MARGIN, ny);
-      ny += 4.6;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.8);
-      set(INK);
-      for (const lines of itemLines) {
-        doc.text("•", MARGIN + 1, ny);
-        for (const line of lines) {
-          doc.text(line, MARGIN + 4.5, ny);
-          ny += 3.5;
-        }
-      }
-    }
-
-    let dy = top;
-    if (terms.length) {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7);
-      set(MUTED);
-      for (const line of terms) {
-        doc.text(line, DX, dy);
-        dy += 3.1;
-      }
-      dy += 2;
-    }
-    if (signs) {
-      // At the foot of the block, level with the bottom of the notes where they run longer.
-      const signTop = Math.max(dy + 4, top + H - 5 - signH + 4);
-      signature(signTop);
-    }
-
-    y = top - 4.6 + H + 2;
   }
 }
 

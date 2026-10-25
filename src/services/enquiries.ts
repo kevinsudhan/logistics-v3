@@ -467,6 +467,22 @@ export interface Shipment {
   reworking: boolean;
   /** Who the job is billed to: its consignee, or its customer on the Parties tab; unset until chosen (140). */
   billed_party: "consignee" | "customer" | null;
+
+  /* What the arrival notice and the delivery order print that nothing else keeps (142). */
+  po_number?: string | null;
+  sales_ref?: string | null;
+  invoice_ref?: string | null;
+  bl_date?: string | null;
+  mainline_date?: string | null;
+  auth_bl_no?: string | null;
+  auth_bl_date?: string | null;
+  final_eta?: string | null;
+  cfs_eta?: string | null;
+  cfs_address?: string | null;
+  consignee_iec_type?: string | null;
+  deliver_to?: string | null;
+  do_issued_on?: string | null;
+  do_valid_until?: string | null;
   routed: "self" | "agent";
   routed_agent_id: string | null;
   origin_booking_person: string | null;

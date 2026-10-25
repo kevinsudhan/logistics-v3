@@ -19,6 +19,7 @@ import {
   matches,
   missingOf,
   pdfOf,
+  PREPARED_BY,
   savedKeyOf,
   savedLabelOf,
   savedValuesOf,
@@ -26,6 +27,7 @@ import {
   type ManualDoc,
   type ManualState,
 } from "../lib/documents/manual";
+import { issuedTaxInvoiceNumber, takeTaxInvoiceNumber } from "../services/invoiceNumbers";
 import { findManualDocuments, normaliseBl, removeManualDocument, saveManualDocument, type SavedDocument } from "../services/manualDocuments";
 import { listPeople, type Person } from "../services/enquiries";
 import { useAuth } from "../lib/auth";
@@ -99,6 +101,7 @@ function restore(): ManualState {
 const GROUPS: ManualGroup[] = ["shipment", "bills", "console"];
 
 export default function ManualDocuments() {
+  const { session } = useAuth();
   const [state, setState] = useState<ManualState>(restore);
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
@@ -124,32 +127,56 @@ export default function ManualDocuments() {
   const missing = useMemo(() => missingOf(doc, state), [doc, state]);
   const shown = MANUAL_DOCUMENTS.filter((d) => matches(d, query));
 
-  function print(how: "view" | "download") {
+  async function print(how: "view" | "download") {
     setNote(null);
+    // A tax invoice is numbered first (141): its tab opened now, while the click
+    // still counts, so the pop-up blocker lets it through, and filled once drawn.
+    const asking = doc.editor === "form" ? doc.numbering?.(state[doc.store as "shipment" | "console"]) : undefined;
+    // Not "noopener" as a feature: with it, window.open returns null whether
+    // or not the tab opened, and a blocked tab could not be told from an open
+    // one. The opener is cut by hand instead; the page is our own PDF anyway.
+    const early = how === "view" && asking ? window.open("", "_blank") : null;
+    if (how === "view" && asking && !early) {
+      setNote({ tone: "danger", text: "Your browser blocked the new tab. Allow pop-ups for this site, or use Download." });
+      return;
+    }
+    if (early) early.opener = null;
     try {
-      const { pdf, name } = pdfOf(doc, state);
+      let s = state;
+      if (asking && doc.editor === "form") {
+        const number = asking.take ? await takeTaxInvoiceNumber(asking.bl, asking.date) : (await issuedTaxInvoiceNumber(asking.bl)) ?? undefined;
+        s = { ...state, [doc.store]: asking.apply(number) };
+      }
+      // Who printed it, for the reference line at the foot of a DO, an arrival notice (and kept with it when saved).
+      if (doc.store === "shipment" && session?.name) s = { ...s, shipment: { ...s.shipment, [PREPARED_BY]: session.name } };
+      if (s !== state) setState(s);
+      const { pdf, name } = pdfOf(doc, s);
       if (how === "download") {
         pdf.save(name);
-        void keep();
+        void keep(s);
         return;
       }
       // Read, not kept: a tab, its address revoked once it has had time to load (lib/documents viewDocument).
       const url = pdf.output("bloburl") as unknown as string;
-      // Not "noopener" as a feature: with it, window.open returns null whether
-      // or not the tab opened, and a blocked tab could not be told from an open
-      // one. The opener is cut by hand instead; the page is our own PDF anyway.
-      const tab = window.open(url, "_blank");
-      if (tab) tab.opener = null;
+      const tab = early ?? window.open(url, "_blank");
+      if (early) early.location.href = url;
+      else if (tab) tab.opener = null;
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       if (!tab) setNote({ tone: "danger", text: "Your browser blocked the new tab. Allow pop-ups for this site, or use Download." });
-      else void keep();
+      else void keep(s);
     } catch (e) {
-      setNote({ tone: "danger", text: `The PDF could not be drawn: ${e instanceof Error ? e.message : "unknown error"}.` });
+      early?.close();
+      setNote({
+        tone: "danger",
+        text: asking
+          ? `The invoice could not be numbered: ${e instanceof Error ? e.message : "unknown error"}.`
+          : `The PDF could not be drawn: ${e instanceof Error ? e.message : "unknown error"}.`,
+      });
     }
   }
 
   /** Printed with a B/L number: saved under it, replacing what was saved for this document before. */
-  async function keep() {
+  async function keep(state: ManualState) {
     const bl = blOf(doc, state);
     if (!bl) {
       setNote({ tone: "info", text: `Not saved: type the ${blFieldOf(doc)} to keep it under, then view or download it again.` });

@@ -155,6 +155,12 @@ export const usualGst = (h: InvoiceChargeHead | undefined) => (h?.group === "fre
 
 export const lineCurrency = (l: ChargeLine) => (l.currency || "INR").toUpperCase();
 
+/** A line of the freight itself, or the carrier's surcharges on it: what a freight certificate states. */
+export function isFreightCharge(l: ChargeLine): boolean {
+  const g = chargeHead(l.charge)?.group;
+  return g === "freight" || g === "surcharge" || /freight/i.test(l.charge);
+}
+
 /** Rupees to one unit of a currency on this invoice: one for rupees, the rate given for the rest, or undefined until it is. */
 export function rateOfExchange(d: DocumentData, currency: string): number | undefined {
   if (currency === "INR") return 1;
@@ -287,6 +293,7 @@ export const stateOf = (tax?: string) => {
 export function billed(d: DocumentData): { name?: string; address?: string; tax?: string } {
   if (d.billTo === "shipper") return { name: d.shipperName, address: d.shipperAddress, tax: d.shipperGstinIec };
   if (d.billTo === "notify") return { name: d.notifyName, address: d.notifyAddress, tax: d.notifyGstin };
+  if (d.billTo === "customer") return { name: d.customerParty?.name, address: d.customerParty?.address, tax: d.customerParty?.gstin };
   return { name: d.consigneeName, address: [d.consigneeAddress, d.consigneeCountry].filter(Boolean).join(", ") || undefined, tax: d.consigneeGstin };
 }
 

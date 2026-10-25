@@ -5,7 +5,7 @@ import { emptyHawb, missingForOriginal, normaliseHawb, type HawbData } from "../
 import { DOCUMENTS } from "./registry";
 import { documentFilename, documentNo, labelFor, readiness } from "./data";
 import { renderDocument } from "./render";
-import { docDate, issuedToday } from "./letterhead";
+import { docDate } from "./letterhead";
 import { hblFileName, renderHblPdf, type HblPrint } from "./hblPdf";
 import { hawbFileName, renderHawbPdf } from "./hawbPdf";
 import { CONSOLE_DOCUMENTS } from "./manualConsole";
@@ -23,8 +23,8 @@ import {
   type ManualStore,
   type ManualValues,
 } from "./manualForm";
-import type { ChargeLine, DataKey, DocSection, DocSpec, DocumentData, InvoiceExtras } from "./types";
-import { billed, docMoney, gstinOf, stateOf } from "./charges";
+import type { ChargeLine, DataKey, DocSpec, DocumentData, InvoiceExtras } from "./types";
+import { outstanding, PROFORMA_INVOICE, readyToNumber, TAX_INVOICE } from "./invoice";
 
 /**
  * Documents typed in by hand (Documentation → Manual documents).
@@ -112,7 +112,10 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   blDate: { section: "bills", input: "date" },
   masterBlNumber: { section: "bills", hint: "The carrier's bill the house bill sits under (the OBL), where it differs." },
   masterBlDate: { section: "bills", input: "date" },
+  authBlNumber: { section: "bills", hint: "A bill between the master and the house — the co-loader's — printed on the arrival notice as Auth. B/L." },
+  authBlDate: { section: "bills", input: "date" },
   bookingNumber: { section: "bills" },
+  jobDate: { section: "bills", input: "date", hint: "The day the job was opened: beside its reference on the arrival notice and the invoice." },
 
   shipperName: { section: "parties" },
   shipperAddress: { section: "parties", input: "textarea", wide: true },
@@ -124,6 +127,10 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   notifyName: { section: "parties", hint: "The consignee's customs broker, copied on the arrival notice." },
   notifyAddress: { section: "parties", input: "textarea", wide: true },
   notifyGstin: { section: "parties" },
+  consigneeIec: { section: "parties", hint: "The consignee's importer-exporter code, printed on the delivery order." },
+  consigneeIecType: { section: "parties", placeholder: "Proprietary, partnership, company", hint: "Printed beside the IEC on the delivery order." },
+  chaName: { section: "parties", hint: "The consignee's customs house agent." },
+  originAgent: { section: "parties", hint: "Who the shipment comes from: the origin agent, the arrival notice's From." },
 
   company: { section: "customer" },
   customerName: { section: "customer" },
@@ -150,9 +157,12 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   igmSubItemNo: { section: "arrival" },
   cfsName: { section: "arrival" },
   cfsAddress: { section: "arrival", input: "textarea", wide: true },
+  cfsEtaDate: { section: "arrival", input: "date", hint: "When the cargo is expected at the CFS, where it is not the vessel's ETA." },
   freeTimeText: { section: "arrival", placeholder: "14 days demurrage, 7 days detention" },
   releaseMode: { section: "arrival", input: "select", hint: "What the consignee must hand over to take delivery." },
   freightTerms: { section: "arrival", input: "select" },
+  tsaNumber: { section: "arrival" },
+  unstuffDate: { section: "arrival", input: "date", hint: "The day the box was unstuffed at the CFS." },
 
   marksNumbers: { section: "cargo", placeholder: "N/M" },
   cargoDescription: { section: "cargo", input: "textarea", wide: true },
@@ -189,6 +199,9 @@ const FIELDS: Record<DataKey, FieldMeta> = {
   vgmFacility: { section: "weighing" },
   vgmWeighedOn: { section: "weighing", input: "date" },
 
+  deliverTo: { section: "delivery", hint: "Whom the CFS hands the cargo to: left empty, the consignee." },
+  doDate: { section: "delivery", input: "date", hint: "The day the delivery order is issued: left empty, the day it is printed." },
+  doValidity: { section: "delivery", input: "date", hint: "The last day the delivery order may be presented." },
   deliveredOn: { section: "delivery", input: "date" },
   receivedBy: { section: "delivery" },
 };
@@ -239,7 +252,12 @@ export function keysOf(spec: DocSpec): DataKey[] {
         return fill;
       },
     });
-    const reads = [...spec.sections.flatMap((s) => s.rows.map((r) => () => r.value(probe))), () => spec.notes?.lead?.(probe), () => spec.notes?.lines(probe)];
+    const sections = [...spec.sections, ...(spec.appendix?.sections ?? [])];
+    const reads = [
+      ...sections.flatMap((s) => [...s.rows.map((r) => () => r.value(probe)), () => s.each?.(probe)]),
+      () => spec.notes?.lead?.(probe),
+      () => spec.notes?.lines(probe),
+    ];
     for (const read of reads) {
       try {
         read();
@@ -406,6 +424,9 @@ const printedDate = (iso: string) => (iso ? docDate(`${iso}T00:00:00`) : "");
 
 export const MANUAL_SOURCE_NOTE = "Entered by hand on the Manual documents page, not drawn from a job record.";
 
+/** Who printed it, put in by the page as it prints (the reference line at a closed document's foot). */
+export const PREPARED_BY = "prepared_by";
+
 /**
  * What was typed, as the one shape every registry document draws from.
  *
@@ -426,6 +447,9 @@ export function documentDataFromManual(v: ManualValues): DocumentData {
   const reference = text(v, "reference");
   return {
     ...data,
+    // Typed under Invoice particulars before it was a field of the job's own.
+    jobDate: data.jobDate ?? (printedDate(text(v, "job_date")) || undefined),
+    preparedBy: text(v, PREPARED_BY) || undefined,
     reference: reference || "TBD",
     // Numbered as a job's are: by the B/L once there is one, the reference until then.
     documentNumber: data.blNumber || reference || "TBD",
@@ -455,7 +479,7 @@ const ALIAS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// The freight invoice, and its proforma
+// The tax invoice, and its proforma (lib/documents/invoice)
 // ---------------------------------------------------------------------------
 
 /** The freight invoice printed as a proforma: the estimate, before the tax invoice. */
@@ -494,15 +518,8 @@ const INVOICE_KIND: ManualField = {
  */
 const INVOICE_PARTICULARS: ManualSection = {
   title: "Invoice particulars",
-  note: "Each prints where the e-invoice has it, and is left off while empty.",
+  note: "Each prints where the e-invoice has it, and is left off while empty. The tax invoice is numbered for you, ALG/26-27/0001 on across every shipment, the first time it is printed complete with its B/L number; printed again, here or on the shipment, it keeps that number.",
   fields: [
-    {
-      key: "invoice_no",
-      label: "Invoice number",
-      placeholder: "4",
-      hint: "The last part alone: printed as ALG/26-27/0004, the year being the financial year of the invoice date.",
-      when: (v) => !isProforma(v),
-    },
     {
       key: "copy",
       label: "Copy",
@@ -516,7 +533,6 @@ const INVOICE_PARTICULARS: ManualSection = {
     },
     { key: "invoice_date", label: "Invoice date", input: "date", hint: "Left empty, the day it is printed." },
     { key: "due_date", label: "Payment due date", input: "date" },
-    { key: "job_date", label: "Job date", input: "date" },
     { key: "customer_code", label: "Customer code", placeholder: "1103010005" },
     { key: "customer_pan", label: "Customer PAN", placeholder: "ABDCA2229C", hint: "Read from the GSTIN of the party billed when left empty." },
     { key: "irn", label: "IRN", hint: "The Invoice Reference Number the e-invoice portal gives it, as given.", wide: true },
@@ -538,15 +554,18 @@ export function financialYear(iso: string): string {
   return `${yy(start)}-${yy(start + 1)}`;
 }
 
+/** Where the page keeps the tax invoice's number, and the B/L it was given for. */
+const NUMBER_KEY = "invoice_number";
+const NUMBER_BL_KEY = "invoice_number_bl";
+
 /**
- * The tax invoice's number, ALG/26-27/0004: our series, the financial year of
- * the invoice date (today's, while none is typed), and the last part as typed —
- * a figure made four digits. None until that part is typed.
+ * The tax invoice's number, ALG/26-27/0004, as the database gave it (141) —
+ * while it is still the B/L it was given for: the B/L typed over, it is the
+ * other B/L's number, and this invoice has none until it is printed again.
  */
 function invoiceNumberOf(v: ManualValues): string | undefined {
-  const last = text(v, "invoice_no").replace(/\s+/g, "");
-  if (!last) return undefined;
-  return `ALG/${financialYear(text(v, "invoice_date") || todayIst())}/${/^\d+$/.test(last) ? last.padStart(4, "0") : last.toUpperCase()}`;
+  const bl = text(v, "blNumber");
+  return bl && text(v, NUMBER_BL_KEY) === normaliseBl(bl) ? text(v, NUMBER_KEY) || undefined : undefined;
 }
 
 /** What was typed under Invoice particulars, as the tax invoice prints it; an empty field is left out. */
@@ -561,7 +580,6 @@ function invoiceExtrasOf(v: ManualValues): InvoiceExtras {
     irn: typed("irn"),
     invoiceDate: dated("invoice_date"),
     dueDate: dated("due_date"),
-    jobDate: dated("job_date"),
     advanceReceipt: typed("advance_receipt"),
     shipperRef: typed("shipper_ref"),
     vehicleNo: typed("vehicle_no"),
@@ -572,200 +590,23 @@ function invoiceExtrasOf(v: ManualValues): InvoiceExtras {
   };
 }
 
-/** A weight or a measure as the e-invoice prints it: 330.000, 0.400. */
-const three = (n?: number) => (n !== undefined ? n.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : undefined);
-const joined = (...parts: Array<string | number | undefined>) => parts.filter((x) => x !== undefined && x !== "").join(" ") || undefined;
-/** A number and what goes with it, as the sample writes them: "1214865 / 01-Oct-2026"; nothing without the number. */
-const slashed = (first?: string, second?: string) => (first ? [first, second].filter(Boolean).join(" / ") : undefined);
-
-/** Where the service is supplied, for a party registered for GST: its state, from the first two digits of its GSTIN. */
-const placeOfSupply = (d: DocumentData) => stateOf(billed(d).tax);
-
-/** A party as the invoice prints it: the name, then what goes under it, a line each; nothing without the name. */
-const party = (name?: string, ...under: Array<string | undefined>) => (name ? [name, ...under].filter(Boolean).join("\n") : undefined);
-
-/** Whether a party is the one billed: printed in full as Billed to, and by name alone where it comes again. */
-const isBilled = (d: DocumentData, who: "consignee" | "shipper" | "notify") => (d.billTo ?? "consignee") === who;
-
-/** What an invoice to us says, at the foot of both forms (lib/documents/render.ts). */
-const INVOICE_TERMS = [
-  "Payment by NEFT / RTGS to the account shown, quoting the invoice number.",
-  "Any discrepancy is to be reported to us in writing within 7 days of the invoice date; otherwise the invoice is taken as correct.",
-  "Cargo is released on receipt and realisation of payment for the freight and other charges.",
-  "Subject to Chennai jurisdiction.",
-];
-
 /**
- * What both forms of the invoice print above the charges, as the line's
- * e-invoice (QDWJ26093202) sets them out, under its labels: label and value,
- * without boxes. Down the left, the party billed with its GSTIN and state
- * code; the shipper, the consignee and the notify party, the one billed by
- * name alone, its address being above; the route and the note. Down the
- * right, the customer's code and PAN, the invoice's own particulars and the
- * shipment's. The proforma is the same paper numbered PI-, without the tax
- * invoice's IRN and reverse-charge lines.
- */
-function invoiceSections(prefix: string, tax: boolean): DocSection[] {
-  return [
-    {
-      title: "Billed to",
-      place: "left",
-      rows: [
-        { label: "Billed to", value: (d) => party(billed(d).name, billed(d).address), bold: true },
-        {
-          label: "GSTIN",
-          value: (d) => {
-            const g = billed(d).tax;
-            return g ? [g, placeOfSupply(d) && `State code: ${placeOfSupply(d)}`].filter(Boolean).join("     ") : undefined;
-          },
-        },
-        { label: "Contact", value: (d) => d.phone, optional: true },
-      ],
-    },
-    {
-      title: "Parties",
-      place: "left",
-      rows: [
-        {
-          label: "Shipper",
-          value: (d) => (isBilled(d, "shipper") ? d.shipperName : party(d.shipperName, d.shipperAddress, d.shipperGstinIec && `GSTIN / IEC: ${d.shipperGstinIec}`)),
-          bold: true,
-        },
-        {
-          label: "Consignee",
-          value: (d) =>
-            isBilled(d, "consignee")
-              ? d.consigneeName
-              : party(d.consigneeName, d.consigneeAddress, d.consigneeCountry, d.consigneeGstin && `GSTIN: ${d.consigneeGstin}`),
-          bold: true,
-        },
-        {
-          label: "Notify party",
-          value: (d) => (isBilled(d, "notify") ? d.notifyName : party(d.notifyName, d.notifyAddress, d.notifyGstin && `GSTIN: ${d.notifyGstin}`)),
-          bold: true,
-          optional: true,
-        },
-      ],
-    },
-    {
-      title: "Route",
-      place: "left",
-      rows: [
-        { label: "Port of origin", value: (d) => d.portOfLoading ?? d.origin },
-        { label: "Port of discharge", value: (d) => d.destination },
-        { label: "Final destination", value: (d) => d.finalDestination, optional: true },
-        { label: "Vessel", value: (d) => d.vessel },
-        { label: "Voyage number", value: (d) => d.voyage, optional: true },
-        { label: "Commodity", value: (d) => d.cargoDescription },
-        { label: "Carrier", value: (d) => d.carrier, optional: true },
-        { label: "ETD", value: (d) => d.sailingDate, optional: true },
-        { label: "ETA", value: (d) => d.etaDate, optional: true },
-        { label: "Place of supply", value: placeOfSupply, optional: true },
-        { label: "Shipper ref no", value: (d) => d.invoice?.shipperRef, optional: true },
-        { label: "Note", value: (d) => d.invoice?.note, optional: true },
-        { label: "Salesman", value: (d) => d.salesRef, optional: true },
-      ],
-    },
-    {
-      title: "Customer",
-      place: "right",
-      rows: [
-        { label: "Customer code", value: (d) => d.invoice?.customerCode, optional: true },
-        { label: "Customer PAN no", value: (d) => d.invoice?.customerPan ?? gstinOf(billed(d).tax)?.slice(2, 12), optional: true },
-      ],
-    },
-    {
-      title: tax ? "Invoice" : "Proforma",
-      place: "right",
-      rows: [
-        {
-          label: tax ? "Invoice number" : "Proforma number",
-          // A tax invoice by its own series, typed; a proforma by the job, as it always was.
-          value: (d) => (tax ? d.invoice?.number : documentNo({ numberPrefix: prefix }, d)),
-          bold: true,
-        },
-        ...(tax ? [{ label: "IRN", value: (d: DocumentData) => d.invoice?.irn, optional: true }] : []),
-        { label: "Date", value: (d) => d.invoice?.invoiceDate ?? issuedToday() },
-        ...(tax ? [{ label: "Reverse charge", value: () => "No" }] : []),
-        { label: "Payment due date", value: (d) => d.invoice?.dueDate, optional: true },
-        { label: "Job number", value: (d) => (d.reference === "TBD" ? undefined : d.reference) },
-        { label: "Job date", value: (d) => d.invoice?.jobDate, optional: true },
-        { label: "Freight terms", value: (d) => d.freightTerms, optional: true },
-        { label: "Payment terms", value: (d) => d.paymentTerms, optional: true },
-        // The one freight figure, where the charges are not itemised; itemised, the table says it.
-        { label: "Ocean freight", value: (d) => (d.charges?.length ? undefined : docMoney(d, d.freightAmountInr)), optional: true },
-      ],
-    },
-    {
-      title: "Shipment",
-      place: "right",
-      rows: [
-        { label: "Master number", value: (d) => d.masterBlNumber, optional: true },
-        { label: "House number", value: (d) => d.blNumber },
-        { label: "Advance receipt no", value: (d) => d.invoice?.advanceReceipt, optional: true },
-        // The box's number, then its size and type, as the arrival notice writes it: "TWCU8075142 - 40HC".
-        { label: "Container", value: (d) => [d.containerId, d.containerType].filter(Boolean).join(" - ") || undefined },
-        { label: "Vehicle no", value: (d) => d.invoice?.vehicleNo, optional: true },
-        { label: "Number of packs", value: (d) => (d.packageCount !== undefined ? joined(d.packageCount, d.packageType) : undefined) },
-        { label: "Weight (kgs)", value: (d) => three(d.grossWeightKg) },
-        { label: "Volume (CBM)", value: (d) => three(d.volumeCbm) },
-        { label: "IGM number", value: (d) => slashed(d.igmNumber, d.igmDate), optional: true },
-        { label: "Item number", value: (d) => d.igmItemNo, optional: true },
-        { label: "Sub item number", value: (d) => d.igmSubItemNo, optional: true },
-      ],
-    },
-  ];
-}
-
-/**
- * The freight invoice, as a tax invoice or as a proforma.
+ * The tax invoice, or its proforma: one form, one set of details.
  *
- * One form, one set of details: a proforma goes out first for approval or an
- * advance, and the tax invoice that follows is the same charges. The proforma
- * is its own paper — PROFORMA INVOICE, numbered PI-, saying it is not a tax
- * invoice, with no copy mark. Both are laid out as a GST invoice (`layout:
- * "invoice"`): the tax on each line, central and state or integrated,
- * summarised by SAC, our PAN and GSTIN, the terms, and the bank account to pay
- * into by the signature. The tax invoice is numbered in our own series,
- * ALG/26-27/0004, its last part typed, and is a draft until it is; the proforma
- * by the job, PI-. Kept as the freight invoice, as it was before it was called
- * a tax invoice.
+ * A proforma goes out first for approval or an advance, and the tax invoice
+ * that follows is the same charges; both print as the shipment's Documents
+ * tab prints them (lib/documents/invoice). The tax invoice takes its number
+ * from the series as it is printed (`numbering`). Kept as the freight invoice
+ * ("freight-invoice"), the page's name for it before it was the tax invoice.
  */
-function freightInvoiceDoc(registry: DocSpec): FormDoc {
-  const freight: DocSpec = {
-    ...registry,
-    id: "tax-invoice",
-    title: "TAX INVOICE",
-    shortName: "Tax invoice",
-    parties: false,
-    layout: "invoice",
-    sections: invoiceSections(registry.numberPrefix, true),
-    declaration: undefined,
-    terms: INVOICE_TERMS,
-    // Not issued without its number: a tax invoice is one of a series.
-    check: (d) => [...(registry.check?.(d) ?? []), ...(d.invoice?.number ? [] : ["Invoice number"])],
-  };
-  const proforma: DocSpec = {
-    ...freight,
-    id: "proforma-invoice",
-    title: "PROFORMA INVOICE",
-    shortName: "Proforma invoice",
-    numberPrefix: "PI",
-    sections: invoiceSections("PI", false),
-    declaration: "A statement of the charges, for approval or advance payment. It is not a tax invoice.",
-    check: registry.check,
-  };
-  const specOf = (v: ManualValues) => (isProforma(v) ? proforma : freight);
-  const dataOf = (v: ManualValues): DocumentData => {
-    const d = documentDataFromManual(v);
-    // A proforma is not one of a tax invoice's copies.
-    return isProforma(v) ? { ...d, invoice: { ...d.invoice, copy: undefined } } : d;
-  };
-  const sections = sectionsFor(freight);
+function freightInvoiceDoc(): FormDoc {
+  const specOf = (v: ManualValues) => (isProforma(v) ? PROFORMA_INVOICE : TAX_INVOICE);
+  const dataOf = documentDataFromManual;
+  const sections = sectionsFor(TAX_INVOICE);
   sections[0] = { ...sections[0], fields: [INVOICE_KIND, BILL_TO, ...(sections[0].fields ?? [])] };
   sections.splice(1, 0, INVOICE_PARTICULARS);
   return {
-    id: registry.id,
+    id: "freight-invoice",
     shortName: "Tax invoice",
     // The desk has called it the freight invoice: a search for that still finds it.
     alias: "TI / PI · freight invoice",
@@ -777,16 +618,28 @@ function freightInvoiceDoc(registry: DocSpec): FormDoc {
     sections,
     render: (v) => renderDocument(specOf(v), dataOf(v)),
     // ALG/26-27/0004 saves as ALG-26-27-0004-tax-invoice.pdf; one not yet numbered, by its job.
-    fileName: (v) => {
-      const number = isProforma(v) ? undefined : dataOf(v).invoice?.number;
-      return number ? `${number}-${freight.id}.pdf`.replace(/[\\/:*?"<>|]+/g, "-") : documentFilename(specOf(v), dataOf(v));
+    fileName: (v) => documentFilename(specOf(v), dataOf(v)),
+    // Not its number, while it has a B/L to be numbered by: it is given one as it is printed.
+    missing: (v) => outstanding(specOf(v), dataOf(v), readiness(dataOf(v), TAX_INVOICE.requires, specOf(v).check).missingLabels),
+    documentNo: (v) => {
+      const d = dataOf(v);
+      if (!isProforma(v) && readyToNumber(d)) return `ALG/${financialYear(text(v, "invoice_date") || todayIst())}/ the next in the series`;
+      return documentNo(specOf(v), d);
     },
-    missing: (v) => readiness(dataOf(v), freight.requires, specOf(v).check).missingLabels,
-    documentNo: (v) => (isProforma(v) ? undefined : dataOf(v).invoice?.number) ?? documentNo(specOf(v), dataOf(v)),
+    numbering: (v) => {
+      const bl = text(v, "blNumber");
+      if (isProforma(v) || !bl) return undefined;
+      return {
+        bl,
+        date: text(v, "invoice_date") || todayIst(),
+        take: readyToNumber(dataOf(v)),
+        apply: (number) => ({ ...v, [NUMBER_KEY]: number ?? "", [NUMBER_BL_KEY]: number ? normaliseBl(bl) : "" }),
+      };
+    },
   };
 }
 
-const fromRegistry = (spec: DocSpec): FormDoc => spec.id === "freight-invoice" ? freightInvoiceDoc(spec) : ({
+const fromRegistry = (spec: DocSpec): FormDoc => spec.id === TAX_INVOICE.id ? freightInvoiceDoc() : ({
   id: spec.id,
   // The arrival notice is the import desk's CAN: named as they name it.
   shortName: spec.id === "arrival-notice" ? "Cargo arrival notice" : spec.shortName,
@@ -940,7 +793,13 @@ export function missingOf(doc: ManualDoc, s: ManualState): string[] {
  * through approval and the customer's Accept button; a way to print one with
  * neither would be a way round both.
  */
-export const MANUAL_DOCUMENTS: ManualDoc[] = [...DOCUMENTS.map(fromRegistry), HBL_DOC, HAWB_DOC, ...CONSOLE_DOCUMENTS];
+// The proforma is the tax invoice's form printed as one ("Print as"), not a document of its own here.
+export const MANUAL_DOCUMENTS: ManualDoc[] = [
+  ...DOCUMENTS.filter((d) => d.id !== PROFORMA_INVOICE.id).map(fromRegistry),
+  HBL_DOC,
+  HAWB_DOC,
+  ...CONSOLE_DOCUMENTS,
+];
 
 export const manualDocument = (id: string | null | undefined) => MANUAL_DOCUMENTS.find((d) => d.id === id);
 

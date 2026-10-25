@@ -30,6 +30,14 @@ export interface DocumentData {
   blDate?: string;
   masterBlDate?: string;
   bookingNumber?: string;
+  /** The day the job was opened, beside its reference on the arrival notice and the invoice. */
+  jobDate?: string;
+  /**
+   * A bill between the master and the house, as an arrival notice prints it
+   * ("Auth. B/L"): the co-loader's or the authorised agent's, with its date.
+   */
+  authBlNumber?: string;
+  authBlDate?: string;
   /** FCL, LCL. */
   serviceType?: string;
   /** The free days granted per box, in words (083): "14 days demurrage, 7 days detention". */
@@ -47,6 +55,14 @@ export interface DocumentData {
   notifyName?: string;
   notifyAddress?: string;
   notifyGstin?: string;
+  /** The consignee's importer-exporter code, as the delivery order prints it, and the kind of importer it is. */
+  consigneeIec?: string;
+  consigneeIecType?: string;
+  /** The consignee's customs house agent, named on the delivery order. */
+  chaName?: string;
+
+  /** Who the shipment comes from, the arrival notice's "From": the origin agent. */
+  originAgent?: string;
 
   // contact
   customerName?: string;
@@ -66,8 +82,8 @@ export interface DocumentData {
   finalEtaDate?: string;
 
   // arrival, for the cargo arrival notice and the delivery order. Typed on the
-  // Manual documents page; no booking supplies them, so a job's own documents
-  // print exactly what they did before these existed.
+  // Manual documents page; a job's own from its shipment row, its import
+  // customs record and its console (data.ts BookingExtras), where they hold them.
   vessel?: string;
   voyage?: string;
   portOfLoading?: string;
@@ -79,9 +95,23 @@ export interface DocumentData {
   /** The CFS or terminal the cargo is delivered from. */
   cfsName?: string;
   cfsAddress?: string;
+  /** When the cargo is expected at the CFS, where it is not the vessel's ETA. */
+  cfsEtaDate?: string;
   /** How the house bill is released: what the consignee needs to take delivery. */
   releaseMode?: ReleaseMode;
   freightTerms?: "Prepaid" | "Collect";
+  /** The transhipment (TSA) number the CFS took the box in under. */
+  tsaNumber?: string;
+  /** The day the box was unstuffed at the CFS. */
+  unstuffDate?: string;
+
+  // the delivery order's own
+  /** Whom the CFS is to deliver the cargo to: the consignee unless another (its CHA) is named. */
+  deliverTo?: string;
+  /** The day the order is issued: the day it is printed, while not recorded. */
+  doDate?: string;
+  /** The last day the order may be presented. */
+  doValidity?: string;
 
   // cargo
   marksNumbers?: string;
@@ -132,14 +162,23 @@ export interface DocumentData {
 
   // provenance
   sourceNote: string;
+  /** Who printed it, for the reference line at its foot ("by Kevin"), as the trade's papers carry it. */
+  preparedBy?: string;
   /** What the money fields are in: rupees unless said. A manual document says which. */
   currency?: "INR" | "USD";
   /** The charges, line by line, where they were itemised (a manual freight invoice); otherwise the one freight figure. */
   charges?: ChargeLine[];
   /** Rupees to one unit of each foreign currency the charges are in ("USD" -> 83.5): what they are converted at. */
   exchangeRates?: Record<string, number>;
-  /** Which of the parties an invoice is addressed to: its To block is theirs. */
-  billTo?: "shipper" | "consignee" | "notify";
+  /**
+   * Which of the parties an invoice is addressed to: its To block is theirs.
+   * "customer" is the job's customer on the shipment's Parties tab (140), as
+   * `customerParty` gives it.
+   */
+  billTo?: "shipper" | "consignee" | "notify" | "customer";
+  customerParty?: { name?: string; address?: string; gstin?: string };
+  /** The job's boxes, a line each on the delivery order; without them, the one box the fields above describe. */
+  containers?: ContainerLine[];
   /** What a tax invoice carries besides (the manual freight invoice): typed on its form. */
   invoice?: InvoiceExtras;
   raw: RequestDetails;
@@ -151,7 +190,7 @@ export interface DocumentData {
  * documents page, each left off the paper while it is empty.
  */
 export interface InvoiceExtras {
-  /** The tax invoice's number as printed, ALG/26-27/0004: none until its last part is typed. */
+  /** The tax invoice's number as printed, ALG/26-27/0004: given the first time it is made for its B/L (141). */
   number?: string;
   /** ORIGINAL, DUPLICATE, TRIPLICATE: which copy this is. */
   copy?: string;
@@ -164,7 +203,6 @@ export interface InvoiceExtras {
   /** The day it is dated, as printed: the day it is printed when not given. */
   invoiceDate?: string;
   dueDate?: string;
-  jobDate?: string;
   advanceReceipt?: string;
   shipperRef?: string;
   vehicleNo?: string;
@@ -189,8 +227,16 @@ export interface ChargeLine {
   gstPercent?: number;
 }
 
+/** One of a job's boxes, in the fields a document prints for one. */
+export type ContainerLine = Partial<
+  Pick<DocumentData, "containerId" | "containerType" | "sealNumber" | "serviceType" | "unstuffDate" | "packageCount" | "packageType" | "grossWeightKg" | "volumeCbm">
+>;
+
 /** Keys of DocumentData that a document can declare itself unable to be issued without. */
-export type DataKey = keyof Omit<DocumentData, "reference" | "documentNumber" | "sourceNote" | "currency" | "charges" | "exchangeRates" | "billTo" | "invoice" | "raw">;
+export type DataKey = keyof Omit<
+  DocumentData,
+  "reference" | "documentNumber" | "sourceNote" | "preparedBy" | "currency" | "charges" | "exchangeRates" | "billTo" | "customerParty" | "containers" | "invoice" | "raw"
+>;
 
 export interface DocRow {
   label: string;
@@ -202,28 +248,35 @@ export interface DocRow {
    * and "Master B/L: TBD" would tell the consignee something is missing.
    */
   optional?: boolean;
-  /** In a party box (a section placed "left"): the value alone, without its label — a name, an address. */
-  bare?: boolean;
-  /** In the details grid (placed "right"): the whole width rather than half — an address, a vessel. */
-  wide?: boolean;
   /** As a column of a table (placed "table"): its share of the width, and figures to the right. */
   width?: number;
   align?: "right";
-  /** In an invoice's columns: its first line in bold — a party's name over its address, the invoice's number. */
+  /** In a closed document's columns: its first line in bold — a party's name over its address, the invoice's number. */
   bold?: boolean;
+  /** In a ruled table of several lines (a section with `each`): the column's total, under it, where there is more than one line. */
+  total?: (lines: DocumentData[]) => string | undefined;
+  /** In a ruled table of several lines: on the first only — the marks and the description, which are the bill's, not each box's. */
+  firstOnly?: boolean;
 }
 
 export interface DocSection {
   title: string;
   rows: DocRow[];
   /**
-   * Where a section of a split document (`layout: "split"`) is drawn: a party
-   * box down the left, the details grid on the right, or a table across the
-   * page under both. An invoice's (`layout: "invoice"`) left and right are
-   * its two columns of particulars, label and value, without boxes. Without
-   * it, as a band across the page, as everywhere else.
+   * Where a section of a closed document is drawn. An invoice's (`layout:
+   * "invoice"`) left and right are its two columns of particulars, label and
+   * value, without boxes; a delivery order's and an arrival notice's
+   * (`layout: "order"`) too, then its tables ruled across the page and what is
+   * placed "below" the width of the page, in the order declared. Without it,
+   * as a band across the page, as everywhere else.
    */
-  place?: "left" | "right" | "table";
+  place?: "left" | "right" | "table" | "below";
+  /**
+   * A table's lines, each the record with that line's own figures over it — a
+   * delivery order's boxes, a freight certificate's freight. Without it, or
+   * when it gives none, the one line.
+   */
+  each?: (d: DocumentData) => DocumentData[] | undefined;
   /** In the band layout: the rows two to a line, label and value each — a block of short particulars, kept compact. */
   columns?: 2;
 }
@@ -266,22 +319,34 @@ export interface DocSpec {
   /** Fixed text printed above the signature line. */
   declaration?: string;
   /**
-   * Drawn in two columns — the parties down the left, the details on the
-   * right, the cargo as a table across — the way a cargo arrival notice is
-   * laid out, rather than as bands. Its sections say where each goes.
-   *
-   * "invoice" is laid out as a GST invoice to the trade, without boxes: the
+   * Without one, drawn in bands. "invoice" is laid out as a GST invoice to the trade, without boxes: the
    * parties and the route down the left and the invoice's and the shipment's
    * particulars down the right, label and value; the charges ruled, with the
    * tax on each line; the tax by SAC; the terms; our bank details beside the
    * signature.
+   *
+   * "order" is a delivery order or an arrival notice in the same closed
+   * style: the particulars in two columns, the boxes ruled across under them,
+   * the marks and the description, the notes, the declaration and the
+   * signature, and `footnote` at the foot. Both are kept to the one page; an
+   * `appendix` follows on its own.
    */
-  layout?: "split" | "invoice";
+  layout?: "invoice" | "order";
+  /** The number it carries of its own, where it has one: a tax invoice's, in our series. Otherwise numbered by prefix and B/L (documentNo). */
+  number?: (d: DocumentData) => string | undefined;
+  /** Marked with which copy it is (ORIGINAL), at the right of its title, as a tax invoice is. */
+  copies?: boolean;
+  /** A line at the foot of the page: a delivery order's terms of the relative B/L. */
+  footnote?: string;
+  /** A closed document's bank account, beside its signature: where the money it asks for is paid. */
+  bank?: boolean;
+  /** A page of its own after it, drawn as a document of its own: the arrival notice's freight certificate. */
+  appendix?: DocSpec;
   /** An invoice's terms, numbered under the tax summary. */
   terms?: string[];
   /**
-   * Printed under the sections, worked out from the record: a sentence, then a
-   * list headed by `title` — what the consignee needs to do.
+   * Printed under the sections, worked out from the record: a sentence, then
+   * paragraphs, under `title` where it has one — what the consignee needs to do.
    */
   notes?: { title: string; lead?: (d: DocumentData) => string | undefined; lines: (d: DocumentData) => string[] };
   /**
