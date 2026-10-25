@@ -587,7 +587,7 @@ function Manifest({
         <SaveField label={`CIN${customs?.cin_type ? ` (${customs.cin_type})` : ""}, from ICEGATE's reply`} value={customs?.cin_no ?? ""} onSave={(v) => save({ cin_no: v.toUpperCase() || null })} disabled={busy !== null} />
       </div>
       <p className="mt-2 text-[11px] text-text-muted">
-        The same IGM numbers the bill of entry reads, kept on the job&rsquo;s import customs record (the <Link to={`/shipments/${s.id}/customs`} className="text-text-accent hover:underline">Customs tab</Link>).
+        The same IGM numbers the bill of entry reads, kept on the job&rsquo;s import customs record; the arrival notice and the DO print them.
       </p>
     </Section>
   );

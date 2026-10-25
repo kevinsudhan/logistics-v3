@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { PageSkeleton } from "../components/Loading";
 import PageErrorBoundary from "../components/PageErrorBoundary";
-import { syncSentMail } from "../services/mailLog";
+import { hasGraphToken } from "../lib/graphStore";
 import { useAuth } from "../lib/auth";
 import { keepLineWarm } from "../lib/warmLine";
 
@@ -77,10 +77,14 @@ export default function AppLayout() {
     services/mailLog.ts.
   */
   useEffect(() => {
-    const first = window.setTimeout(() => void syncSentMail(), 4_000);
-    const every = window.setInterval(() => void syncSentMail(), 5 * 60_000);
+    // The copy and the mail client it reads through load on the first run, not with the app.
+    const syncSentMail = () => {
+      if (hasGraphToken()) void import("../services/mailLog").then((m) => m.syncSentMail(), () => {});
+    };
+    const first = window.setTimeout(syncSentMail, 4_000);
+    const every = window.setInterval(syncSentMail, 5 * 60_000);
     const onVisible = () => {
-      if (document.visibilityState === "visible") void syncSentMail();
+      if (document.visibilityState === "visible") syncSentMail();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -219,7 +223,7 @@ export default function AppLayout() {
       () => import("../pages/shipment/ShipmentParties"),
       () => import("../pages/shipment/ShipmentCargo"),
       () => import("../pages/shipment/ShipmentContainers"),
-      () => import("../pages/shipment/ShipmentCustoms"),
+      () => import("../pages/shipment/ShipmentIgm"),
       () => import("../pages/shipment/ShipmentPickupDelivery"),
       () => import("../pages/shipment/ShipmentInvoices"),
       () => import("../pages/shipment/ShipmentCosts"),

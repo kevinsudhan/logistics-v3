@@ -36,6 +36,26 @@
  * it from the filer's Class III certificate, which lives on a token on their
  * PC and never comes near the CRM.
  *
+ * HOUSE BY HOUSE
+ *
+ * One master can carry houses cleared at the port (LC) beside houses going
+ * on under bond to an ICD (TI), as a consol agent's Annexure III does: so a
+ * house may carry its own movement, and a TI house its own transhipper (the
+ * bonded carrier's code and bond — the Annexure's "carrier agency code" and
+ * "trans bond registration no"), which the guide's table makes mandatory for
+ * it, and a second leg on its itinerary: from the port to its ICD, by road or
+ * rail (the Annexure's "mode of transport"). The main line operator's code
+ * (the Annexure's "MLO code") is each container's agent code. What the
+ * Annexure prints and the file does not take — the vessel's call sign, the
+ * line and its agent, the IGM — is kept on the form for the IGM page.
+ *
+ * THE GUIDE'S OWN LISTS WIN OVER THE ANNEXURE'S
+ *
+ * Type of packages takes PKG alone (the guide's list of values), whatever the
+ * B/L says (PLT, CTN, CAS: kept as the house's `packageKind`, for the screen);
+ * nature of cargo C, LB or DB (the Annexure's CP is C); a volume only in LTR
+ * or USG, and only asked for liquid bulk — so a box's CBM is not sent.
+ *
  * THREE STEPS, ALL PURE
  *
  *   draftFor      what the CRM already knows, laid out as the form (the
@@ -154,6 +174,14 @@ export interface CsnHouse {
   pcin?: string;
   /** The sub-line ICEGATE holds it under, once filed (see `asFiled`); else its place in the list. */
   subLine?: number;
+  /** This house's cargo movement, where it is not the master's: a TI house goes on to an ICD under bond. */
+  movement?: CsnMovement;
+  /** A TI house's bonded carrier: its transhipper code and bond (the Annexure's carrier agency code and trans bond no). */
+  transhipper?: { code: string; bond: string };
+  /** How a TI house goes on from the port: ICEGATE's code, 3 road, 2 rail. */
+  inlandMode?: "2" | "3";
+  /** The kind of package as the B/L names it (PLT, CTN, CAS), for the screen: ICEGATE's file takes PKG alone. */
+  packageKind?: string;
 }
 
 export interface CsnDraft {
@@ -189,6 +217,12 @@ export interface CsnDraft {
   houses: CsnHouse[];
   /** On a filed form: the highest house sub-line given out, so one taken off is not reused. */
   lastSubLine?: number;
+  /** The main line operator's code: each container's agent (cntrAgntCd) where the box names none. */
+  mloCode?: string;
+  /** What the Annexure III header prints and ICEGATE's file does not take: the vessel's call sign, the line and its agent. */
+  callSign?: string;
+  shippingLine?: { name: string; code: string };
+  steamerAgent?: { name: string; code: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +405,8 @@ export interface CsnSource {
     customer?: { name: string; iec: string | null; pan: string | null; address: string | null; city: string | null; state: string | null; pincode: string | null; country: string | null } | null;
     /** Export: the shipping bill on the job's export customs record. */
     sb?: { number: string | null; date: string | null } | null;
+    /** What the job itself says, for a box the bill leaves empty (or a job with no bill read in yet). */
+    fallback?: Partial<BillData> & { hbl_no?: string };
   }>;
   /** The master line's boxes: the console's own containers. */
   containers: SourceBox[];
@@ -401,6 +437,7 @@ export interface BillData {
   containers: Array<{ container_no: string; seal_no: string; size_type: string; packages: string; package_type: string; gross_kg: string; cbm: string }>;
   marks_numbers: string;
   packages: string;
+  package_type: string;
   description: string;
   hs_code: string;
   gross_weight_kg: string;
@@ -481,7 +518,7 @@ export function draftFor(src: CsnSource, settings: CsnSettings, event: CsnEvent 
   const agent = src.agent ? partyFrom(src.agent.name, src.agent.address, exp ? podCountry : polCountry) : emptyParty();
 
   const houses: CsnHouse[] = src.jobs.map((j) => {
-    const b = j.bill?.data ?? {};
+    const b = withFallback(j.bill?.data ?? {}, j.fallback);
     const cu = j.customer ?? null;
     // The shipper: an overseas supplier on an import; on an export our customer, whose IEC we hold.
     let consignor = partyFrom(b.shipper_name ?? "", b.shipper_address ?? "", exp ? "IN" : polCountry);
@@ -516,7 +553,7 @@ export function draftFor(src: CsnSource, settings: CsnSettings, event: CsnEvent 
     return {
       shipmentId: j.id,
       ref: j.ref,
-      hblNo: (j.bill?.hbl_no ?? "").toUpperCase().replace(/\s/g, ""),
+      hblNo: (j.bill?.hbl_no || j.fallback?.hbl_no || "").toUpperCase().replace(/\s/g, ""),
       hblDate: isoDate(b.date_of_issue || b.on_board_date),
       destPort: exp ? receipt.code : (j.cfs_code || cfs).toUpperCase(),
       acceptance: { code: pol, name: b.port_of_loading || c.pol },
@@ -527,6 +564,7 @@ export function draftFor(src: CsnSource, settings: CsnSettings, event: CsnEvent 
       description,
       marks: (b.marks_numbers ?? "").trim().replace(/\s+/g, " ").toUpperCase() || "N/M",
       packages: numText(b.packages),
+      packageKind: packageCode(b.package_type ?? ""),
       grossKg: numText(b.gross_weight_kg),
       netKg: "",
       cbm: numText(b.measurement_cbm),
@@ -574,6 +612,45 @@ export function draftFor(src: CsnSource, settings: CsnSettings, event: CsnEvent 
     houses,
   };
 }
+
+/** The bill's boxes, a blank one taken from what the job says. */
+function withFallback(bill: Partial<BillData>, job: Partial<BillData> | undefined): Partial<BillData> {
+  if (!job) return bill;
+  const out: Partial<BillData> = { ...bill };
+  for (const [k, v] of Object.entries(job) as Array<[keyof BillData, unknown]>) {
+    const has = out[k];
+    if (v !== undefined && v !== null && v !== "" && (has === undefined || has === null || String(has).trim() === "" || (Array.isArray(has) && !has.length))) {
+      (out as Record<string, unknown>)[k] = v;
+    }
+  }
+  return out;
+}
+
+/** The B/L's kind of package as the Annexure prints it: PALLETS → PLT, CARTONS → CTN. */
+export function packageCode(kind: string): string {
+  const k = kind.trim().toUpperCase();
+  if (!k) return "";
+  const table: Array<[RegExp, string]> = [
+    [/^PAL|^PLT|SKID/, "PLT"],
+    [/^CART|^CTN/, "CTN"],
+    [/^CAS|^CS$/, "CAS"],
+    [/^PACK|^PKG|^PK$/, "PKG"],
+    [/^BAG|^BG/, "BAG"],
+    [/^BOX|^BX/, "BOX"],
+    [/^DRUM|^DRM/, "DRM"],
+    [/^ROLL|^RL/, "ROL"],
+    [/^BUND|^BDL/, "BDL"],
+    [/^CRAT|^CRT/, "CRT"],
+    [/^PIEC|^PCS|^PC$/, "PCS"],
+    [/^BALE|^BLS/, "BLS"],
+    [/^COIL/, "COL"],
+    [/^REEL/, "REL"],
+  ];
+  return table.find(([re]) => re.test(k))?.[1] ?? k.replace(/[^A-Z]/g, "").slice(0, 3);
+}
+
+/** A house's movement: its own, or the master's. */
+export const movementOf = (d: CsnDraft, h: CsnHouse): CsnMovement => h.movement ?? d.movement;
 
 /**
  * The draft as saved, brought up to date with the console: what the desk typed
@@ -647,7 +724,7 @@ function transportDoc(acceptance: CsnPlace, receipt: CsnPlace, consignor: CsnPar
   };
 }
 
-const equipment = (list: CsnContainer[]) =>
+const equipment = (list: CsnContainer[], mlo = "") =>
   list.map((c, i) => ({
     eqmtSeqNo: i + 1,
     eqmtId: clean(c.no).toUpperCase(),
@@ -659,7 +736,7 @@ const equipment = (list: CsnContainer[]) =>
     socFlag: c.soc ? "Y" : "N",
     // Sent even when empty, as Customs' own sample does: the guide calls it
     // mandatory for a container, and an empty code is how "not known" goes.
-    cntrAgntCd: clean(c.agentCode ?? "").toUpperCase(),
+    cntrAgntCd: (clean(c.agentCode ?? "") || clean(mlo)).toUpperCase(),
     cntrWeight: opt(n(c.weightKg), !!clean(c.weightKg)),
     totalNmbrOfPkgs: Math.round(n(c.packages)),
   }));
@@ -684,21 +761,36 @@ const itinerary = (d: CsnDraft) => [
   },
 ];
 
-const location = (d: CsnDraft, destPort: string) => ({
+const location = (d: CsnDraft, destPort: string, movement: CsnMovement = d.movement) => ({
   firstPrtOfEntry: clean(d.firstPort).toUpperCase(),
   destPrt: clean(destPort || d.destPort).toUpperCase(),
   nxtPrtOfUnlading: clean(d.nextPort).toUpperCase(),
   typOfCrgo: eventOf(d) === "SCX" ? "EX" : "IM",
   itemTyp: "OT",
-  crgoMvmt: d.movement,
+  crgoMvmt: movement,
   natrOfCrgo: "C",
 });
 
+/** A transhipper code and bond, when both are given. */
+const transhipperOf = (t: { code: string; bond: string } | undefined) =>
+  clean(t?.code ?? "") && clean(t?.bond ?? "") ? { trnshprCd: clean(t!.code).toUpperCase(), trnshprBond: clean(t!.bond).toUpperCase() } : undefined;
+
 /** The carrier's transhipper code and bond, when the desk has given both. */
-const transhipper = (d: CsnDraft) =>
-  clean(d.transhipper?.code ?? "") && clean(d.transhipper?.bond ?? "")
-    ? { trnshprCd: clean(d.transhipper!.code).toUpperCase(), trnshprBond: clean(d.transhipper!.bond).toUpperCase() }
-    : undefined;
+const transhipper = (d: CsnDraft) => transhipperOf(d.transhipper);
+
+/**
+ * A house's routing: the sea leg, as the master's; and for a house going on
+ * to an ICD under bond (TI), the leg from the port to it, by road or rail.
+ */
+function houseItinerary(d: CsnDraft, h: CsnHouse, movement: CsnMovement) {
+  const legs: Array<Record<string, unknown>> = itinerary(d);
+  const from = clean(d.firstPort).toUpperCase();
+  const to = clean(h.destPort).toUpperCase();
+  if (movement === "TI" && from && to && to !== from) {
+    legs.push({ prtOfCallSeqNmbr: 2, prtOfCallCdd: from, nxtPrtOfCallCdd: to, modeOfTrnsprt: h.inlandMode ?? "3" });
+  }
+  return legs;
+}
 
 export const eventOf = (d: CsnDraft): CsnEvent => d.event ?? "SCE";
 
@@ -707,12 +799,16 @@ function prune<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-/** An import house: the cargo described in full (IM / H / N). */
+/**
+ * An import house: the cargo described in full (IM / H / N), under its own
+ * movement; a TI house with its transhipper and its leg inland.
+ */
 function importHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
+  const movement = movementOf(d, h);
   return {
     HCRef: { subLineNo: h.subLine ?? i + 1, blNo: clean(h.hblNo).toUpperCase(), blDt: ymd(h.hblDate), consolidatedIndctr: "H", consolidatorPan: `PAN:${pan}`, prevDec: "N" },
-    locCstm: location(d, h.destPort),
-    trnshpr: d.movement === "TI" ? transhipper(d) : undefined,
+    locCstm: location(d, h.destPort, movement),
+    trnshpr: movement === "TI" ? transhipperOf(h.transhipper ?? d.transhipper) : undefined,
     trnsprtDoc: transportDoc(h.acceptance, h.receipt, h.consignor, h.consignee, h.notify, h.description),
     trnsprtDocMsr: measures(h.packages, h.marks, h.grossKg, h.netKg, h.cbm),
     itemDtls: h.items.map((it, k) => ({
@@ -724,8 +820,8 @@ function importHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
       nmbrOfPkgs: opt(Math.round(n(it.packages)), !!clean(it.packages)),
       typOfPkgs: opt("PKG", !!clean(it.packages)),
     })),
-    trnsprtEqmt: equipment(h.containers),
-    itnry: itinerary(d),
+    trnsprtEqmt: equipment(h.containers, d.mloCode),
+    itnry: houseItinerary(d, h, movement),
   };
 }
 
@@ -744,7 +840,7 @@ function exportHouse(d: CsnDraft, h: CsnHouse, i: number, pan: string) {
     trnshpr: full ? transhipper(d) : undefined,
     trnsprtDoc: full ? transportDoc(h.acceptance, h.receipt, h.consignor, h.consignee, h.notify, h.description) : undefined,
     trnsprtDocMsr: measures(h.packages, h.marks, h.grossKg, h.netKg, h.cbm),
-    trnsprtEqmt: equipment(h.containers),
+    trnsprtEqmt: equipment(h.containers, d.mloCode),
   };
 }
 
@@ -790,7 +886,7 @@ export function buildCsn(d: CsnDraft, settings: CsnSettings, file: CsnFile): Rec
           trnshpr: event === "SCX" || d.movement === "TI" ? transhipper(d) : undefined,
           trnsprtDoc: transportDoc(d.acceptance, d.receipt, d.consignor, d.consignee, d.notify, d.description),
           trnsprtDocMsr: measures(d.packages, d.marks, d.grossKg, "", d.cbm),
-          trnsprtEqmt: equipment(d.containers),
+          trnsprtEqmt: equipment(d.containers, d.mloCode),
           itnry: itinerary(d),
           houseCargoDec: d.houses.map((h, i) => (event === "SCX" ? exportHouse(d, h, i, pan) : importHouse(d, h, i, pan))),
         },
@@ -1020,7 +1116,15 @@ export function csnProblems(d: CsnDraft, settings: CsnSettings): CsnProblem[] {
       else if (!/^[A-Z0-9]{8,20}$/.test(pcin)) add(w, "PCIN of the shipping bill", "should be up to 20 letters and digits");
       if (full) checkCode(w, "Exporter's IEC", h.consignor, "is needed on an export (the exporter's IEC)", add);
     } else {
-      if (!/^[A-Z0-9]{5,10}$/.test(clean(h.destPort).toUpperCase())) add(w, "CFS / ICD custodian code", h.destPort ? "should be 5 to 10 letters and digits" : "is needed");
+      const movement = movementOf(d, h);
+      if (!/^[A-Z0-9]{5,10}$/.test(clean(h.destPort).toUpperCase())) {
+        add(w, movement === "TI" ? "ICD code" : "CFS / ICD custodian code", h.destPort ? "should be 5 to 10 letters and digits" : "is needed");
+      }
+      // The guide's table: an import house on domestic transhipment carries its transhipper.
+      if (movement === "TI" && !transhipperOf(h.transhipper ?? d.transhipper)) {
+        add(w, "Transhipper code and bond", "are needed for domestic transhipment (TI): the bonded carrier's code and its bond registration no");
+      }
+      if (!["LC", "DT", "TI"].includes(movement)) add(w, "Cargo movement", "on an import is LC, DT or TI");
       checkCode(w, "Consignee's IEC / PAN", h.consignee, "is needed on an import (the importer's IEC, or PAN if they have none)", add);
       if (!h.items.length) add(w, "Items", "needs at least one cargo item with its HS code");
       h.items.forEach((it, k) => {

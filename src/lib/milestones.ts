@@ -244,7 +244,7 @@ export function suggestionFor(code: string, ev: Evidence): Suggestion | null {
     const side = code === "export_customs" ? "export" : "import";
     const c = ev.customs.find((x) => x.side === side);
     const day = side === "export" ? c?.leo_date : c?.ooc_date;
-    if (day) return { on: day.slice(0, 10), time: null, location: "", note: "", from: side === "export" ? "Customs tab (LEO)" : "Customs tab (out of charge)" };
+    if (day) return { on: day.slice(0, 10), time: null, location: "", note: "", from: side === "export" ? "Customs record (LEO)" : "Customs record (out of charge)" };
   }
 
   // What a feed or the mail said: the first report of it that nobody set aside.

@@ -10,6 +10,8 @@ import {
   draftFor,
   isoSize,
   mergeDraft,
+  movementOf,
+  packageCode,
   partyFrom,
   schemaErrors,
   ymd,
@@ -316,6 +318,98 @@ const xs = xa.doc as unknown as SCA;
 is("an export amendment passes the SCA schema", schemaErrors(xa.doc, SCA_SCHEMA, { unsigned: true }), []);
 is("on the export's version, pointing back at an SCX", [xs.headerField.versionNo, xs.master.mastrCnsgmtDec[0].supRef.csnRptngTyp], ["SCX1102", "SCX"]);
 is("a corrected PCIN is the house's previous reference, updated", [xa.changes, (xs.master.mastrCnsgmtDec[0].houseCargoDec[0].prevRef as Obj).mcinPcin, (xs.master.mastrCnsgmtDec[0].houseCargoDec[0].prevRef as Obj).amendment], [["House ALG09201-26: shipping bill PCIN"], "26PCEG0920173415499", "U"]);
+
+console.log("\nhouse by house, as a consol agent's Annexure III has them (LC beside TI)");
+const mixed = structuredClone(draft);
+mixed.mloCode = "AABCM6541J";
+mixed.houses[1].movement = "TI";
+mixed.houses[1].destPort = "INWFD6";
+mixed.houses[1].transhipper = { code: "AABCE4546M", bond: "2000061645" };
+mixed.houses[1].inlandMode = "3";
+is("a house's own movement, or the master's", [movementOf(mixed, mixed.houses[0]), movementOf(mixed, mixed.houses[1])], ["LC", "TI"]);
+is("nothing stands in the way", csnProblems(mixed, settings).filter((x) => x.level === "error"), []);
+const mixedDoc = buildCsn(mixed, settings, { jobNo: 40, date: "20261013", time: "T10:31" }) as unknown as {
+  master: { mastrCnsgmtDec: Array<{ trnsprtEqmt: Obj[]; houseCargoDec: Array<{ locCstm: Obj; trnshpr?: Obj; itnry: Obj[]; trnsprtEqmt: Obj[]; trnsprtDocMsr: Obj }> }> };
+};
+is("and the file passes CBIC's schema", schemaErrors(mixedDoc, CSN_SCHEMA, { unsigned: true }), []);
+const [lc, ti] = mixedDoc.master.mastrCnsgmtDec[0].houseCargoDec;
+is("the LC house: cleared at its CFS, no transhipper, the sea leg only", [lc.locCstm.crgoMvmt, lc.locCstm.destPrt, lc.trnshpr, lc.itnry.length], ["LC", "INMAA1CFS1", undefined, 1]);
+is("the TI house: on to its ICD, under the bonded carrier's code and bond", [ti.locCstm.crgoMvmt, ti.locCstm.destPrt, ti.trnshpr], ["TI", "INWFD6", { trnshprCd: "AABCE4546M", trnshprBond: "2000061645" }]);
+is("…and a second leg, from the port to the ICD by road", ti.itnry[1], { prtOfCallSeqNmbr: 2, prtOfCallCdd: "INMAA", nxtPrtOfCallCdd: "INWFD6", modeOfTrnsprt: "3" });
+is("the MLO code is every box's agent, master's and houses'", [mixedDoc.master.mastrCnsgmtDec[0].trnsprtEqmt[0].cntrAgntCd, lc.trnsprtEqmt[0].cntrAgntCd], ["AABCM6541J", "AABCM6541J"]);
+is("the guide's package type, whatever the B/L calls them", lc.trnsprtDocMsr.typsOfPkgs, "PKG");
+const noBond = structuredClone(mixed);
+noBond.houses[1].transhipper = undefined;
+is("a TI house without its transhipper is refused, as the guide's table requires it", csnProblems(noBond, settings).filter((x) => x.level === "error").map((x) => `${x.where}: ${x.field}`), ["ALG09102-26: Transhipper code and bond"]);
+const exMovement = structuredClone(mixed);
+exMovement.houses[0].movement = "TC";
+is("an import house moves LC, DT or TI", csnProblems(exMovement, settings).some((x) => x.field === "Cargo movement"), true);
+is("the B/L's kind of packages, as the Annexure prints it", ["PALLETS", "Cartons", "CASES", "packages", "bags", "Wooden Crates", ""].map(packageCode), ["PLT", "CTN", "CAS", "PKG", "BAG", "WOO", ""]);
+
+console.log("\na job with no B/L read in yet: what the job itself says");
+const own = draftFor(
+  {
+    ...src,
+    jobs: [
+      {
+        id: "SHP-9", ref: "ALG09031-26", bill: null, cfs_code: "INMAA1ECC1", containers: [],
+        fallback: {
+          hbl_no: "hcse2609x113", shipper_name: "FUJIAN TRUMP TRADING CO LTD", shipper_address: "GAISHAN TOWN, FUZHOU\nCHINA",
+          consignee_name: "NEARBY TECHNOLOGIES PVT LTD", consignee_address: "PORRUR, CHENNAI 600116", consignee_iec: "0412345678",
+          packages: "123", package_type: "CARTONS", gross_weight_kg: "917.1", description: "MOBILE POS TERMINAL", hs_code: "8471.30", marks_numbers: "AS PER BL",
+        },
+      },
+    ],
+  },
+  settings
+);
+const h0 = own.houses[0];
+is("the house from the job's own particulars", [h0.hblNo, h0.consignor.name, h0.consignee.name, h0.consignee.code, h0.packages, h0.packageKind, h0.grossKg, h0.items[0].hs], ["HCSE2609X113", "FUJIAN TRUMP TRADING CO LTD", "NEARBY TECHNOLOGIES PVT LTD", "0412345678", "123", "CTN", "917.1", "847130"]);
+const both = draftFor({ ...src, jobs: [{ ...src.jobs[0], fallback: { description: "SOMETHING ELSE", consignee_iec: "9999999999" } }] }, settings);
+is("a bill read in wins over the job where it says something", [both.houses[0].description, both.houses[0].consignee.code], [draft.houses[0].description, "0412345678"]);
+
+console.log("\na job filed on its own (the IGM page): its master, and itself under it — the Annexure's first line");
+const box1 = { container_no: "TGHU8261450", size_type: "40HC", iso_code: "", seal_type: "", seal_no: "SL889201", package_count: 2, weight_kg: 465, is_soc: false };
+const single = draftFor(
+  {
+    console: { mbl_number: "JJCSPCNANC602902", mbl_date: "2026-10-21", pol: "SINGAPORE", pol_code: "SGSIN", pod: "CHENNAI", pod_code: "INMAA1", place_of_delivery: "CHENNAI", delivery_code: "" },
+    jobs: [
+      {
+        id: "SHP-1", ref: "ALG09031-26", bill: null, cfs_code: "INMAA1ECC1", containers: [box1],
+        fallback: {
+          hbl_no: "SINMAA26A00009", date_of_issue: "2026-10-21", shipper_name: "SG ELECTRONICS PTE LTD", shipper_address: "10 TAMPINES ROAD\nSINGAPORE 528721\nSINGAPORE",
+          consignee_name: "FLEXTRONICS TECHNOLOGIES INDIA PVT LTD", consignee_address: "DTA UNIT PLOT 03 PHASE II SIPCOT IND PARK\nSANTAVELUR, KANCHIPURAM 602106\nTAMIL NADU INDIA",
+          consignee_iec: "0405012345", packages: "2", package_type: "PALLETS", gross_weight_kg: "465", hs_code: "85423100",
+          description: "ELECTRONIC COMPONENET 2 PALLETS 27 CARTONS", marks_numbers: "RL2633119 FLEXTRONICS TECHNOLOGIES I PVT LTD 1 2 PLT",
+        },
+      },
+    ],
+    containers: [box1],
+    agent: { name: "SG FORWARDER PTE LTD", address: "1 HARBOUR ROAD\nSINGAPORE 099999\nSINGAPORE" },
+    desk: src.desk,
+  },
+  settings
+);
+single.vesselImo = "9389411";
+single.vcn = "INMAA1262035";
+single.mloCode = "AABCM6541J";
+is("nothing ICEGATE would refuse", csnProblems(single, settings).filter((x) => x.level === "error").map((x) => `${x.where}: ${x.field} ${x.message}`), []);
+const singleDoc = buildCsn(single, settings, { jobNo: 41, date: "20261024", time: "T11:00" }) as unknown as {
+  headerField: Obj;
+  master: Obj & { mastrCnsgmtDec: Array<Obj & { MCRef: Obj; locCstm: Obj; houseCargoDec: Array<Obj & { HCRef: Obj; locCstm: Obj; trnsprtDoc: Obj; trnsprtDocMsr: Obj; itemDtls: Obj[]; trnsprtEqmt: Obj[] }> }> };
+};
+is("the file passes CBIC's schema", schemaErrors(singleDoc, CSN_SCHEMA, { unsigned: true }), []);
+const m1 = singleDoc.master.mastrCnsgmtDec[0];
+// The guide's table: IM / C / N / M (LC) is MCRef, location, transport document, equipment, itinerary, measures — and its houses.
+is("the master carries what the guide's table lists for a consolidated import line", Object.keys(m1).sort(), ["MCRef", "houseCargoDec", "itnry", "locCstm", "trnsprtDoc", "trnsprtDocMsr", "trnsprtEqmt"]);
+// IM / H / N / H (LC): HCRef, transport document, items, location, equipment, itinerary, measures.
+is("the house what it lists for a house line on local clearance", Object.keys(m1.houseCargoDec[0]).sort(), ["HCRef", "itemDtls", "itnry", "locCstm", "trnsprtDoc", "trnsprtDocMsr", "trnsprtEqmt"]);
+is("as the Annexure's line: its B/L, cleared at the CFS, nature C, item type OT", [m1.MCRef.mstrBlNo, m1.MCRef.lineNo, m1.houseCargoDec[0].HCRef.blNo, m1.houseCargoDec[0].HCRef.blDt, m1.houseCargoDec[0].locCstm.destPrt, m1.houseCargoDec[0].locCstm.crgoMvmt, m1.houseCargoDec[0].locCstm.natrOfCrgo, m1.houseCargoDec[0].locCstm.itemTyp], ["JJCSPCNANC602902", 1, "SINMAA26A00009", "20261021", "INMAA1ECC1", "LC", "C", "OT"]);
+is("the importer, with its IEC", [m1.houseCargoDec[0].trnsprtDoc.cnsgnesName, m1.houseCargoDec[0].trnsprtDoc.cnsgnesCd, m1.houseCargoDec[0].trnsprtDoc.typOfCd, m1.houseCargoDec[0].trnsprtDoc.cnsgneCity, m1.houseCargoDec[0].trnsprtDoc.cnsgnePstcd], ["FLEXTRONICS TECHNOLOGIES INDIA PVT LTD", "0405012345", "IEC", "KANCHIPURAM", "602106"]);
+is("the packages, weight and marks, as the guide's lists take them", [m1.houseCargoDec[0].trnsprtDocMsr.nmbrOfPkgs, m1.houseCargoDec[0].trnsprtDocMsr.typsOfPkgs, m1.houseCargoDec[0].trnsprtDocMsr.grossWeight, m1.houseCargoDec[0].trnsprtDocMsr.unitOfWeight], [2, "PKG", 465, "KGS"]);
+is("the item: its HS code, not hazardous", [m1.houseCargoDec[0].itemDtls[0].hsCd, m1.houseCargoDec[0].itemDtls[0].unoCd, m1.houseCargoDec[0].itemDtls[0].imdgCd], ["85423100", "ZZZZZ", "ZZZ"]);
+is("the box, under the MLO's code", [m1.houseCargoDec[0].trnsprtEqmt[0].eqmtId, m1.houseCargoDec[0].trnsprtEqmt[0].eqmtSize, m1.houseCargoDec[0].trnsprtEqmt[0].eqmtLoadStatus, m1.houseCargoDec[0].trnsprtEqmt[0].cntrAgntCd], ["TGHU8261450", "45G1", "LCL", "AABCM6541J"]);
+is("the vessel and the call", [(singleDoc.master.vesselDtls as Obj).trnsprtMeansId, (singleDoc.master.voyageDtls as Obj).cnvnceRefNmbr], ["9389411", "INMAA1262035"]);
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 process.exit(fail ? 1 : 0);

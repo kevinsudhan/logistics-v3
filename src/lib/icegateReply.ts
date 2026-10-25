@@ -24,6 +24,12 @@ import type { CsnDraft } from "./icegateCsn";
  *
  * The error texts are the guide's list (section 7, `icegate/ackCodes.json`),
  * used when a reply gives a code without its description.
+ *
+ * ICEGATE's replies since ICES 1.5 (a real one: F_SACHM22_SCE_…_306_20261013
+ * _ACK.json) say so in the header — versionNo "ICES1_5", accpStatus
+ * "Accepted" or "Rejected" — carry the CSN as csnNmbr / csnDt, every object's
+ * error codes as "00" Successful, and "null" (the text) where Customs gave no
+ * CIN, as on a consolidated master line.
  * ---------------------------------------------------------------------------
  */
 
@@ -157,7 +163,8 @@ function walkAck(node: unknown, keys: string[], ctx: Ctx, out: CsnReply): void {
   for (const [k, v] of Object.entries(node)) {
     if (k === "digSign") continue;
     if (/^(hc|mc)response$/i.test(k)) {
-      if (!isObj(v) || !str(v.mcinPcin)) continue;
+      // "null" is how ICES 1.5 writes "none given", as on a consolidated master line.
+      if (!isObj(v) || !str(v.mcinPcin) || /^null$/i.test(str(v.mcinPcin))) continue;
       const cin = { type: str(v.cinTyp).toUpperCase(), no: str(v.mcinPcin).toUpperCase() };
       if (/^hc/i.test(k) && c.subLine) out.houseCins.push({ subLine: c.subLine, ...cin });
       else if (/^mc/i.test(k)) out.masterCin = cin;
@@ -285,16 +292,23 @@ export function readCsnReply(text: string, fileName = ""): CsnReply {
     return out;
   }
   if (!master) throw new Error("That is not an ICEGATE reply: it has neither a declaration nor error details.");
-  // The reply's own key: an amendment declaration also names a CSN (csnNmbr), the one it amends.
-  const csnNo = str(decRef.csn_no ?? decRef.csnNo);
-  // Every ACK carries error codes, "000" where all is well; a declaration carries none.
-  if (!hasErrorCodes(master) && !csnNo) {
+  // ICES 1.5 marks a reply in its header; every ACK carries error codes besides, "000" or "00" where all is well.
+  const status = str(h.accpStatus);
+  const isReply = Boolean(status) || /^ICES/i.test(str(h.versionNo)) || hasErrorCodes(master);
+  // The reply's key for the CSN given: csn_no on the guide's samples, csnNmbr since ICES 1.5. An amendment
+  // declaration names a CSN in csnNmbr too (the one it amends), so that key counts only on a reply.
+  const csnNo = str(decRef.csn_no ?? decRef.csnNo ?? (isReply ? decRef.csnNmbr : undefined));
+  if (!isReply && !csnNo) {
     throw new Error("That is the CSN file itself (…_DEC.json), not ICEGATE's reply. Upload the …_ACK.json or …_SFL.json ICEGATE sent back.");
   }
   walkAck(master, ["master"], { house: false }, out);
   out.csnNo = /^\d+$/.test(csnNo) ? csnNo : "";
   out.csnDate = isoOf(decRef.csn_dt ?? decRef.csnDt);
-  out.accepted = out.errors.length === 0;
+  // Its own word, where it gives one; a rejection may come with no code against any object.
+  out.accepted = out.errors.length === 0 && !/^rejected$/i.test(status);
+  if (/^rejected$/i.test(status) && !out.errors.length) {
+    out.errors.push({ code: "", message: "ICEGATE rejected the file without saying which field", object: "Declaration", house: false, path: "/headerField/accpStatus" });
+  }
   return out;
 }
 

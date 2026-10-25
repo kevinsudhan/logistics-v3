@@ -1,7 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { clearCache } from "./queryCache";
 import { supabase } from "./supabase";
-import { adoptMicrosoftSession, clearGraphToken, finishOutlookConnect } from "../services/graphMail";
+import { clearGraphToken } from "./graphStore";
+import { readOutcome } from "./outlookConnect";
+
+/**
+ * The mail client, fetched only when a session has something for it (25 Oct):
+ * it is most of what the app used to load before it could show anything, and
+ * the first screen needs none of it. The Mail page and the sent-mail copy load
+ * it anyway, a moment later.
+ */
+const outlook = () => import("../services/graphMail");
 
 /**
  * Authentication, for real this time.
@@ -171,10 +180,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // the OAuth callback. It is the only moment they are available, so they
       // are taken up here rather than fetched later -- there is no later. The
       // refresh token goes to the server, which keeps Outlook connected (094).
-      adoptMicrosoftSession(data.session);
+      if (data.session?.provider_token) void outlook().then((g) => g.adoptMicrosoftSession(data.session), () => {});
       // Back from connecting Outlook on the Mail page (095): its first token
       // is fetched before the app shows, so the page opens already connected.
-      if (user) await finishOutlookConnect();
+      if (user && readOutcome(window.location.hash)) await outlook().then((g) => g.finishOutlookConnect(), () => {});
       if (cancelled) return;
       if (!user) {
         setSession(null);
@@ -197,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cancelled || signingIn.current) return;
       // Deferred: handing the refresh token over calls a function, and a
       // Supabase call made inside this callback waits on the lock it holds.
-      setTimeout(() => adoptMicrosoftSession(s), 0);
+      if (s?.provider_token) setTimeout(() => void outlook().then((g) => g.adoptMicrosoftSession(s), () => {}), 0);
       const user = s?.user;
       if (!user) {
         rememberProfile(null);

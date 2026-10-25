@@ -483,6 +483,8 @@ export interface Shipment {
   deliver_to?: string | null;
   do_issued_on?: string | null;
   do_valid_until?: string | null;
+  /** The CSN form for a job filed on its own, off any console (143). */
+  csn_draft?: unknown;
   routed: "self" | "agent";
   routed_agent_id: string | null;
   origin_booking_person: string | null;

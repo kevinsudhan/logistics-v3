@@ -1,4 +1,15 @@
 import { supabase } from "../lib/supabase";
+import {
+  CONNECTING_KEY,
+  EXPIRES_KEY,
+  LINKED_KEY,
+  NOTICE_KEY,
+  TOKEN_KEY,
+  clearGraphToken,
+  forgetWithToken,
+  hasGraphToken,
+  storeGraphToken,
+} from "../lib/graphStore";
 import { bytesToBase64 } from "../lib/base64";
 import { brandImages, imageType } from "../lib/inlineBrand";
 import { readOutcome, type ConnectOutcome } from "../lib/outlookConnect";
@@ -62,42 +73,8 @@ export interface MailFolder {
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
-/**
- * Where the Microsoft token is kept.
- *
- * sessionStorage, alongside the Supabase session and for the same reason: desk
- * machines are shared, and a mailbox token must not outlive the browser tab.
- */
-const TOKEN_KEY = "araxys.graphToken";
-/** When that token runs out (epoch ms); absent while its lifetime is unknown. */
-const EXPIRES_KEY = "araxys.graphTokenExpires";
-/** Which sign-in's refresh token the server already holds, so a reload does not hand it over again. */
-const LINKED_KEY = "araxys.outlookLinked";
-/** Set while this tab is away at Microsoft connecting Outlook (095). */
-const CONNECTING_KEY = "araxys.outlookConnecting";
-/** How the last connect went, until the Mail page has shown it. */
-const NOTICE_KEY = "araxys.outlookNotice";
-
-export function storeGraphToken(token: string | null, expiresInSeconds?: number) {
-  if (!token) return;
-  sessionStorage.setItem(TOKEN_KEY, token);
-  if (expiresInSeconds) sessionStorage.setItem(EXPIRES_KEY, String(Date.now() + expiresInSeconds * 1000));
-  else sessionStorage.removeItem(EXPIRES_KEY);
-}
-
-export function clearGraphToken() {
-  forgetOpenedMail();
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(EXPIRES_KEY);
-  sessionStorage.removeItem(LINKED_KEY);
-  sessionStorage.removeItem(CONNECTING_KEY);
-  sessionStorage.removeItem(NOTICE_KEY);
-  adopted = null;
-}
-
-export function hasGraphToken(): boolean {
-  return !!sessionStorage.getItem(TOKEN_KEY);
-}
+// Where the token is kept: lib/graphStore, which the first screen loads without this file.
+export { clearGraphToken, hasGraphToken, storeGraphToken };
 
 /** Thrown when Microsoft rejects the token, so the UI can offer a reconnect. */
 export class GraphAuthError extends Error {
@@ -136,6 +113,11 @@ async function outlookToken(body: { action: "link" | "token"; refresh_token?: st
  * reconnected when it runs out, as it always did.
  */
 let adopted: string | null = null;
+// Signing out forgets the opened mail and the sign-in taken up, with the token.
+forgetWithToken(() => {
+  forgetOpenedMail();
+  adopted = null;
+});
 export function adoptMicrosoftSession(session: unknown) {
   const s = session as { provider_token?: string | null; provider_refresh_token?: string | null } | null;
   if (!s?.provider_token) return;

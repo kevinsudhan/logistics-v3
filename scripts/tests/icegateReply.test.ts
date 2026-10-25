@@ -125,5 +125,52 @@ is("an SFL house entry, named from the form on a fresh CSN", whereInForm(item, f
 is("but not on an amendment, whose houses are only those changed", whereInForm(item, filed, "SCA"), "House entry 1 in the file · cargo item 2");
 is("the job number from the file name when the reply has none", readCsnReply(JSON.stringify({ headerField: {}, errorDetails: { status: "x", errorMessage: [] } }), "F_SACHM22_SCE_ALGCHN01_31_20260928_SFL.json").jobNo, 31);
 
+console.log("\nICEGATE's replies since ICES 1.5 (a real one's layout, numbers changed)");
+const ok00 = [{ errorCode: "00", errorMessage: "Successful" }];
+const house = (sub: number, pcin: string) => ({
+  HCRef: { subLineNo: String(sub), blNo: `HBL00${sub}`, blDt: "20260916", Amend_det: "null" },
+  prevRef: { Amend_det: "null" },
+  locCstm: { Amend_det: "null" },
+  trnshpr: {},
+  itemDtls: [{ crgoItemSeqNmbr: "1", Amend_det: "null" }],
+  trnsprtEqmt: [{ eqmtSeqNo: "1", Amend_det: "null" }],
+  itnry: [{ prtOfCallSeqNmbr: "1", Amend_det: "null" }, { prtOfCallSeqNmbr: "2", Amend_det: "null" }],
+  hcResponse: { cinTyp: "PCIN", mcinPcin: pcin },
+});
+const ices = {
+  headerField: {
+    senderID: "ALGCHN01", receiverID: "INKAT1", versionNo: "ICES1_5", indicator: "P", messageID: "SACHM22", sequenceOrControlNumber: "306",
+    date: "20261013", time: "T10:31", reportingEvent: "SCE", uniqueId: "13915024211013102026SACHM22", accpStatus: "Accepted",
+  },
+  master: {
+    decRef: { jobNo: "306", csnDt: "20261013", csnNmbr: "1508881", errorCode: ok00, Amend_det: "null" },
+    authPrsn: { errorCode: ok00, Amend_det: "null" },
+    vesselDtls: { errorCode: ok00, Amend_det: "null" },
+    voyageDtls: { errorCode: ok00, Amend_det: "null" },
+    mastrCnsgmtDec: [
+      {
+        MCRef: { lineNo: "1", mstrBlNo: "MBL0001", mstrBlDt: "20260916", Amend_det: "null" },
+        houseCargoDec: [house(1, "26PCSE00101339774340"), house(2, "26PCSE00101339774341")],
+        mcResponse: { cinTyp: "null", mcinPcin: "null" },
+      },
+    ],
+  },
+};
+const r15 = readCsnReply(JSON.stringify(ices, null, 2), "F_SACHM22_SCE_ALGCHN01_306_20261013_ACK.json");
+is("an accepted reply: the CSN number from csnNmbr, its date from csnDt", [r15.kind, r15.accepted, r15.csnNo, r15.csnDate, r15.jobNo], ["ACK", true, "1508881", "2026-10-13", 306]);
+is("each house's PCIN by its sub-line", r15.houseCins, [{ subLine: 1, type: "PCIN", no: "26PCSE00101339774340" }, { subLine: 2, type: "PCIN", no: "26PCSE00101339774341" }]);
+is('"null" for the master line is no CIN, not a CIN called NULL', r15.masterCin, null);
+is('"00 Successful" against every object is no error', r15.errors, []);
+const rejected = structuredClone(ices);
+rejected.headerField.accpStatus = "Rejected";
+rejected.master.decRef.csnNmbr = "null";
+const r16 = readCsnReply(JSON.stringify(rejected), "x.json");
+is("a rejection says so, with no CSN", [r16.accepted, r16.csnNo, r16.errors.length > 0], [false, "", true]);
+const coded = structuredClone(rejected);
+(coded.master.vesselDtls as { errorCode: Array<{ errorCode: string; errorMessage: string }> }).errorCode = [{ errorCode: "39", errorMessage: "Invalid Vessel Code" }];
+is("and its codes, where it gives them", readCsnReply(JSON.stringify(coded), "x.json").errors.map((e) => [e.code, e.object]), [["39", "Vessel"]]);
+const amendDec = { headerField: { reportingEvent: "SCA", versionNo: "SCE1102" }, master: { decRef: { msgTyp: "A", csnNmbr: 1508881, csnDt: "20261013" } } };
+throws("an amendment declaration, which names a CSN too, is still not a reply", () => readCsnReply(JSON.stringify(amendDec), "x.json"), /CSN file itself/);
+
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}`);
 if (fail) process.exit(1);

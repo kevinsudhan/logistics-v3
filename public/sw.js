@@ -27,6 +27,10 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== ASSETS).map((k) => caches.delete(k))))
+      // Navigation preload (25 Oct): the browser asks for the page while this
+      // worker is still waking, rather than once it is awake. Where a browser
+      // has no such thing, pages are fetched as before.
+      .then(() => self.registration.navigationPreload && self.registration.navigationPreload.enable().catch(() => {}))
       .then(() => self.clients.claim())
   );
 });
@@ -42,14 +46,18 @@ self.addEventListener("fetch", (event) => {
     // the last open after two seconds, rather than a blank screen for as
     // long as the network takes (6 Oct). The network's answer still replaces
     // the kept page for next time. A kept page asking for a file a later
-    // release removed reloads itself (src/main.tsx, vite:preloadError).
-    const network = fetch(req).then((res) => {
-      if (res.ok) {
-        const copy = res.clone();
-        caches.open(SHELL).then((c) => c.put("/", copy));
-      }
-      return res;
-    });
+    // release removed reloads itself (src/main.tsx, vite:preloadError). The
+    // network's answer is the one the browser asked for while this woke up.
+    const network = Promise.resolve(event.preloadResponse)
+      .catch(() => undefined)
+      .then((pre) => pre || fetch(req))
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(SHELL).then((c) => c.put("/", copy));
+        }
+        return res;
+      });
     const kept = new Promise((resolve) => setTimeout(resolve, 2000)).then(() => caches.match("/"));
     event.respondWith(
       Promise.race([network.catch(() => kept), kept.then((hit) => hit || network)])

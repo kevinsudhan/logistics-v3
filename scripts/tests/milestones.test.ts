@@ -116,7 +116,7 @@ const ev: Evidence = {
 };
 is("picked up when the last pickup was", suggestionFor("picked_up", ev), { on: "2026-09-24", time: "12:30", location: "", note: "12 pieces collected.", from: "Pickup & delivery" });
 is("the first receipt, with the totals", suggestionFor("received", ev), { on: "2026-09-24", time: "16:40", location: "Chennai CFS", note: "12 pieces, 480 kg received.", from: "Warehouse receipt WR-00001" });
-is("the LEO date", suggestionFor("export_customs", ev), { on: "2026-09-26", time: null, location: "", note: "", from: "Customs tab (LEO)" });
+is("the LEO date", suggestionFor("export_customs", ev), { on: "2026-09-26", time: null, location: "", note: "", from: "Customs record (LEO)" });
 is("no out-of-charge yet", suggestionFor("import_customs", ev), null);
 is("a delivery still open offers nothing", suggestionFor("delivered", ev), null);
 is("the carrier's sailing, not the dismissed one", suggestionFor("departed", ev), { on: "2026-09-27", time: "14:30", location: "Chennai", note: "", from: "Hapag-Lloyd" });

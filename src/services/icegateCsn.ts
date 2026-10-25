@@ -3,9 +3,14 @@ import { COMPANY } from "../lib/company";
 import { formatDate } from "../lib/dates";
 import { draftFor, mergeDraft, type BillData, type CsnDraft, type CsnEvent, type CsnSettings, type CsnSource } from "../lib/icegateCsn";
 import type { CsnReply } from "../lib/icegateReply";
+import { findPlace } from "../lib/geo";
 import { shipmentsOn, updateConsole, type Console } from "./consoles";
 import { customsFor, startCustoms, updateCustoms } from "./customs";
+import { updateShipment, type Shipment } from "./enquiries";
+import { getHbl } from "./hbl";
 import { listPartners } from "./partners";
+import { getReceivedHbl } from "./receivedHbl";
+import { extraPartiesFor } from "./shipmentExtras";
 
 /**
  * The CSN for ICEGATE, from a console (097, 098): the desk's ICEGATE identity,
@@ -13,7 +18,15 @@ import { listPartners } from "./partners";
  * issued it. An import console files on entry (SCE), an export console on exit
  * (SCX). The file itself is lib/icegateCsn.ts; ICEGATE's reply to it,
  * lib/icegateReply.ts (100).
+ *
+ * Or from a job on no console (143): the desk's own master B/L with this one
+ * house under it, filed from the job's IGM page. Whatever is filed for —
+ * the `CsnSubject` — the form, the numbered files, the reply and the CSN
+ * number recorded go the same way; only where they are kept differs.
  */
+
+/** What a CSN is filed for: a console of house B/Ls, or one job filed on its own (143). */
+export type CsnSubject = { kind: "console"; console: Console } | { kind: "shipment"; shipment: Shipment };
 
 /** The event a console files: imports on entry, exports on exit; a cross-trade box files neither. */
 export const csnEventFor = (c: Pick<Console, "direction">): CsnEvent | null => (c.direction === "import" ? "SCE" : c.direction === "export" ? "SCX" : null);
@@ -121,16 +134,141 @@ export async function saveCsnDraft(consoleId: string, draft: CsnDraft): Promise<
   await updateConsole(consoleId, { csn_draft: draft });
 }
 
+/** The event a subject files: a console's by its direction; a job's by its own, an import unless it is an export. */
+export const subjectEvent = (subject: CsnSubject): CsnEvent =>
+  subject.kind === "console" ? csnEventFor(subject.console) ?? "SCE" : subject.shipment.trade_direction === "export" ? "SCX" : "SCE";
+
+/** The form, as far as the CRM can fill it, with what was saved last time on top. */
+export const csnDraftForSubject = (subject: CsnSubject, settings: CsnSettings) =>
+  subject.kind === "console" ? csnDraftFor(subject.console, settings) : csnDraftForShipment(subject.shipment, settings);
+
+export const saveSubjectDraft = (subject: CsnSubject, draft: CsnDraft) =>
+  subject.kind === "console" ? saveCsnDraft(subject.console.id, draft) : updateShipment(subject.shipment.id, { csn_draft: draft }).then(() => undefined);
+
+/** The customs station code for an Indian sea port: INMAA → INMAA1, as Customs and its samples write it. */
+const indianSeaPort = (code: string) => (/^IN[A-Z]{3}$/.test(code) ? `${code}1` : code);
+/** A port's code from the job's spelling of it: its UN/LOCODE (lib/geo), or nothing for the desk to type. */
+const portCode = (text: string | null | undefined) => findPlace(text, "sea_fcl")?.codes.find((c) => /^[A-Z]{5}$/.test(c)) ?? "";
+const lines = (...parts: Array<string | null | undefined>) => parts.map((x) => (x ?? "").trim()).filter(Boolean).join("\n");
+const numText = (n: number | null | undefined) => (n == null ? "" : String(n));
+
+/**
+ * A job filed on its own (143): its master B/L, and itself the one house under
+ * it. Read as a console of one is (`csnDraftFor`): the house B/L it travels
+ * under (the agent's, as read in, or ours), its customs record (the CFS on an
+ * import, the shipping bill on an export), its customer, its boxes, the agent at
+ * the other end; and where no B/L says a thing, the job's own particulars — so
+ * a job with no B/L read in yet still fills the form. The ports are found from
+ * the job's spelling of them; an Indian port is its customs station (INMAA1).
+ */
+export async function csnDraftForShipment(s: Shipment, settings: CsnSettings): Promise<CsnDraft> {
+  const event: CsnEvent = s.trade_direction === "export" ? "SCX" : "SCE";
+  const exp = event === "SCX";
+  const [received, ours, customs, boxes, customer, parties] = await Promise.all([
+    getReceivedHbl(s.id).catch(() => null),
+    getHbl(s.id).catch(() => null),
+    customsFor(s.id).catch(() => []),
+    supabase.from("shipment_containers").select(BOX).eq("shipment_id", s.id),
+    s.customer_id
+      ? supabase.from("customers").select("id, name, company, iec, pan, billing_address, billing_city, billing_state, billing_pincode, billing_country").eq("id", s.customer_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    extraPartiesFor(s.id).catch(() => []),
+  ]);
+  if (boxes.error) throw new Error(boxes.error.message);
+
+  const bill = s.bl_type === "forwarder" ? received ?? ours : ours ?? received;
+  const data = (bill?.data ?? {}) as Partial<BillData>;
+  const importRecord = customs.find((r) => r.side === "import");
+  const exportRecord = customs.find((r) => r.side === "export");
+  const cu = customer.data as Customer | null;
+  const agentParty = parties.find((p) => p.role === (exp ? "destination_agent" : "origin_agent"));
+
+  const polName = data.port_of_loading || s.port_of_loading || s.origin || "";
+  const podName = data.port_of_discharge || s.port_of_discharge || s.destination || "";
+  const polCode = portCode(polName);
+  const podCode = portCode(podName);
+  const house = s.bl_type === "forwarder" && s.forwarders_bl_no ? s.forwarders_bl_no : s.bl_number;
+
+  const src: CsnSource = {
+    console: {
+      mbl_number: s.mainline_no,
+      mbl_date: s.mainline_date ?? null,
+      pol: polName,
+      pol_code: exp ? indianSeaPort(polCode) : polCode,
+      pod: podName,
+      pod_code: exp ? podCode : indianSeaPort(podCode),
+      place_of_delivery: data.place_of_delivery || s.destination || "",
+      delivery_code: "",
+    },
+    jobs: [
+      {
+        id: s.id,
+        ref: s.enquiry_ref || s.id,
+        bill: bill ? { hbl_no: bill.hbl_no, data } : null,
+        cfs_code: importRecord?.cfs_code ?? "",
+        containers: (boxes.data ?? []) as Box[],
+        customer: cu
+          ? { name: cu.company || cu.name, iec: cu.iec, pan: cu.pan, address: cu.billing_address, city: cu.billing_city, state: cu.billing_state, pincode: cu.billing_pincode, country: cu.billing_country }
+          : null,
+        sb: exportRecord ? { number: exportRecord.sb_number, date: exportRecord.sb_date } : null,
+        fallback: {
+          hbl_no: house ?? "",
+          shipper_name: s.shipper_name ?? "",
+          shipper_address: lines(s.shipper_address, [s.shipper_city, s.shipper_pincode].filter(Boolean).join(" "), s.shipper_country),
+          consignee_name: s.consignee_name ?? "",
+          consignee_address: lines(s.consignee_address, [s.consignee_city, s.consignee_state, s.consignee_pincode].filter(Boolean).join(" "), s.consignee_country),
+          consignee_iec: s.consignee_iec || s.consignee_pan || "",
+          notify_name: s.notify_name ?? "",
+          notify_address: lines(s.notify_address, [s.notify_city, s.notify_state, s.notify_pincode].filter(Boolean).join(" "), s.notify_country),
+          port_of_loading: s.port_of_loading ?? "",
+          port_of_discharge: s.port_of_discharge ?? "",
+          place_of_delivery: s.destination ?? "",
+          marks_numbers: s.marks_and_numbers ?? "",
+          packages: numText(s.package_count),
+          package_type: s.package_type ?? "",
+          description: s.cargo ?? "",
+          hs_code: s.hs_code ?? "",
+          gross_weight_kg: numText(s.gross_weight_kg),
+          measurement_cbm: numText(s.volume_cbm),
+          date_of_issue: s.bl_date ?? "",
+        },
+      },
+    ],
+    containers: (boxes.data ?? []) as Box[],
+    agent: agentParty?.name ? { name: agentParty.name, address: lines(agentParty.address, agentParty.city, agentParty.country) } : null,
+    desk: { name: COMPANY.legalName.toUpperCase(), address: COMPANY.address.join("\n") + "\nIndia", pan: settings.pan, postal: COMPANY.postal },
+  };
+  const fresh = draftFor(src, settings, event);
+  // What the job already says of the call: its vessel's IMO, the line carrying it.
+  fresh.vesselImo = (s.vessel_imo ?? "").replace(/\D/g, "");
+  if (s.carrier) fresh.shippingLine = { name: s.carrier.toUpperCase(), code: "" };
+  const draft = mergeDraft(s.csn_draft as CsnDraft | null, fresh);
+  // The IGM line is the job's (its import customs record, kept on the IGM page): not typed twice.
+  if (importRecord?.igm_item?.trim()) draft.lineNo = importRecord.igm_item.trim();
+  return draft;
+}
+
 /**
  * A job number from ICEGATE's sequence for this sender, and the file's name.
  * `filed` is the form as ICEGATE will hold it once this file is accepted
  * (`asFiled`), kept on the file's row (099) for the next amendment to compare with.
  */
-export async function newCsnFile(consoleId: string, event: CsnEvent | "SCA", houses: number, indicator: "P" | "T", filed: CsnDraft): Promise<{ job_no: number; file_name: string; date: string; time: string }> {
-  const { data, error } = await supabase.rpc("csn_file_new", { p_console: consoleId, p_event: event, p_indicator: indicator, p_houses: houses, p_draft: filed });
+export async function newCsnFile(subject: CsnSubject, event: CsnEvent | "SCA", houses: number, indicator: "P" | "T", filed: CsnDraft): Promise<{ job_no: number; file_name: string; date: string; time: string }> {
+  const { data, error } = await supabase.rpc("csn_file_new", {
+    p_console: subject.kind === "console" ? subject.console.id : null,
+    p_shipment: subject.kind === "shipment" ? subject.shipment.id : null,
+    p_event: event,
+    p_indicator: indicator,
+    p_houses: houses,
+    p_draft: filed,
+  });
   if (error) throw new Error(error.message);
   return data as { job_no: number; file_name: string; date: string; time: string };
 }
+
+/** The column a subject's files are kept under, and its id. */
+const owner = (subject: CsnSubject): [string, string] =>
+  subject.kind === "console" ? ["console_id", subject.console.id] : ["shipment_id", subject.shipment.id];
 
 export type ReplyStatus = "accepted" | "rejected" | "failed";
 
@@ -149,13 +287,13 @@ export interface CsnFileRow {
   replied_at: string | null;
 }
 
-const FILE_COLS = "job_no, console_id, event, file_name, indicator, houses, created_at, draft, reply_status, reply, replied_at";
+const FILE_COLS = "job_no, console_id, shipment_id, event, file_name, indicator, houses, created_at, draft, reply_status, reply, replied_at";
 
-export async function csnFilesFor(consoleId: string): Promise<CsnFileRow[]> {
+export async function csnFilesFor(subject: CsnSubject): Promise<CsnFileRow[]> {
   const { data, error } = await supabase
     .from("csn_files")
     .select(FILE_COLS)
-    .eq("console_id", consoleId)
+    .eq(...owner(subject))
     .order("created_at", { ascending: false })
     .limit(10);
   if (error) throw new Error(error.message);
@@ -168,11 +306,11 @@ export async function csnFilesFor(consoleId: string): Promise<CsnFileRow[]> {
  * that ICEGATE did not reject (a reply awaited counts as accepted, 100).
  * Null when no live file was made since the CRM started keeping them (099).
  */
-export async function filedDraftFor(consoleId: string): Promise<CsnDraft | null> {
+export async function filedDraftFor(subject: CsnSubject): Promise<CsnDraft | null> {
   const { data, error } = await supabase
     .from("csn_files")
     .select("draft")
-    .eq("console_id", consoleId)
+    .eq(...owner(subject))
     .eq("indicator", "P")
     .not("draft", "is", null)
     .or("reply_status.is.null,reply_status.eq.accepted")
@@ -200,19 +338,24 @@ export interface ReplyOutcome {
  * kept and nothing else: a test filing is not a CSN.
  *
  * Refused when the reply is not for this desk, not for a file made in the
- * CRM, or for a file made on another console.
+ * CRM, or for a file made for another console or job.
  */
-export async function applyCsnReply(c: Console, reply: CsnReply, settings: CsnSettings): Promise<ReplyOutcome> {
+export async function applyCsnReply(subject: CsnSubject, reply: CsnReply, settings: CsnSettings): Promise<ReplyOutcome> {
   if (!reply.jobNo) throw new Error("The reply does not say which file it answers: it has no job number.");
   const desk = settings.icegate_id.trim().toUpperCase();
   if (reply.sender && desk && reply.sender !== desk) throw new Error(`That reply is for sender ${reply.sender}, not this desk (${desk}).`);
   const { data, error } = await supabase.from("csn_files").select(FILE_COLS).eq("job_no", reply.jobNo).maybeSingle();
   if (error) throw new Error(error.message);
-  const file = data as (CsnFileRow & { console_id: string | null }) | null;
+  const file = data as (CsnFileRow & { console_id: string | null; shipment_id: string | null }) | null;
   if (!file) throw new Error(`No CSN file with job number ${reply.jobNo} was made in the CRM. Is this the reply to a file made elsewhere?`);
-  if (file.console_id !== c.id) {
-    const other = file.console_id ? (await supabase.from("consoles").select("console_no").eq("id", file.console_id).maybeSingle()).data : null;
-    throw new Error(`That reply answers job ${file.job_no} (${file.file_name}), made on ${other?.console_no ? `console ${other.console_no}` : "another console"}. Read it in there.`);
+  const [col, id] = owner(subject);
+  if ((col === "console_id" ? file.console_id : file.shipment_id) !== id) {
+    const other = file.console_id
+      ? `console ${(await supabase.from("consoles").select("console_no").eq("id", file.console_id).maybeSingle()).data?.console_no ?? ""}`.trim()
+      : file.shipment_id
+        ? `job ${(await supabase.from("shipments").select("enquiry_ref").eq("id", file.shipment_id).maybeSingle()).data?.enquiry_ref ?? file.shipment_id}`
+        : "another console or job";
+    throw new Error(`That reply answers job no. ${file.job_no} (${file.file_name}), made for ${other}. Read it in there.`);
   }
   if (["SCE", "SCX", "SCA"].includes(reply.event) && reply.event !== file.event) {
     throw new Error(`That reply is for an ${reply.event} file, but job ${file.job_no} is an ${file.event}.`);
@@ -228,14 +371,17 @@ export async function applyCsnReply(c: Console, reply: CsnReply, settings: CsnSe
   if (status === "accepted" && file.indicator === "P") {
     if (file.event !== "SCA" && reply.csnNo) {
       const date = reply.csnDate || reply.date;
-      await recordCsn(c, reply.csnNo, date);
-      recorded.push(`CSN ${reply.csnNo}${date ? ` of ${formatDate(date, { day: "numeric", month: "short", year: "numeric" })}` : ""}, on the console and every job`);
+      await recordSubjectCsn(subject, reply.csnNo, date);
+      const where = subject.kind === "console" ? "on the console and every job" : "on the job";
+      recorded.push(`CSN ${reply.csnNo}${date ? ` of ${formatDate(date, { day: "numeric", month: "short", year: "numeric" })}` : ""}, ${where}`);
     }
-    if (reply.masterCin) {
-      await updateConsole(c.id, { cin_type: reply.masterCin.type, cargo_identification_no: reply.masterCin.no });
+    if (reply.masterCin && subject.kind === "console") {
+      await updateConsole(subject.console.id, { cin_type: reply.masterCin.type, cargo_identification_no: reply.masterCin.no });
       recorded.push(`the master line's ${reply.masterCin.type || "CIN"} ${reply.masterCin.no}, on the console`);
+    } else if (reply.masterCin) {
+      notes.push(`The master line got ${reply.masterCin.type || "CIN"} ${reply.masterCin.no}: the job keeps its house's, so note the master's by hand.`);
     }
-    const side = csnEventFor(c) === "SCX" ? "export" : "import";
+    const side = subjectEvent(subject) === "SCX" ? "export" : "import";
     for (const hc of reply.houseCins) {
       const h = file.draft?.houses.find((x, i) => (x.subLine ?? i + 1) === hc.subLine);
       if (!h) {
@@ -252,6 +398,18 @@ export async function applyCsnReply(c: Console, reply: CsnReply, settings: CsnSe
     }
   }
   return { file: { ...file, reply_status: status, reply, replied_at: new Date().toISOString() }, status, recorded, notes };
+}
+
+/** The CSN number ICEGATE issued, where the subject keeps it: a console's on it and every job; a job's on its customs record. */
+export async function recordSubjectCsn(subject: CsnSubject, csnNo: string, csnDate: string): Promise<void> {
+  if (subject.kind === "console") {
+    await recordCsn(subject.console, csnNo, csnDate);
+    return;
+  }
+  const side = subjectEvent(subject) === "SCX" ? "export" : "import";
+  const id = subject.shipment.id;
+  const record = (await customsFor(id)).find((r) => r.side === side) ?? (await startCustoms(id, side));
+  await updateCustoms(record.id, { csn_no: csnNo.trim(), csn_filed_on: csnDate || null });
 }
 
 /**
